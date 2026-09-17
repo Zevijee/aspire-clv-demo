@@ -1,0 +1,92 @@
+name: aspire
+
+x-backend: &backend
+  image: aspire-backend:local
+  build:
+    context: ./backend
+    target: runtime
+  init: true
+  restart: "no"
+  environment: &backend-environment
+    # Keep Docker's configuration separate from the host's DATABASE_URL/.env.
+    DATABASE_HOST: db
+    DATABASE_PORT: "5432"
+    DATABASE_NAME: ${POSTGRES_DB:-aspire_analytics}
+    DATABASE_USER: ${POSTGRES_USER:-aspire}
+    DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Copy .env.docker.example to .env.docker and set POSTGRES_PASSWORD}
+    ENVIRONMENT: ${APP_ENVIRONMENT:-development}
+    DEMO_INSTANCE_ID: ${DOCKER_DEMO_INSTANCE_ID:-aspire-docker}
+    REPORTING_TIMEZONE: ${REPORTING_TIMEZONE:-America/New_York}
+    CORS_ORIGINS: http://localhost:${APP_PORT:-5173},http://127.0.0.1:${APP_PORT:-5173}
+  depends_on:
+    db:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:17-bookworm
+    restart: "no"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aspire_analytics}
+      POSTGRES_USER: ${POSTGRES_USER:-aspire}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copy .env.docker.example to .env.docker and set POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    stop_grace_period: 30s
+
+  api:
+    <<: *backend
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    stop_grace_period: 30s
+
+  frontend:
+    image: aspire-frontend:local
+    build:
+      context: ./frontend
+      target: runtime
+    init: true
+    restart: "no"
+    ports:
+      - "127.0.0.1:${APP_PORT:-5173}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 5s
+
+  # Explicit one-off jobs; ordinary `up` neither migrates nor seeds.
+  migrate:
+    <<: *backend
+    profiles: ["tools"]
+    entrypoint: ["python", "-m", "data.migrations"]
+    command: ["upgrade", "--preview"]
+
+  seed:
+    <<: *backend
+    profiles: ["tools"]
+    entrypoint: ["python", "-m", "seeding"]
+    command: ["preview"]
+
+  reporting:
+    <<: *backend
+    profiles: ["tools"]
+    entrypoint: ["python", "-m", "reporting"]
+    command: ["--help"]
+
+volumes:
+  postgres_data:

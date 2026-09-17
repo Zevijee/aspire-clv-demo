@@ -1,0 +1,53 @@
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+!.env.docker.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+*.egg
+.eggs/
+/backend/build/
+/backend/dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+
+# Node.js
+node_modules/
+/frontend/dist/
+/frontend/dist-ssr/
+.vite/
+*.tsbuildinfo
+coverage/
+
+# Local database and tooling
+*.log
+*.log.*
+pgdata/
+backups/
+/output/
+
+# OS and personal editor files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+
+# Keep source, migrations, Docker/Compose configuration, package manifests,
+# package-lock.json and the explicit .env templates above in version control.
+

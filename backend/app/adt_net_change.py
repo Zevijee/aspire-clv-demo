@@ -1,0 +1,5 @@
+"""Compatibility imports; implementation lives in api routes/services/queries."""
+
+from api.queries.adt_net_change import *  # noqa: F401,F403
+from api.services.adt_net_change import *  # noqa: F401,F403
+from api.routes.adt_net_change import router

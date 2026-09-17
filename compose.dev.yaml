@@ -1,0 +1,41 @@
+# Add this file for live source edits. Use the same pair for start/stop commands.
+services:
+  api:
+    volumes:
+      - ./backend:/app/backend
+    environment:
+      # The host .env is never mounted. Docker uses the service database above.
+      WATCHFILES_FORCE_POLLING: ${DEV_WATCH_POLLING:-true}
+    command: ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app/backend/api", "--reload-dir", "/app/backend/common", "--reload-dir", "/app/backend/data", "--reload-dir", "/app/backend/domain", "--reload-dir", "/app/backend/reporting"]
+
+  frontend:
+    image: aspire-frontend-dev:local
+    build:
+      target: development
+    environment:
+      VITE_API_BASE_URL: ""
+      API_PROXY_TARGET: http://api:8000
+      WATCH_POLLING: ${DEV_WATCH_POLLING:-true}
+    volumes:
+      # Mount source/config explicitly so host dependencies never mask container dependencies.
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/tsconfig.app.json:/app/tsconfig.app.json
+      - ./frontend/tsconfig.node.json:/app/tsconfig.node.json
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+
+  migrate:
+    volumes:
+      - ./backend:/app/backend
+
+  seed:
+    volumes:
+      - ./backend:/app/backend
+
+  reporting:
+    volumes:
+      - ./backend:/app/backend
