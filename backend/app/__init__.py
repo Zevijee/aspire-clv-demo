@@ -1,2 +1,1 @@
-"""Aspire analytics API package."""
-
+"""Application composition; feature routers are registered in main.py."""

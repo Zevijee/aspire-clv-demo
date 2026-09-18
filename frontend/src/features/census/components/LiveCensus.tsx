@@ -83,12 +83,13 @@ export function LiveCensus() {
       ...path.map((name, index) => ({ id: JSON.stringify(path.slice(0, index + 1)), label: name,
         onSelect: () => setPath(path.slice(0, index + 1)) })),
     ]} level={{ current: depth + 1, total: 4, label: levels[depth] }} />
-    <DrilldownTable title={`${levels[depth]} census`} columns={columns} rows={[...groups.values()]}
+    <DrilldownTable<Row> title={`${levels[depth]} census`} columns={columns} rows={[...groups.values()]}
       getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
       loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}
       getFooterRow={rows => ({ key: 'total', name: 'Total', path: [], isTotal: true,
         facilities: rows.flatMap(row => row.facilities) })}
-      subtitle={data ? `Today: ${data.as_of}. Previous month: ${data.previous_month.slice(0, 7)}. Variance = today's census minus previous-month average. Empty beds exclude bed holds.${data.available_through < data.as_of ? ` Census data is only available through ${data.available_through}; today's counts are unavailable.` : ''}` : undefined}
+      subtitle={data ? `Today: ${data.as_of}. Previous month: ${data.previous_month.slice(0, 7)}. Variance = today's census minus previous-month average. Empty beds exclude bed holds.${data.available_through < data.as_of ? ` Census data is only available through ${data.available_through}; today's counts are unavailable.` : ''}` : ''}
+      emptyMessage="No facilities match this view."
       csvFileName={`live-census-${data?.as_of ?? 'today'}.csv`} />
   </>
 }

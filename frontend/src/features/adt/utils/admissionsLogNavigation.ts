@@ -1,3 +1,4 @@
+import { payerLabel } from '../api/admissionsOverview'
 import { getDrilldownRowScope, type DrilldownRow, type DrilldownScope } from './admissionsDrilldown'
 
 export function getAdmissionLogsParams(
@@ -57,11 +58,11 @@ export function getHospitalAdmissionLogsParams(
 export function getAdmissionLogsFilters(params: URLSearchParams): Record<string, string[]> {
   const filters: Record<string, string[]> = {}
   if (params.get('logs_readmission') === 'true') filters.readmission = ['Yes']
-  for (const key of ['state', 'portfolio', 'region', 'facility', 'payer', 'source-type', 'admission-source']) {
+  for (const key of ['state', 'portfolio', 'region', 'facility', 'facility-id', 'payer', 'source-type', 'admission-source']) {
     const values = params.getAll(`logs_${key}`)
     if (values.length) {
       filters[key] = key === 'payer'
-        ? values.map((value) => value === 'Medicare Advantage' ? 'Commercial Medicare' : value)
+        ? values.map(payerLabel)
         : values
     }
   }

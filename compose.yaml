@@ -1,53 +1,82 @@
 name: aspire
 
-x-backend: &backend
+# Ordinary `up` starts the database, API and frontend. It never migrates, seeds or
+# restores: data work is explicit, under the tools profile, so nobody loses a
+# database to a stray command.
+
+x-python: &python
   image: aspire-backend:local
   build:
-    context: ./backend
+    context: .
     target: runtime
   init: true
   restart: "no"
-  environment: &backend-environment
-    # Keep Docker's configuration separate from the host's DATABASE_URL/.env.
-    DATABASE_HOST: db
-    DATABASE_PORT: "5432"
-    DATABASE_NAME: ${POSTGRES_DB:-aspire_analytics}
-    DATABASE_USER: ${POSTGRES_USER:-aspire}
-    DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Copy .env.docker.example to .env.docker and set POSTGRES_PASSWORD}
-    ENVIRONMENT: ${APP_ENVIRONMENT:-development}
-    DEMO_INSTANCE_ID: ${DOCKER_DEMO_INSTANCE_ID:-aspire-docker}
-    REPORTING_TIMEZONE: ${REPORTING_TIMEZONE:-America/New_York}
-    CORS_ORIGINS: http://localhost:${APP_PORT:-5173},http://127.0.0.1:${APP_PORT:-5173}
+  environment: &python-environment
+    # Compose owns this connection string. The host's root .env is left alone, and
+    # the image contains no .env at all.
+    DATABASE_URL: postgresql://${POSTGRES_USER:-aspire}:${POSTGRES_PASSWORD:?Copy .env.docker.example to .env.docker and set POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-aspire_analytics}
+    API_TIMEZONE: ${REPORTING_TIMEZONE:-America/New_York}
+    # Browsers reach the API through the frontend's own origin, so this only
+    # matters when calling the published API port directly.
+    API_CORS_ORIGINS: '["http://localhost:${APP_PORT:-5173}","http://127.0.0.1:${APP_PORT:-5173}"]'
+  depends_on:
+    db:
+      condition: service_healthy
+
+x-postgres-tool: &postgres-tool
+  image: postgres:18-bookworm
+  profiles: ["tools"]
+  init: true
+  restart: "no"
+  environment:
+    PGHOST: db
+    PGUSER: ${POSTGRES_USER:-aspire}
+    PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
+    PGDATABASE: ${POSTGRES_DB:-aspire_analytics}
+  volumes:
+    - ./docker/initdb:/snapshot
   depends_on:
     db:
       condition: service_healthy
 
 services:
   db:
-    image: postgres:17-bookworm
+    image: postgres:18-bookworm
     restart: "no"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-aspire_analytics}
       POSTGRES_USER: ${POSTGRES_USER:-aspire}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copy .env.docker.example to .env.docker and set POSTGRES_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Postgres 18+ keeps data in a major-version subdirectory, so the volume
+      # mounts one level up. Mounting .../data instead makes the image refuse to
+      # start rather than risk an unmigrated upgrade.
+      - postgres_data:/var/lib/postgresql
+      # Anything in docker/initdb runs once, on an empty volume only. Drop a
+      # snapshot there and a new checkout starts with data instead of seeding.
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      # -h 127.0.0.1 forces TCP on purpose. While the entrypoint loads anything in
+      # docker-entrypoint-initdb.d it runs a temporary server with listen_addresses
+      # empty, so a socket probe reports healthy before a snapshot has finished
+      # restoring and dependants start against an empty database.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 5s
       timeout: 5s
-      retries: 12
-      start_period: 10s
+      # Generous: a first start restores the whole snapshot before it answers.
+      retries: 120
+      start_period: 30s
     stop_grace_period: 30s
 
   api:
-    <<: *backend
+    <<: *python
+    command: ["python", "backend/manage.py", "serve", "--host", "0.0.0.0"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 6
-      start_period: 10s
+      start_period: 15s
     stop_grace_period: 30s
 
   frontend:
@@ -69,24 +98,40 @@ services:
       retries: 6
       start_period: 5s
 
-  # Explicit one-off jobs; ordinary `up` neither migrates nor seeds.
-  migrate:
-    <<: *backend
-    profiles: ["tools"]
-    entrypoint: ["python", "-m", "data.migrations"]
-    command: ["upgrade", "--preview"]
+  # ---- Explicit one-off jobs: docker compose run --rm <name> ----
 
-  seed:
-    <<: *backend
+  # Migrate, then generate any days that are missing. Safe to repeat.
+  update:
+    <<: *python
     profiles: ["tools"]
-    entrypoint: ["python", "-m", "seeding"]
-    command: ["preview"]
+    working_dir: /app/sandbox-data
+    command: ["python", "manage.py", "update"]
 
-  reporting:
-    <<: *backend
+  # Drop every table and rebuild from 2023-01-01. Takes several minutes.
+  reset:
+    <<: *python
     profiles: ["tools"]
-    entrypoint: ["python", "-m", "reporting"]
-    command: ["--help"]
+    working_dir: /app/sandbox-data
+    command: ["python", "manage.py", "seed", "--reset-history"]
+
+  status:
+    <<: *python
+    profiles: ["tools"]
+    working_dir: /app/sandbox-data
+    command: ["python", "manage.py", "status"]
+
+  # Write docker/initdb/aspire.sql.gz. Postgres restores that format itself on a
+  # first start, so a teammate needs no pg_restore and no extra step.
+  dump:
+    <<: *postgres-tool
+    # --clean --if-exists lets the same file restore over a populated database as
+    # well as seed an empty one; the drops are harmless on a fresh volume.
+    command: ["sh", "-c", "pg_dump --no-owner --no-privileges --clean --if-exists | gzip -6 > /snapshot/aspire.sql.gz && ls -lh /snapshot/aspire.sql.gz"]
+
+  # Load that snapshot into a database that already exists, replacing its contents.
+  restore:
+    <<: *postgres-tool
+    command: ["sh", "-c", "gunzip -c /snapshot/aspire.sql.gz | psql --quiet --set ON_ERROR_STOP=1"]
 
 volumes:
   postgres_data:

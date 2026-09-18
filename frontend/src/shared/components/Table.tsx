@@ -68,6 +68,7 @@ export type TableProps<Row> = DataStateProps & {
   showExport?: boolean
   showRowCount?: boolean
   getExportRows?: () => Promise<Row[]>
+  onExport?: () => Promise<void>
   emptyMessage: string
   footer?: ReactNode
   getFooterRow?: (visibleRows: Row[]) => Row | null
@@ -329,6 +330,7 @@ export function Table<Row>({
   showExport = true,
   showRowCount = true,
   getExportRows,
+  onExport,
   emptyMessage,
   filterSource,
   footer,
@@ -634,8 +636,12 @@ export function Table<Row>({
         setExporting(true)
         setExportError(null)
         try {
-          const exportRows = getExportRows ? await getExportRows() : sortedRows
-          downloadCsv(exportFileName, columns, exportRows)
+          if (onExport) {
+            await onExport()
+          } else {
+            const exportRows = getExportRows ? await getExportRows() : sortedRows
+            downloadCsv(exportFileName, columns, exportRows)
+          }
         } catch {
           setExportError('CSV export failed. Please try again.')
         } finally {

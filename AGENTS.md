@@ -13,18 +13,6 @@
 - Reuse shared components and tokens. Fix shared behavior in its owning component rather than creating report-specific copies or CSS workarounds.
 - Preserve UI choices outside the requested change; verify dated implementation descriptions against code. The no-tests rule below also applies to frontend work.
 
-## Backend and seeding architecture
-
-- Before changing backend structure, database models/migrations, report APIs, reporting calculations, seeders, or ingestion, read [instructions.md](instructions.md).
-- It defines separate API and seeding packages, shared source/reporting ownership, incremental report development, and targeted updates instead of routine full reseeds.
-- The schema and optimization documents it references are review proposals, not authorization to execute migrations, seeders, or a full refactor.
-
-## Seed history
-
-- Every date-based seeder must use the shared `SeedWindow`: start on the first day of the month 36 months before the as-of date, and end on the as-of date, inclusive.
-- Preserve all 36 complete months plus the current month to date. Never start on the same day-of-month three years ago or approximate the range with a fixed day count; partial first months skew report averages.
-- Keep related date-based datasets aligned to this shared window, including known zero-activity days. Admissions, discharges, census, and payer changes are examples, not the complete list.
-
 ## Tests
 
 - Do not write, add, modify, or run tests unless the user explicitly requests it.

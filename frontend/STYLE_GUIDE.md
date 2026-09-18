@@ -228,6 +228,9 @@ Use the shared `InfoDisclosure` component for inline explanations of KPIs, formu
 
 - Columns may supply `exportValue` when a status must be retained in CSV text (for example,
   an ongoing LOS). Keep `value` numeric when numeric sorting is needed.
+- Tables with a server CSV endpoint can supply `onExport` to download the complete
+  filtered result. The shared table owns the busy/error state; ordinary tables
+  continue to use local CSV export or `getExportRows`.
 
 - Enable the shared `Table` component's optional `searchable` prop when the table's workflow needs search. Its standard toolbar places a labeled search field beside Export to CSV. Search combines with existing column filters. Server-paginated tables must forward `TableQuery.search` through `onQueryChange` to their API, reset pagination when the query changes, and return a total count for all matching records. Choose search and export capabilities according to the report contract, not a fixed list of reports.
 - Left-align text and right-align numeric values.
@@ -241,13 +244,13 @@ Use the shared `InfoDisclosure` component for inline explanations of KPIs, formu
 - Column filter dependencies belong to the shared `Table`: options respect search and
   every other active column filter, while excluding their own selection to allow multi-select.
   Local tables calculate this from all rows. Server-side tables must provide `filterSource`
-  (registered source ID and date range); the shared table loads options through
-  `/api/v1/table-filter-options/{source}` and owns loading, cancellation, error, and Retry states.
+  (source ID and date range, plus an optional `endpoint`); the shared table owns
+  loading, cancellation, error, and Retry states. Feature APIs supply their own
+  endpoint; legacy callers default to `/api/v1/table-filter-options/{source}`.
   Do not supply report-specific option lists or calculate server options from a single page.
-  Register new server tables with declarative column mappings in the shared backend
-  table-filter registry. Its implementation pointer was `app/table_filters.py` when
-  recorded; locate the current API owner after backend refactors rather than recreating
-  this legacy path or placing runtime code in seeding.
+  Keep allowed column mappings and predicates with the owning backend feature,
+  shared by its page, filter-options, and export queries. Do not place runtime API
+  code in seeding.
   Preserve request cancellation, cascading, and stale-response behavior. Do not write or run tests unless explicitly requested, per `AGENTS.md`.
 - Use tabular numerals for numeric columns.
 - Keep headers visible when feasible for long, scrollable data.

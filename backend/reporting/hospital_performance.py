@@ -1,1 +1,0 @@
-from reporting.performance.hospitals import refresh_hospital_performance

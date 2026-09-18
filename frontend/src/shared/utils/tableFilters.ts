@@ -1,4 +1,5 @@
 export type TableFilterSource = {
+  endpoint?: string
   id: 'admissions' | 'discharges' | 'payer-changes' | 'net-change-logs'
   startDate: string
   endDate: string
@@ -36,5 +37,5 @@ export function otherTableFilters(filters: Record<string, string[]>, columnId: s
 export function tableFilterRequestKey(source: TableFilterSource, column: string,
   filters: Record<string, string[]>, search: string) {
   return JSON.stringify([source.id, source.startDate, source.endDate, column,
-    otherTableFilters(filters, column), search.trim()])
+    otherTableFilters(filters, column), search.trim(), source.endpoint])
 }

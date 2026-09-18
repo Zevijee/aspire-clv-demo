@@ -1,0 +1,1773 @@
+[
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Houston",
+    "facility": "Alder Grove",
+    "beds": 92
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Rio Grande",
+    "facility": "Alder Bend",
+    "beds": 136
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Hill Country",
+    "facility": "Alder Place",
+    "beds": 98
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Lubbock",
+    "facility": "Alder Lodge",
+    "beds": 122
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Denton",
+    "facility": "Alder Terrace",
+    "beds": 108
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "The Woodlands",
+    "facility": "Beacon Haven",
+    "beds": 122
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Corpus Christi",
+    "facility": "Beacon Grove",
+    "beds": 96
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Waco",
+    "facility": "Beacon Pointe",
+    "beds": 150
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Galveston",
+    "facility": "Beacon Terrace",
+    "beds": 112
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "The Woodlands",
+    "facility": "Brighton Harbor",
+    "beds": 136
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Corpus Christi",
+    "facility": "Brighton Crest",
+    "beds": 94
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Waco",
+    "facility": "Brighton View",
+    "beds": 120
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Amarillo",
+    "facility": "Brighton Bend",
+    "beds": 144
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Dallas",
+    "facility": "Brighton Place",
+    "beds": 106
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Houston",
+    "facility": "Brighton Lodge",
+    "beds": 130
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "San Antonio",
+    "facility": "Brighton Terrace",
+    "beds": 116
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Austin",
+    "facility": "Canyon Haven",
+    "beds": 130
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "El Paso",
+    "facility": "Canyon Grove",
+    "beds": 104
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Fort Worth",
+    "facility": "Canyon Pointe",
+    "beds": 158
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Galveston",
+    "facility": "Canyon Meadows",
+    "beds": 116
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Rio Grande",
+    "facility": "Canyon Harbor",
+    "beds": 140
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Hill Country",
+    "facility": "Canyon Crest",
+    "beds": 98
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Denton",
+    "facility": "Canyon Bend",
+    "beds": 148
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "The Woodlands",
+    "facility": "Canyon Place",
+    "beds": 110
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Corpus Christi",
+    "facility": "Canyon Lodge",
+    "beds": 134
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Waco",
+    "facility": "Canyon Terrace",
+    "beds": 120
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Amarillo",
+    "facility": "Cedar Haven",
+    "beds": 118
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Dallas",
+    "facility": "Cedar Grove",
+    "beds": 92
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Houston",
+    "facility": "Cedar Pointe",
+    "beds": 146
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "San Antonio",
+    "facility": "Cedar Meadows",
+    "beds": 104
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Austin",
+    "facility": "Cedar Harbor",
+    "beds": 128
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Fort Worth",
+    "facility": "Cedar View",
+    "beds": 112
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Galveston",
+    "facility": "Cedar Bend",
+    "beds": 136
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Rio Grande",
+    "facility": "Cedar Place",
+    "beds": 98
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Hill Country",
+    "facility": "Cedar Lodge",
+    "beds": 122
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Lubbock",
+    "facility": "Cedar Terrace",
+    "beds": 108
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Denton",
+    "facility": "Cypress Haven",
+    "beds": 122
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "The Woodlands",
+    "facility": "Cypress Grove",
+    "beds": 96
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Corpus Christi",
+    "facility": "Cypress Pointe",
+    "beds": 150
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Waco",
+    "facility": "Cypress Meadows",
+    "beds": 108
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Amarillo",
+    "facility": "Cypress Harbor",
+    "beds": 132
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Dallas",
+    "facility": "Cypress Crest",
+    "beds": 90
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Houston",
+    "facility": "Cypress View",
+    "beds": 116
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "San Antonio",
+    "facility": "Cypress Bend",
+    "beds": 140
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Austin",
+    "facility": "Cypress Place",
+    "beds": 102
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "El Paso",
+    "facility": "Cypress Lodge",
+    "beds": 126
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Fort Worth",
+    "facility": "Cypress Terrace",
+    "beds": 112
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Galveston",
+    "facility": "Elmwood Haven",
+    "beds": 126
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Hill Country",
+    "facility": "Elmwood Pointe",
+    "beds": 154
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Lubbock",
+    "facility": "Elmwood Meadows",
+    "beds": 112
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Denton",
+    "facility": "Elmwood Harbor",
+    "beds": 136
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "The Woodlands",
+    "facility": "Elmwood Crest",
+    "beds": 94
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Corpus Christi",
+    "facility": "Elmwood View",
+    "beds": 120
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Waco",
+    "facility": "Elmwood Bend",
+    "beds": 144
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Amarillo",
+    "facility": "Elmwood Place",
+    "beds": 106
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Dallas",
+    "facility": "Elmwood Lodge",
+    "beds": 130
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Houston",
+    "facility": "Elmwood Terrace",
+    "beds": 116
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "San Antonio",
+    "facility": "Fairview Haven",
+    "beds": 130
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Austin",
+    "facility": "Fairview Grove",
+    "beds": 104
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "El Paso",
+    "facility": "Fairview Pointe",
+    "beds": 158
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Fort Worth",
+    "facility": "Fairview Meadows",
+    "beds": 116
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Galveston",
+    "facility": "Fairview Harbor",
+    "beds": 140
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Rio Grande",
+    "facility": "Fairview Crest",
+    "beds": 98
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Hill Country",
+    "facility": "Fairview View",
+    "beds": 124
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Lubbock",
+    "facility": "Fairview Bend",
+    "beds": 148
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Denton",
+    "facility": "Fairview Place",
+    "beds": 110
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "The Woodlands",
+    "facility": "Fairview Lodge",
+    "beds": 134
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Corpus Christi",
+    "facility": "Fairview Terrace",
+    "beds": 120
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Waco",
+    "facility": "Foxbridge Haven",
+    "beds": 118
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Amarillo",
+    "facility": "Foxbridge Grove",
+    "beds": 92
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Dallas",
+    "facility": "Foxbridge Pointe",
+    "beds": 146
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Houston",
+    "facility": "Foxbridge Meadows",
+    "beds": 104
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "San Antonio",
+    "facility": "Foxbridge Harbor",
+    "beds": 128
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Austin",
+    "facility": "Foxbridge Crest",
+    "beds": 86
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "El Paso",
+    "facility": "Foxbridge View",
+    "beds": 112
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Fort Worth",
+    "facility": "Foxbridge Bend",
+    "beds": 136
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Galveston",
+    "facility": "Foxbridge Place",
+    "beds": 98
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Rio Grande",
+    "facility": "Foxbridge Lodge",
+    "beds": 122
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Fort Worth",
+    "facility": "Beacon Lodge",
+    "beds": 126
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Hill Country",
+    "facility": "Foxbridge Terrace",
+    "beds": 108
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Lubbock",
+    "facility": "Grandview Haven",
+    "beds": 122
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Denton",
+    "facility": "Grandview Grove",
+    "beds": 96
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "The Woodlands",
+    "facility": "Grandview Pointe",
+    "beds": 150
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Corpus Christi",
+    "facility": "Grandview Meadows",
+    "beds": 108
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Waco",
+    "facility": "Grandview Harbor",
+    "beds": 132
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Amarillo",
+    "facility": "Grandview Crest",
+    "beds": 90
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Dallas",
+    "facility": "Grandview View",
+    "beds": 116
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Houston",
+    "facility": "Grandview Bend",
+    "beds": 140
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "San Antonio",
+    "facility": "Grandview Place",
+    "beds": 102
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Austin",
+    "facility": "Grandview Lodge",
+    "beds": 126
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "El Paso",
+    "facility": "Grandview Terrace",
+    "beds": 112
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Fort Worth",
+    "facility": "Hawthorne Haven",
+    "beds": 126
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Galveston",
+    "facility": "Hawthorne Grove",
+    "beds": 100
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Rio Grande",
+    "facility": "Hawthorne Pointe",
+    "beds": 154
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Hill Country",
+    "facility": "Hawthorne Meadows",
+    "beds": 112
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Lubbock",
+    "facility": "Hawthorne Harbor",
+    "beds": 136
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Denton",
+    "facility": "Hawthorne Crest",
+    "beds": 94
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "The Woodlands",
+    "facility": "Hawthorne View",
+    "beds": 120
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Corpus Christi",
+    "facility": "Hawthorne Bend",
+    "beds": 144
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Waco",
+    "facility": "Hawthorne Place",
+    "beds": 106
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Amarillo",
+    "facility": "Hawthorne Lodge",
+    "beds": 130
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Dallas",
+    "facility": "Hawthorne Terrace",
+    "beds": 116
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Houston",
+    "facility": "Juniper Haven",
+    "beds": 130
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "San Antonio",
+    "facility": "Juniper Grove",
+    "beds": 104
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Austin",
+    "facility": "Juniper Pointe",
+    "beds": 158
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "El Paso",
+    "facility": "Juniper Meadows",
+    "beds": 116
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Fort Worth",
+    "facility": "Juniper Harbor",
+    "beds": 140
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Galveston",
+    "facility": "Juniper Crest",
+    "beds": 98
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Rio Grande",
+    "facility": "Juniper View",
+    "beds": 124
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Hill Country",
+    "facility": "Juniper Bend",
+    "beds": 148
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Lubbock",
+    "facility": "Juniper Place",
+    "beds": 110
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Denton",
+    "facility": "Juniper Lodge",
+    "beds": 134
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "The Woodlands",
+    "facility": "Juniper Terrace",
+    "beds": 120
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Corpus Christi",
+    "facility": "Lakewood Haven",
+    "beds": 118
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Waco",
+    "facility": "Lakewood Grove",
+    "beds": 92
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Amarillo",
+    "facility": "Lakewood Pointe",
+    "beds": 146
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Dallas",
+    "facility": "Lakewood Meadows",
+    "beds": 104
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Houston",
+    "facility": "Lakewood Harbor",
+    "beds": 128
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "San Antonio",
+    "facility": "Lakewood Crest",
+    "beds": 86
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Austin",
+    "facility": "Lakewood View",
+    "beds": 112
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "El Paso",
+    "facility": "Lakewood Bend",
+    "beds": 136
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Fort Worth",
+    "facility": "Lakewood Place",
+    "beds": 98
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Galveston",
+    "facility": "Lakewood Lodge",
+    "beds": 122
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Rio Grande",
+    "facility": "Lakewood Terrace",
+    "beds": 108
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Hill Country",
+    "facility": "Maplewood Haven",
+    "beds": 122
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Lubbock",
+    "facility": "Maplewood Grove",
+    "beds": 96
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Denton",
+    "facility": "Maplewood Pointe",
+    "beds": 150
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "The Woodlands",
+    "facility": "Maplewood Meadows",
+    "beds": 108
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Corpus Christi",
+    "facility": "Maplewood Harbor",
+    "beds": 132
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Waco",
+    "facility": "Maplewood Crest",
+    "beds": 90
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Amarillo",
+    "facility": "Maplewood View",
+    "beds": 116
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Dallas",
+    "facility": "Maplewood Bend",
+    "beds": 140
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Houston",
+    "facility": "Maplewood Place",
+    "beds": 102
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "San Antonio",
+    "facility": "Maplewood Lodge",
+    "beds": 126
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Austin",
+    "facility": "Maplewood Terrace",
+    "beds": 112
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "El Paso",
+    "facility": "Northfield Haven",
+    "beds": 126
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Fort Worth",
+    "facility": "Northfield Grove",
+    "beds": 100
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Galveston",
+    "facility": "Northfield Pointe",
+    "beds": 154
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Rio Grande",
+    "facility": "Northfield Meadows",
+    "beds": 112
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Hill Country",
+    "facility": "Northfield Harbor",
+    "beds": 136
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Lubbock",
+    "facility": "Northfield Crest",
+    "beds": 94
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Denton",
+    "facility": "Northfield View",
+    "beds": 120
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "The Woodlands",
+    "facility": "Northfield Bend",
+    "beds": 144
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Corpus Christi",
+    "facility": "Northfield Place",
+    "beds": 106
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Waco",
+    "facility": "Northfield Lodge",
+    "beds": 130
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Orlando",
+    "facility": "Northfield Terrace",
+    "beds": 116
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Jacksonville",
+    "facility": "Oakmont Haven",
+    "beds": 130
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Miami",
+    "facility": "Oakmont Grove",
+    "beds": 104
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Lakeland",
+    "facility": "Oakmont Pointe",
+    "beds": 158
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Tallahassee",
+    "facility": "Oakmont Meadows",
+    "beds": 116
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Fort Myers",
+    "facility": "Oakmont Harbor",
+    "beds": 140
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Orlando",
+    "facility": "Oakmont Crest",
+    "beds": 98
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Jacksonville",
+    "facility": "Oakmont View",
+    "beds": 124
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Miami",
+    "facility": "Oakmont Bend",
+    "beds": 148
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Lakeland",
+    "facility": "Oakmont Place",
+    "beds": 110
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Tallahassee",
+    "facility": "Oakmont Lodge",
+    "beds": 134
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Fort Myers",
+    "facility": "Oakmont Terrace",
+    "beds": 120
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Orlando",
+    "facility": "Pinehurst Haven",
+    "beds": 118
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Jacksonville",
+    "facility": "Pinehurst Grove",
+    "beds": 92
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Miami",
+    "facility": "Pinehurst Pointe",
+    "beds": 146
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Lakeland",
+    "facility": "Pinehurst Meadows",
+    "beds": 104
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Tallahassee",
+    "facility": "Pinehurst Harbor",
+    "beds": 128
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Fort Myers",
+    "facility": "Pinehurst Crest",
+    "beds": 86
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Orlando",
+    "facility": "Pinehurst View",
+    "beds": 112
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Jacksonville",
+    "facility": "Pinehurst Bend",
+    "beds": 136
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "El Paso",
+    "facility": "Beacon Place",
+    "beds": 102
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Rio Grande",
+    "facility": "Brighton Haven",
+    "beds": 126
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Hill Country",
+    "facility": "Brighton Grove",
+    "beds": 100
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Lubbock",
+    "facility": "Brighton Pointe",
+    "beds": 154
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Miami",
+    "facility": "Pinehurst Place",
+    "beds": 98
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Lakeland",
+    "facility": "Pinehurst Lodge",
+    "beds": 122
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Tallahassee",
+    "facility": "Pinehurst Terrace",
+    "beds": 108
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Fort Myers",
+    "facility": "Redwood Haven",
+    "beds": 122
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Orlando",
+    "facility": "Redwood Grove",
+    "beds": 96
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Jacksonville",
+    "facility": "Redwood Pointe",
+    "beds": 150
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Miami",
+    "facility": "Redwood Meadows",
+    "beds": 108
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Lakeland",
+    "facility": "Redwood Harbor",
+    "beds": 132
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Tallahassee",
+    "facility": "Redwood Crest",
+    "beds": 90
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Fort Myers",
+    "facility": "Redwood View",
+    "beds": 116
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Orlando",
+    "facility": "Redwood Bend",
+    "beds": 140
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Jacksonville",
+    "facility": "Redwood Place",
+    "beds": 102
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Miami",
+    "facility": "Redwood Lodge",
+    "beds": 126
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Lakeland",
+    "facility": "Redwood Terrace",
+    "beds": 112
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Amarillo",
+    "facility": "Beacon Meadows",
+    "beds": 108
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Dallas",
+    "facility": "Beacon Harbor",
+    "beds": 132
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Houston",
+    "facility": "Beacon Crest",
+    "beds": 90
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "San Antonio",
+    "facility": "Beacon View",
+    "beds": 116
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Austin",
+    "facility": "Beacon Bend",
+    "beds": 140
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Denton",
+    "facility": "Brighton Meadows",
+    "beds": 112
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Dallas",
+    "facility": "Alder Haven",
+    "beds": 118
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "San Antonio",
+    "facility": "Alder Pointe",
+    "beds": 146
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 4",
+    "market": "Austin",
+    "facility": "Alder Meadows",
+    "beds": 104
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "El Paso",
+    "facility": "Alder Harbor",
+    "beds": 128
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 1",
+    "market": "Fort Worth",
+    "facility": "Alder Crest",
+    "beds": 86
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 2",
+    "market": "Galveston",
+    "facility": "Alder View",
+    "beds": 112
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "Lubbock",
+    "facility": "Canyon View",
+    "beds": 124
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 5",
+    "market": "El Paso",
+    "facility": "Cedar Crest",
+    "beds": 86
+  },
+  {
+    "state": "TX",
+    "portfolio": "Texas 3",
+    "market": "Rio Grande",
+    "facility": "Elmwood Grove",
+    "beds": 100
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Tallahassee",
+    "facility": "Silverwood Haven",
+    "beds": 126
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Fort Myers",
+    "facility": "Silverwood Grove",
+    "beds": 100
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Orlando",
+    "facility": "Silverwood Pointe",
+    "beds": 154
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Jacksonville",
+    "facility": "Silverwood Meadows",
+    "beds": 112
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Miami",
+    "facility": "Silverwood Harbor",
+    "beds": 136
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Lakeland",
+    "facility": "Silverwood Crest",
+    "beds": 94
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Tallahassee",
+    "facility": "Silverwood View",
+    "beds": 120
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Fort Myers",
+    "facility": "Silverwood Bend",
+    "beds": 144
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Orlando",
+    "facility": "Silverwood Place",
+    "beds": 106
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Jacksonville",
+    "facility": "Silverwood Lodge",
+    "beds": 130
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Miami",
+    "facility": "Silverwood Terrace",
+    "beds": 116
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Lakeland",
+    "facility": "Stonebridge Haven",
+    "beds": 130
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Tallahassee",
+    "facility": "Stonebridge Grove",
+    "beds": 104
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Fort Myers",
+    "facility": "Stonebridge Pointe",
+    "beds": 158
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Orlando",
+    "facility": "Stonebridge Meadows",
+    "beds": 116
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Jacksonville",
+    "facility": "Stonebridge Harbor",
+    "beds": 140
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Miami",
+    "facility": "Stonebridge Crest",
+    "beds": 98
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Lakeland",
+    "facility": "Stonebridge View",
+    "beds": 124
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Tallahassee",
+    "facility": "Stonebridge Bend",
+    "beds": 148
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Fort Myers",
+    "facility": "Stonebridge Place",
+    "beds": 110
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Orlando",
+    "facility": "Stonebridge Lodge",
+    "beds": 134
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Jacksonville",
+    "facility": "Stonebridge Terrace",
+    "beds": 120
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Miami",
+    "facility": "Summit Haven",
+    "beds": 118
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Lakeland",
+    "facility": "Summit Grove",
+    "beds": 92
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Tallahassee",
+    "facility": "Summit Pointe",
+    "beds": 146
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Fort Myers",
+    "facility": "Summit Meadows",
+    "beds": 104
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Orlando",
+    "facility": "Summit Harbor",
+    "beds": 128
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Jacksonville",
+    "facility": "Summit Crest",
+    "beds": 86
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Miami",
+    "facility": "Summit View",
+    "beds": 112
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Miami",
+    "facility": "Westbrook Bend",
+    "beds": 140
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Lakeland",
+    "facility": "Westbrook Place",
+    "beds": 102
+  },
+  {
+    "state": "PA",
+    "portfolio": "Penn 1",
+    "market": "Pennsylvania",
+    "facility": "Westbrook Lodge",
+    "beds": 126
+  },
+  {
+    "state": "PA",
+    "portfolio": "Penn 1",
+    "market": "Pennsylvania",
+    "facility": "Westbrook Terrace",
+    "beds": 112
+  },
+  {
+    "state": "PA",
+    "portfolio": "Penn 1",
+    "market": "Pennsylvania",
+    "facility": "Willow Haven",
+    "beds": 126
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Lakeland",
+    "facility": "Summit Bend",
+    "beds": 136
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Tallahassee",
+    "facility": "Summit Place",
+    "beds": 98
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Fort Myers",
+    "facility": "Summit Lodge",
+    "beds": 122
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Orlando",
+    "facility": "Summit Terrace",
+    "beds": 108
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Jacksonville",
+    "facility": "Westbrook Haven",
+    "beds": 122
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Miami",
+    "facility": "Westbrook Grove",
+    "beds": 96
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Lakeland",
+    "facility": "Westbrook Pointe",
+    "beds": 150
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Tallahassee",
+    "facility": "Westbrook Meadows",
+    "beds": 108
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 3",
+    "market": "Fort Myers",
+    "facility": "Westbrook Harbor",
+    "beds": 132
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 1",
+    "market": "Orlando",
+    "facility": "Westbrook Crest",
+    "beds": 90
+  },
+  {
+    "state": "FL",
+    "portfolio": "Florida 2",
+    "market": "Jacksonville",
+    "facility": "Westbrook View",
+    "beds": 116
+  },
+  {
+    "state": "PA",
+    "portfolio": "Penn 1",
+    "market": "Pennsylvania",
+    "facility": "Willow Grove",
+    "beds": 100
+  },
+  {
+    "state": "PA",
+    "portfolio": "Penn 1",
+    "market": "Pennsylvania",
+    "facility": "Willow Pointe",
+    "beds": 154
+  },
+  {
+    "state": "PA",
+    "portfolio": "Penn 1",
+    "market": "Pennsylvania",
+    "facility": "Willow Meadows",
+    "beds": 112
+  },
+  {
+    "state": "PA",
+    "portfolio": "Penn 1",
+    "market": "Pennsylvania",
+    "facility": "Willow Harbor",
+    "beds": 136
+  },
+  {
+    "state": "PA",
+    "portfolio": "Penn 1",
+    "market": "Pennsylvania",
+    "facility": "Willow Crest",
+    "beds": 94
+  },
+  {
+    "state": "PA",
+    "portfolio": "Penn 1",
+    "market": "Pennsylvania",
+    "facility": "Willow View",
+    "beds": 120
+  },
+  {
+    "state": "PA",
+    "portfolio": "Penn 1",
+    "market": "Pennsylvania",
+    "facility": "Willow Bend",
+    "beds": 144
+  },
+  {
+    "state": "PA",
+    "portfolio": "Penn 1",
+    "market": "Pennsylvania",
+    "facility": "Willow Place",
+    "beds": 106
+  },
+  {
+    "state": "PA",
+    "portfolio": "Penn 1",
+    "market": "Pennsylvania",
+    "facility": "Willow Lodge",
+    "beds": 130
+  },
+  {
+    "state": "PA",
+    "portfolio": "Penn 1",
+    "market": "Pennsylvania",
+    "facility": "Willow Terrace",
+    "beds": 116
+  }
+]

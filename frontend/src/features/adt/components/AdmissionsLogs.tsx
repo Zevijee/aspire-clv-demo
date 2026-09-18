@@ -5,11 +5,10 @@ import { Table, type TableColumn } from '../../../shared/components/Table'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import { getAdmissionLogsFilters } from '../utils/admissionsLogNavigation'
 import {
-  formatPayerType,
-  getRecentAdmissions,
   type Admission,
   type AdmissionsLogsQuery,
 } from '../api/admissions'
+import { admissionsBase, getAdmissionLogs, downloadAdmissionLogs, payerLabel } from '../api/admissionsOverview'
 
 type LogsResult = {
   requestKey: string
@@ -64,7 +63,7 @@ const columns: TableColumn<Admission>[] = [
     filterable: true,
     header: 'Payer type',
     id: 'payer',
-    value: (admission) => formatPayerType(admission.payer_type),
+    value: (admission) => payerLabel(admission.payer_type),
   },
   {
     filterable: true,
@@ -134,8 +133,9 @@ function AdmissionsLogsContent({ initialFilters }: { initialFilters: Record<stri
 
   useEffect(() => {
     let isActive = true
+    const controller = new AbortController()
 
-    void getRecentAdmissions(startDate, endDate, pageIndex * pageSize, tableQuery)
+    void getAdmissionLogs(startDate, endDate, pageIndex * pageSize, tableQuery, controller.signal)
       .then((page) => {
         if (isActive) {
           setError(null)
@@ -156,6 +156,7 @@ function AdmissionsLogsContent({ initialFilters }: { initialFilters: Record<stri
 
     return () => {
       isActive = false
+      controller.abort()
     }
   }, [endDate, pageIndex, queryKey, startDate, tableQuery, requestKey])
 
@@ -173,11 +174,7 @@ function AdmissionsLogsContent({ initialFilters }: { initialFilters: Record<stri
   return (
     <Table
       {...status}
-      getExportRows={async () => {
-        const page = await getRecentAdmissions(startDate, endDate, 0, tableQuery, true)
-        if (page.items.length !== page.total) throw new Error('Incomplete export')
-        return page.items
-      }}
+      onExport={() => downloadAdmissionLogs(startDate, endDate, tableQuery)}
       columns={columns}
       initialFilters={initialFilters}
       clearableFilters
@@ -220,7 +217,7 @@ function AdmissionsLogsContent({ initialFilters }: { initialFilters: Record<stri
       getRowKey={(admission) => admission.admission_id}
       internalScroll
       stickyFirstColumn
-      filterSource={{ id: 'admissions', startDate, endDate }}
+      filterSource={{ id: 'admissions', startDate, endDate, endpoint: `${admissionsBase}/logs/filter-options` }}
       onQueryChange={handleTableQueryChange}
       rows={result?.logs ?? []}
       searchable

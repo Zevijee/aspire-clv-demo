@@ -1,0 +1,31 @@
+# Keep the build context small and secrets out of the image.
+.git
+.gitignore
+.venv
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+.ruff_cache
+.pytest_cache
+
+# Host configuration and credentials never belong in an image.
+.env
+.env.*
+!.env.docker.example
+
+# The frontend builds from its own context.
+frontend
+
+# Schema drafts and their history are local working state.
+shared/database/staged
+shared/database/stage-history
+shared/database/.staging.lock
+
+# Database snapshots are mounted at run time, not baked in.
+docker/initdb/*.sql
+docker/initdb/*.sql.gz
+docker/initdb/*.dump
+
+docs
+*.md
+!sandbox-data/**/*.md

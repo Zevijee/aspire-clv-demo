@@ -1,0 +1,1582 @@
+{
+  "Lakeland": [
+    {
+      "hospital": "Warren Hillside Hospital",
+      "score": 0.251
+    },
+    {
+      "hospital": "Belmont Good Samaritan Hospital",
+      "score": 0.276
+    },
+    {
+      "hospital": "Trenton Stonebridge Hospital",
+      "score": 0.974
+    },
+    {
+      "hospital": "Washington of Birchwood",
+      "score": 0.433
+    },
+    {
+      "hospital": "Westlake Specialty University Hospital",
+      "score": 0.489
+    },
+    {
+      "hospital": "Kennedy of Pleasant Valley",
+      "score": 0.669
+    },
+    {
+      "hospital": "Clearwater of Glenwood",
+      "score": 0.638
+    },
+    {
+      "hospital": "St. Mary's of Jefferson",
+      "score": 0.674
+    },
+    {
+      "hospital": "Meadowbrook of Harborview",
+      "score": 0.281
+    },
+    {
+      "hospital": "Shelby Sacred Heart Hospital",
+      "score": 0.909
+    },
+    {
+      "hospital": "Canton University General Hospital",
+      "score": 0.644
+    },
+    {
+      "hospital": "Southfield Memorial Hospital",
+      "score": 0.437
+    },
+    {
+      "hospital": "Forest Hill Medical Campus",
+      "score": 0.601
+    },
+    {
+      "hospital": "Liberty of Jefferson",
+      "score": 0.937
+    },
+    {
+      "hospital": "Harper Specialty Regional Medical Center",
+      "score": 0.843
+    },
+    {
+      "hospital": "Hickory Grove Kennedy Hospital",
+      "score": 0.242
+    },
+    {
+      "hospital": "Southside Medical Pavilion",
+      "score": 0.865
+    }
+  ],
+  "Orlando": [
+    {
+      "hospital": "Adams Medical Campus",
+      "score": 0.548
+    },
+    {
+      "hospital": "Westwood Integrated General Hospital",
+      "score": 0.918
+    },
+    {
+      "hospital": "Mercy of Yorktown",
+      "score": 0.613
+    },
+    {
+      "hospital": "Fairview of Yorktown",
+      "score": 0.516
+    },
+    {
+      "hospital": "Elk Grove Medical Center",
+      "score": 0.383
+    },
+    {
+      "hospital": "Georgetown University Hospital",
+      "score": 0.626
+    },
+    {
+      "hospital": "Crystal Lake Riverside Hospital",
+      "score": 0.052
+    },
+    {
+      "hospital": "Southfield Community Community Hospital",
+      "score": 0.488
+    },
+    {
+      "hospital": "Crestwood Community Hospital",
+      "score": 0.5
+    },
+    {
+      "hospital": "Providence of Lancaster",
+      "score": 0.819
+    },
+    {
+      "hospital": "Hillside of Rock Creek",
+      "score": 0.463
+    },
+    {
+      "hospital": "West Bear Creek Regional Hospital",
+      "score": 0.717
+    },
+    {
+      "hospital": "Pinecrest of Pine Valley",
+      "score": 0.853
+    },
+    {
+      "hospital": "Oxford University Hospital",
+      "score": 0.365
+    },
+    {
+      "hospital": "Upper Shelby University Hospital",
+      "score": 0.387
+    },
+    {
+      "hospital": "Dogwood Medical Center",
+      "score": 0.577
+    },
+    {
+      "hospital": "Central Crystal Lake Regional Hospital",
+      "score": 0.746
+    },
+    {
+      "hospital": "Highland Health Center",
+      "score": 0.569
+    },
+    {
+      "hospital": "Eastwood Pinecrest Hospital",
+      "score": 0.715
+    }
+  ],
+  "Jacksonville": [
+    {
+      "hospital": "Edgewood Regional Medical Center",
+      "score": 0.51
+    },
+    {
+      "hospital": "Laurel Medical Regional Medical Center",
+      "score": 0.7
+    },
+    {
+      "hospital": "University of Sutton",
+      "score": 0.462
+    },
+    {
+      "hospital": "North Manchester Community Hospital",
+      "score": 0.603
+    },
+    {
+      "hospital": "Central of Bedford",
+      "score": 0.393
+    },
+    {
+      "hospital": "Kingston Metropolitan General Hospital",
+      "score": 0.505
+    },
+    {
+      "hospital": "Crestwood Adams Hospital",
+      "score": 0.555
+    },
+    {
+      "hospital": "St. Mary's Regional Hospital",
+      "score": 0.486
+    },
+    {
+      "hospital": "St. Mary's of Concord",
+      "score": 0.459
+    },
+    {
+      "hospital": "Hillside of Oak Ridge",
+      "score": 0.791
+    },
+    {
+      "hospital": "Liberty of Westwood",
+      "score": 0.775
+    },
+    {
+      "hospital": "Elk Grove Kennedy Hospital",
+      "score": 0.431
+    },
+    {
+      "hospital": "Trenton Metropolitan Medical Pavilion",
+      "score": 0.327
+    },
+    {
+      "hospital": "Parkview of Redwood",
+      "score": 0.465
+    },
+    {
+      "hospital": "Kingston Health Center",
+      "score": 0.605
+    },
+    {
+      "hospital": "Hamilton Integrated Healthcare Center",
+      "score": 0.698
+    },
+    {
+      "hospital": "Rosewood Health Center",
+      "score": 0.608
+    },
+    {
+      "hospital": "Parkview Community Hospital",
+      "score": 0.807
+    },
+    {
+      "hospital": "Hudson University Community Hospital",
+      "score": 0.18
+    },
+    {
+      "hospital": "Edgewood Metropolitan Healthcare Center",
+      "score": 0.614
+    },
+    {
+      "hospital": "Providence Regional Medical Center",
+      "score": 0.533
+    },
+    {
+      "hospital": "Rose Hill Roosevelt Hospital",
+      "score": 0.477
+    },
+    {
+      "hospital": "Lower Westlake Medical Pavilion",
+      "score": 0.417
+    },
+    {
+      "hospital": "Silver Spring Community Memorial Hospital",
+      "score": 0.599
+    },
+    {
+      "hospital": "Good Samaritan of Glen Ridge",
+      "score": 0.936
+    },
+    {
+      "hospital": "Valley of Concord",
+      "score": 0.253
+    }
+  ],
+  "Tallahassee": [
+    {
+      "hospital": "Regional of Blue Ridge",
+      "score": 0.345
+    },
+    {
+      "hospital": "Lower Ridgewood Memorial Hospital",
+      "score": 0.531
+    },
+    {
+      "hospital": "Oakwood of Westwood",
+      "score": 0.224
+    },
+    {
+      "hospital": "Rose Hill Premier Regional Medical Center",
+      "score": 0.429
+    },
+    {
+      "hospital": "Oak Ridge Memorial Hospital",
+      "score": 0.475
+    },
+    {
+      "hospital": "Trinity of Rolling Hills",
+      "score": 0.863
+    },
+    {
+      "hospital": "Norwood Regional Community Hospital",
+      "score": 0.367
+    },
+    {
+      "hospital": "Ashford Advanced Healthcare Center",
+      "score": 0.286
+    },
+    {
+      "hospital": "Randolph General Hospital",
+      "score": 0.579
+    },
+    {
+      "hospital": "Manchester Westfield Hospital",
+      "score": 0.568
+    },
+    {
+      "hospital": "Greater Rock Creek General Hospital",
+      "score": 0.251
+    },
+    {
+      "hospital": "Lincoln Independence Hospital",
+      "score": 0.626
+    },
+    {
+      "hospital": "Westbrook Advanced Hospital",
+      "score": 0.475
+    },
+    {
+      "hospital": "Jackson of Hampton",
+      "score": 0.702
+    },
+    {
+      "hospital": "East Elk Grove Healthcare Center",
+      "score": 0.213
+    },
+    {
+      "hospital": "East Westchester Medical Center",
+      "score": 0.394
+    },
+    {
+      "hospital": "Carlisle Regional Hospital",
+      "score": 0.939
+    },
+    {
+      "hospital": "Clearfield Advanced Medical Campus",
+      "score": 0.465
+    },
+    {
+      "hospital": "Cambridge Holy Cross Hospital",
+      "score": 0.542
+    },
+    {
+      "hospital": "Fox Run Regional Medical Center",
+      "score": 0.393
+    },
+    {
+      "hospital": "Clayton Premier Hospital",
+      "score": 0.781
+    },
+    {
+      "hospital": "Clearwater Health Center",
+      "score": 0.558
+    }
+  ],
+  "Fort Myers": [
+    {
+      "hospital": "Bedford Medical Pavilion",
+      "score": 0.324
+    },
+    {
+      "hospital": "Oak Ridge Heritage Hospital",
+      "score": 0.5
+    },
+    {
+      "hospital": "East Canton Medical Campus",
+      "score": 0.595
+    },
+    {
+      "hospital": "Grandview Memorial Hospital",
+      "score": 0.742
+    },
+    {
+      "hospital": "Randolph Fairview Hospital",
+      "score": 0.481
+    },
+    {
+      "hospital": "Seaside River Valley Hospital",
+      "score": 0.387
+    },
+    {
+      "hospital": "Good Samaritan Hospital",
+      "score": 0.016
+    },
+    {
+      "hospital": "Randolph Holy Cross Hospital",
+      "score": 0.1
+    },
+    {
+      "hospital": "Winchester Regional Medical Center",
+      "score": 0.291
+    },
+    {
+      "hospital": "Seaside Oakwood Hospital",
+      "score": 0.229
+    },
+    {
+      "hospital": "Providence Community Hospital",
+      "score": 0.178
+    },
+    {
+      "hospital": "West Westchester General Hospital",
+      "score": 0.58
+    },
+    {
+      "hospital": "Central of Jefferson",
+      "score": 0.663
+    },
+    {
+      "hospital": "Regional of Rock Creek",
+      "score": 0.486
+    }
+  ],
+  "Miami": [
+    {
+      "hospital": "Westwood Advanced Medical Center",
+      "score": 0.3
+    },
+    {
+      "hospital": "Ridgewood Regional Hospital",
+      "score": 0.259
+    },
+    {
+      "hospital": "East Princeton Hospital",
+      "score": 0.444
+    },
+    {
+      "hospital": "Cambridge Medical Center",
+      "score": 0.761
+    },
+    {
+      "hospital": "Stonebridge of Somerset",
+      "score": 0.824
+    },
+    {
+      "hospital": "Deerfield Kennedy Hospital",
+      "score": 0.398
+    },
+    {
+      "hospital": "Riverside of Elmwood",
+      "score": 0.214
+    },
+    {
+      "hospital": "Oakwood of Riverbend",
+      "score": 0.53
+    },
+    {
+      "hospital": "Kennedy of Magnolia",
+      "score": 0.809
+    },
+    {
+      "hospital": "Monroe Hospital",
+      "score": 0.53
+    },
+    {
+      "hospital": "Seaside Healthcare Center",
+      "score": 0.419
+    },
+    {
+      "hospital": "South White Oak Community Hospital",
+      "score": 0.716
+    },
+    {
+      "hospital": "Brookside of Newport",
+      "score": 0.603
+    },
+    {
+      "hospital": "Maple Ridge Memorial Hospital",
+      "score": 0.512
+    },
+    {
+      "hospital": "Grant Community Hospital",
+      "score": 0.586
+    },
+    {
+      "hospital": "Fairview of Fairfield",
+      "score": 0.487
+    },
+    {
+      "hospital": "Hickory Grove Providence Hospital",
+      "score": 0.303
+    },
+    {
+      "hospital": "Clinton Specialty Regional Medical Center",
+      "score": 0.733
+    },
+    {
+      "hospital": "Deerfield Regional Medical Center",
+      "score": 0.686
+    },
+    {
+      "hospital": "Central Sycamore Healthcare Center",
+      "score": 0.439
+    },
+    {
+      "hospital": "Rosewood Advanced University Hospital",
+      "score": 0.346
+    },
+    {
+      "hospital": "Heritage Medical Pavilion",
+      "score": 0.736
+    },
+    {
+      "hospital": "Cambridge Memorial Medical Campus",
+      "score": 0.467
+    },
+    {
+      "hospital": "Greystone Medical Medical Center",
+      "score": 0.619
+    }
+  ],
+  "Pennsylvania": [
+    {
+      "hospital": "Sutton Advanced Memorial Hospital",
+      "score": 0.452
+    },
+    {
+      "hospital": "Monroe Memorial Hospital",
+      "score": 0.425
+    },
+    {
+      "hospital": "Redwood Holy Cross Hospital",
+      "score": 0.592
+    },
+    {
+      "hospital": "Harborview St. Joseph's Hospital",
+      "score": 0.257
+    },
+    {
+      "hospital": "Bayside Southside Hospital",
+      "score": 0.609
+    },
+    {
+      "hospital": "Madison Health Center",
+      "score": 0.589
+    },
+    {
+      "hospital": "Clearfield Providence Hospital",
+      "score": 0.605
+    },
+    {
+      "hospital": "Lexington Premier Hospital",
+      "score": 0.522
+    },
+    {
+      "hospital": "St. Anne's of Westwood",
+      "score": 0.215
+    },
+    {
+      "hospital": "South Seaside Hospital",
+      "score": 0.603
+    },
+    {
+      "hospital": "Greystone Premier Community Hospital",
+      "score": 0.509
+    },
+    {
+      "hospital": "Greystone Medical Pavilion",
+      "score": 0.335
+    },
+    {
+      "hospital": "Hudson Lincoln Hospital",
+      "score": 0.342
+    },
+    {
+      "hospital": "Independence General Hospital",
+      "score": 0.142
+    },
+    {
+      "hospital": "Ashford Sacred Heart Hospital",
+      "score": 0.464
+    },
+    {
+      "hospital": "Lincoln Specialty Memorial Hospital",
+      "score": 0.665
+    }
+  ],
+  "Dallas": [
+    {
+      "hospital": "Central Cambridge Health Center",
+      "score": 0.116
+    },
+    {
+      "hospital": "Regional Memorial Hospital",
+      "score": 0.536
+    },
+    {
+      "hospital": "Canton Southside Hospital",
+      "score": 0.381
+    },
+    {
+      "hospital": "Madison Regional Hospital",
+      "score": 0.411
+    },
+    {
+      "hospital": "Metropolitan of Jefferson",
+      "score": 0.298
+    },
+    {
+      "hospital": "South Princeton Community Hospital",
+      "score": 0.427
+    },
+    {
+      "hospital": "Montgomery St. Mary's Hospital",
+      "score": 0.31
+    },
+    {
+      "hospital": "West Dogwood Medical Campus",
+      "score": 0.469
+    },
+    {
+      "hospital": "Blue Ridge University Memorial Hospital",
+      "score": 0.855
+    },
+    {
+      "hospital": "Norwood Community Regional Medical Center",
+      "score": 0.442
+    }
+  ],
+  "Denton": [
+    {
+      "hospital": "Pine Valley Metropolitan Community Hospital",
+      "score": 0.47
+    },
+    {
+      "hospital": "South Lincoln Hospital",
+      "score": 0.428
+    },
+    {
+      "hospital": "Providence of Madison",
+      "score": 0.791
+    },
+    {
+      "hospital": "Cherry Hill Medical Regional Hospital",
+      "score": 0.186
+    },
+    {
+      "hospital": "Redwood Health Center",
+      "score": 0.437
+    },
+    {
+      "hospital": "Central of Westlake",
+      "score": 0.279
+    },
+    {
+      "hospital": "Riverbend University Health Center",
+      "score": 0.249
+    },
+    {
+      "hospital": "Northfield Health Center",
+      "score": 0.435
+    },
+    {
+      "hospital": "Westfield Medical Pavilion",
+      "score": 0.294
+    },
+    {
+      "hospital": "Greater Woodland Medical Pavilion",
+      "score": 0.557
+    },
+    {
+      "hospital": "Holy Cross University Hospital",
+      "score": 0.626
+    }
+  ],
+  "Fort Worth": [
+    {
+      "hospital": "Golden Valley Mercy Hospital",
+      "score": 0.406
+    },
+    {
+      "hospital": "Montgomery Medical Campus",
+      "score": 0.838
+    },
+    {
+      "hospital": "Regional Community Hospital",
+      "score": 0.66
+    },
+    {
+      "hospital": "Lower Ashford General Hospital",
+      "score": 0.528
+    },
+    {
+      "hospital": "Greater Glenwood University Hospital",
+      "score": 0.557
+    },
+    {
+      "hospital": "St. Joseph's of Forest Hill",
+      "score": 0.603
+    },
+    {
+      "hospital": "West Elmwood Healthcare Center",
+      "score": 0.367
+    },
+    {
+      "hospital": "Bayside Hospital",
+      "score": 0.642
+    },
+    {
+      "hospital": "Pleasant Valley Specialty Medical Campus",
+      "score": 0.475
+    },
+    {
+      "hospital": "Elk Grove Springfield Hospital",
+      "score": 0.312
+    },
+    {
+      "hospital": "Ridgewood Medical Pavilion",
+      "score": 0.848
+    },
+    {
+      "hospital": "Lower Stonehaven Medical Pavilion",
+      "score": 0.547
+    }
+  ],
+  "Galveston": [
+    {
+      "hospital": "Reagan Health Center",
+      "score": 0.776
+    },
+    {
+      "hospital": "Stonebridge Hospital",
+      "score": 0.488
+    },
+    {
+      "hospital": "Summit of Rockland",
+      "score": 0.896
+    },
+    {
+      "hospital": "Monroe Sacred Heart Hospital",
+      "score": 0.272
+    },
+    {
+      "hospital": "Cedarville Metropolitan Healthcare Center",
+      "score": 0.537
+    },
+    {
+      "hospital": "Upper Richmond Healthcare Center",
+      "score": 0.302
+    },
+    {
+      "hospital": "Springfield Health Center",
+      "score": 0.365
+    },
+    {
+      "hospital": "Crestwood Healthcare Center",
+      "score": 0.266
+    },
+    {
+      "hospital": "Liberty of Sycamore",
+      "score": 0.447
+    },
+    {
+      "hospital": "Clifton Integrated Medical Center",
+      "score": 0.272
+    },
+    {
+      "hospital": "Central Danbury Hospital",
+      "score": 0.439
+    },
+    {
+      "hospital": "Jackson of Bear Creek",
+      "score": 0.515
+    }
+  ],
+  "Houston": [
+    {
+      "hospital": "St. Francis of Springdale",
+      "score": 0.23
+    },
+    {
+      "hospital": "Central Hickory Grove Medical Campus",
+      "score": 0.242
+    },
+    {
+      "hospital": "Central Forest Hill Community Hospital",
+      "score": 0.84
+    },
+    {
+      "hospital": "St. Mary's of Springfield",
+      "score": 0.682
+    },
+    {
+      "hospital": "Upper Cedar Ridge Memorial Hospital",
+      "score": 0.623
+    },
+    {
+      "hospital": "Fairfield General Hospital",
+      "score": 0.663
+    },
+    {
+      "hospital": "Elk Grove Lakeside Hospital",
+      "score": 0.339
+    },
+    {
+      "hospital": "Community of Riverbend",
+      "score": 0.75
+    },
+    {
+      "hospital": "Magnolia Regional Hospital",
+      "score": 0.476
+    },
+    {
+      "hospital": "Upper Prairie View Hospital",
+      "score": 0.674
+    },
+    {
+      "hospital": "Dogwood Lakeside Hospital",
+      "score": 0.363
+    },
+    {
+      "hospital": "Pine Hill Mercy Hospital",
+      "score": 0.613
+    },
+    {
+      "hospital": "North Forest Hill Health Center",
+      "score": 0.162
+    },
+    {
+      "hospital": "Lexington Sacred Heart Hospital",
+      "score": 0.557
+    },
+    {
+      "hospital": "Silver Lake Medical Center",
+      "score": 0.643
+    },
+    {
+      "hospital": "Kennedy of Montgomery",
+      "score": 0.742
+    },
+    {
+      "hospital": "Metropolitan of Brighton",
+      "score": 0.751
+    },
+    {
+      "hospital": "St. Anne's General Hospital",
+      "score": 0.837
+    },
+    {
+      "hospital": "Glen Ridge Medical Pavilion",
+      "score": 0.229
+    },
+    {
+      "hospital": "Lakewood Healthcare Center",
+      "score": 0.126
+    },
+    {
+      "hospital": "Beacon Advanced Medical Pavilion",
+      "score": 0.357
+    },
+    {
+      "hospital": "Upper Rock Creek Regional Hospital",
+      "score": 0.797
+    },
+    {
+      "hospital": "Oakwood of Carlisle",
+      "score": 0.201
+    },
+    {
+      "hospital": "Mill Creek Community General Hospital",
+      "score": 0.454
+    }
+  ],
+  "The Woodlands": [
+    {
+      "hospital": "Lower Dover Community Hospital",
+      "score": 0.482
+    },
+    {
+      "hospital": "East Riverbend Hospital",
+      "score": 0.631
+    },
+    {
+      "hospital": "St. Luke's Medical Pavilion",
+      "score": 0.715
+    },
+    {
+      "hospital": "Reagan General Hospital",
+      "score": 0.578
+    },
+    {
+      "hospital": "West Westlake Medical Pavilion",
+      "score": 0.549
+    },
+    {
+      "hospital": "Sutton Premier Health Center",
+      "score": 0.578
+    },
+    {
+      "hospital": "Central Hartford University Hospital",
+      "score": 0.38
+    },
+    {
+      "hospital": "Briarwood Independence Hospital",
+      "score": 0.621
+    },
+    {
+      "hospital": "Monroe of Hawthorne",
+      "score": 0.297
+    },
+    {
+      "hospital": "Lakewood Regional Hospital",
+      "score": 0.372
+    },
+    {
+      "hospital": "General General Hospital",
+      "score": 0.464
+    },
+    {
+      "hospital": "Franklin of Sutton",
+      "score": 0.67
+    },
+    {
+      "hospital": "Georgetown Metropolitan Regional Medical Center",
+      "score": 0.409
+    },
+    {
+      "hospital": "Rose Hill Memorial Hospital",
+      "score": 0.672
+    },
+    {
+      "hospital": "Glenwood Hospital",
+      "score": 0.327
+    },
+    {
+      "hospital": "Greater Riverbend Health Center",
+      "score": 0.372
+    },
+    {
+      "hospital": "Norwood Premier Regional Hospital",
+      "score": 0.327
+    },
+    {
+      "hospital": "Golden Valley Medical Pavilion",
+      "score": 0.381
+    },
+    {
+      "hospital": "Westfield Regional Hospital",
+      "score": 0.609
+    },
+    {
+      "hospital": "Mercy Hospital",
+      "score": 0.082
+    },
+    {
+      "hospital": "East Redwood Hospital",
+      "score": 0.443
+    },
+    {
+      "hospital": "Summit of Sutton",
+      "score": 0.239
+    }
+  ],
+  "Corpus Christi": [
+    {
+      "hospital": "Deerfield Eastside Hospital",
+      "score": 0.547
+    },
+    {
+      "hospital": "Central Rosewood Regional Medical Center",
+      "score": 0.774
+    },
+    {
+      "hospital": "Central Lakewood Healthcare Center",
+      "score": 0.561
+    },
+    {
+      "hospital": "Riverbend Franklin Hospital",
+      "score": 0.511
+    },
+    {
+      "hospital": "South Cherry Hill Memorial Hospital",
+      "score": 0.87
+    },
+    {
+      "hospital": "Shelby Medical Center",
+      "score": 0.514
+    },
+    {
+      "hospital": "West Ridgewood Healthcare Center",
+      "score": 0.256
+    },
+    {
+      "hospital": "Silver Lake of Princeton",
+      "score": 0.707
+    },
+    {
+      "hospital": "Stonebridge of Kingston",
+      "score": 0.284
+    },
+    {
+      "hospital": "Reagan of Cedar Ridge",
+      "score": 0.484
+    },
+    {
+      "hospital": "Monroe Roosevelt Hospital",
+      "score": 0.555
+    },
+    {
+      "hospital": "Stonehaven Mercy Hospital",
+      "score": 0.373
+    },
+    {
+      "hospital": "Central Hospital",
+      "score": 0.429
+    },
+    {
+      "hospital": "West Monroe Regional Medical Center",
+      "score": 0.607
+    },
+    {
+      "hospital": "Greystone Medical Campus",
+      "score": 0.556
+    },
+    {
+      "hospital": "Greater Rose Hill Community Hospital",
+      "score": 0.054
+    },
+    {
+      "hospital": "Greater Bear Creek Regional Medical Center",
+      "score": 0.249
+    },
+    {
+      "hospital": "Eagle Ridge Integrated Regional Medical Center",
+      "score": 0.301
+    },
+    {
+      "hospital": "Riverside Regional Hospital",
+      "score": 0.512
+    },
+    {
+      "hospital": "Mercy Regional Hospital",
+      "score": 0.745
+    },
+    {
+      "hospital": "Silver Lake of Harper",
+      "score": 0.299
+    },
+    {
+      "hospital": "Danbury Community Community Hospital",
+      "score": 0.512
+    }
+  ],
+  "Rio Grande": [
+    {
+      "hospital": "Harborview Premier Healthcare Center",
+      "score": 0.399
+    },
+    {
+      "hospital": "West Bedford Medical Campus",
+      "score": 0.163
+    },
+    {
+      "hospital": "Holy Cross Medical Pavilion",
+      "score": 0.143
+    },
+    {
+      "hospital": "Greater Rockland General Hospital",
+      "score": 0.501
+    },
+    {
+      "hospital": "Meadowbrook of Montgomery",
+      "score": 0.644
+    },
+    {
+      "hospital": "Heritage Hospital",
+      "score": 0.62
+    },
+    {
+      "hospital": "Grant Medical Pavilion",
+      "score": 0.593
+    },
+    {
+      "hospital": "St. Catherine's University Hospital",
+      "score": 0.459
+    },
+    {
+      "hospital": "Lexington Health Center",
+      "score": 0.279
+    },
+    {
+      "hospital": "East Monroe Medical Center",
+      "score": 0.425
+    }
+  ],
+  "San Antonio": [
+    {
+      "hospital": "Valley Community Hospital",
+      "score": 0.753
+    },
+    {
+      "hospital": "Lakewood Medical Center",
+      "score": 0.773
+    },
+    {
+      "hospital": "Central Bayview Memorial Hospital",
+      "score": 0.479
+    },
+    {
+      "hospital": "Westfield Community Hospital",
+      "score": 0.574
+    },
+    {
+      "hospital": "North Seaside Regional Hospital",
+      "score": 0.604
+    },
+    {
+      "hospital": "Arbor Memorial Hospital",
+      "score": 0.539
+    },
+    {
+      "hospital": "Regional of Golden Valley",
+      "score": 0.485
+    },
+    {
+      "hospital": "Crestwood Medical Center",
+      "score": 0.705
+    },
+    {
+      "hospital": "Upper Union Healthcare Center",
+      "score": 0.645
+    },
+    {
+      "hospital": "Hawthorne Family Hospital",
+      "score": 0.344
+    },
+    {
+      "hospital": "Rosewood University General Hospital",
+      "score": 0.436
+    },
+    {
+      "hospital": "Westbrook Regional Medical Center",
+      "score": 0.235
+    },
+    {
+      "hospital": "Richmond Holy Cross Hospital",
+      "score": 0.274
+    },
+    {
+      "hospital": "East Magnolia Regional Hospital",
+      "score": 0.408
+    },
+    {
+      "hospital": "Eastwood Regional Hospital",
+      "score": 0.403
+    },
+    {
+      "hospital": "Trenton Memorial Regional Medical Center",
+      "score": 0.253
+    },
+    {
+      "hospital": "Madison Medical Campus",
+      "score": 0.288
+    },
+    {
+      "hospital": "Bayside Premier Medical Pavilion",
+      "score": 0.528
+    }
+  ],
+  "Austin": [
+    {
+      "hospital": "Canton Medical Campus",
+      "score": 0.355
+    },
+    {
+      "hospital": "Oxford Regional Medical Campus",
+      "score": 0.307
+    },
+    {
+      "hospital": "Upper Clinton Medical Center",
+      "score": 0.378
+    },
+    {
+      "hospital": "St. Anne's of Prairie View",
+      "score": 0.682
+    },
+    {
+      "hospital": "West Clifton Medical Center",
+      "score": 0.876
+    },
+    {
+      "hospital": "West Arbor Medical Center",
+      "score": 0.291
+    },
+    {
+      "hospital": "Maple Ridge General Hospital",
+      "score": 0.743
+    },
+    {
+      "hospital": "Springdale Southside Hospital",
+      "score": 0.521
+    },
+    {
+      "hospital": "Springfield of Oakland",
+      "score": 0.45
+    },
+    {
+      "hospital": "Northfield Premier Health Center",
+      "score": 0.41
+    },
+    {
+      "hospital": "Lower Manchester Health Center",
+      "score": 0.412
+    },
+    {
+      "hospital": "Holy Cross Healthcare Center",
+      "score": 0.52
+    },
+    {
+      "hospital": "Warren Regional Medical Center",
+      "score": 0.363
+    },
+    {
+      "hospital": "Lower Lincoln Medical Campus",
+      "score": 0.349
+    },
+    {
+      "hospital": "Pleasant Valley Clearwater Hospital",
+      "score": 0.45
+    },
+    {
+      "hospital": "Bayview Memorial Memorial Hospital",
+      "score": 0.377
+    },
+    {
+      "hospital": "Redwood Medical Center",
+      "score": 0.439
+    },
+    {
+      "hospital": "Springfield Lakeside Hospital",
+      "score": 0.303
+    },
+    {
+      "hospital": "Lancaster Kennedy Hospital",
+      "score": 0.416
+    }
+  ],
+  "Hill Country": [
+    {
+      "hospital": "North Shelby Medical Campus",
+      "score": 0.188
+    },
+    {
+      "hospital": "Oak Ridge Comprehensive Regional Hospital",
+      "score": 0.057
+    },
+    {
+      "hospital": "Westfield of Glenwood",
+      "score": 0.83
+    },
+    {
+      "hospital": "Bear Creek Advanced Medical Pavilion",
+      "score": 0.604
+    },
+    {
+      "hospital": "White Oak Family Healthcare Center",
+      "score": 0.459
+    },
+    {
+      "hospital": "Westbrook Medical Health Center",
+      "score": 0.442
+    },
+    {
+      "hospital": "River Valley of Winchester",
+      "score": 0.521
+    },
+    {
+      "hospital": "West Lexington Health Center",
+      "score": 0.404
+    },
+    {
+      "hospital": "Kingston Healthcare Center",
+      "score": 0.6
+    },
+    {
+      "hospital": "General Hospital",
+      "score": 0.397
+    },
+    {
+      "hospital": "Fairview Medical Campus",
+      "score": 0.396
+    },
+    {
+      "hospital": "Lincoln Providence Hospital",
+      "score": 0.534
+    },
+    {
+      "hospital": "West Madison Medical Pavilion",
+      "score": 0.354
+    },
+    {
+      "hospital": "Marlborough Hospital",
+      "score": 0.509
+    },
+    {
+      "hospital": "Prairie View Integrated Community Hospital",
+      "score": 0.574
+    },
+    {
+      "hospital": "South Rolling Hills University Hospital",
+      "score": 0.771
+    },
+    {
+      "hospital": "Northside of Redwood",
+      "score": 0.38
+    },
+    {
+      "hospital": "Cedarville Regional Medical Center",
+      "score": 0.27
+    }
+  ],
+  "Waco": [
+    {
+      "hospital": "Madison of Pine Valley",
+      "score": 0.435
+    },
+    {
+      "hospital": "Lexington Metropolitan General Hospital",
+      "score": 0.168
+    },
+    {
+      "hospital": "Eastside of Clearfield",
+      "score": 0.443
+    },
+    {
+      "hospital": "Greater Eagle Ridge Community Hospital",
+      "score": 0.866
+    },
+    {
+      "hospital": "St. Catherine's of Ashford",
+      "score": 0.4
+    },
+    {
+      "hospital": "North Briarwood Medical Pavilion",
+      "score": 0.766
+    },
+    {
+      "hospital": "Deerfield Regional Regional Medical Center",
+      "score": 0.048
+    },
+    {
+      "hospital": "Westbrook Metropolitan Medical Campus",
+      "score": 0.207
+    },
+    {
+      "hospital": "Sycamore River Valley Hospital",
+      "score": 0.302
+    },
+    {
+      "hospital": "Park Ridge Memorial Hospital",
+      "score": 0.722
+    },
+    {
+      "hospital": "North Clifton General Hospital",
+      "score": 0.612
+    },
+    {
+      "hospital": "Crystal Lake Memorial Regional Medical Center",
+      "score": 0.882
+    },
+    {
+      "hospital": "North Ashford Healthcare Center",
+      "score": 0.051
+    },
+    {
+      "hospital": "Eastside of Ridgewood",
+      "score": 0.273
+    },
+    {
+      "hospital": "Central Cedarville Community Hospital",
+      "score": 0.346
+    },
+    {
+      "hospital": "Jefferson Medical Regional Hospital",
+      "score": 0.813
+    }
+  ],
+  "Amarillo": [
+    {
+      "hospital": "Brighton Memorial Hospital",
+      "score": 0.352
+    },
+    {
+      "hospital": "Eastside of Clayton",
+      "score": 0.867
+    },
+    {
+      "hospital": "South Lexington Healthcare Center",
+      "score": 0.512
+    },
+    {
+      "hospital": "Liberty Healthcare Center",
+      "score": 0.283
+    },
+    {
+      "hospital": "St. Catherine's of Bedford",
+      "score": 0.595
+    },
+    {
+      "hospital": "St. Joseph's of Cedar Ridge",
+      "score": 0.531
+    },
+    {
+      "hospital": "Richmond Health Center",
+      "score": 0.559
+    },
+    {
+      "hospital": "Hartford Community Medical Center",
+      "score": 0.504
+    },
+    {
+      "hospital": "Rock Creek General Hospital",
+      "score": 0.748
+    },
+    {
+      "hospital": "Trenton Regional Hospital",
+      "score": 0.265
+    },
+    {
+      "hospital": "Greater Hartford Memorial Hospital",
+      "score": 0.697
+    },
+    {
+      "hospital": "Belmont Medical Pavilion",
+      "score": 0.906
+    },
+    {
+      "hospital": "Lincoln of Fox Run",
+      "score": 0.544
+    },
+    {
+      "hospital": "Independence of Richmond",
+      "score": 0.473
+    },
+    {
+      "hospital": "Greater Woodland Medical Center",
+      "score": 0.572
+    },
+    {
+      "hospital": "Sutton Medical Pavilion",
+      "score": 0.308
+    },
+    {
+      "hospital": "Meadowbrook Health Center",
+      "score": 0.399
+    }
+  ],
+  "El Paso": [
+    {
+      "hospital": "West Deerfield Healthcare Center",
+      "score": 0.493
+    },
+    {
+      "hospital": "Westminster Premier Healthcare Center",
+      "score": 0.679
+    },
+    {
+      "hospital": "Blue Ridge Premier Regional Medical Center",
+      "score": 0.573
+    },
+    {
+      "hospital": "Glen Ridge Community Medical Pavilion",
+      "score": 0.546
+    },
+    {
+      "hospital": "Good Samaritan of Bristol",
+      "score": 0.281
+    },
+    {
+      "hospital": "Central Ridgewood Hospital",
+      "score": 0.601
+    },
+    {
+      "hospital": "Reagan of Bear Creek",
+      "score": 0.473
+    },
+    {
+      "hospital": "Highland Community Hospital",
+      "score": 0.588
+    },
+    {
+      "hospital": "White Oak Good Samaritan Hospital",
+      "score": 0.299
+    },
+    {
+      "hospital": "Heritage University Hospital",
+      "score": 0.497
+    },
+    {
+      "hospital": "Cedarville Specialty Healthcare Center",
+      "score": 0.35
+    },
+    {
+      "hospital": "Blue Ridge Medical Pavilion",
+      "score": 0.715
+    },
+    {
+      "hospital": "Upper Stonehaven Medical Center",
+      "score": 0.109
+    },
+    {
+      "hospital": "Independence Regional Hospital",
+      "score": 0.306
+    },
+    {
+      "hospital": "Washington of Rockland",
+      "score": 0.362
+    },
+    {
+      "hospital": "St. Mary's Health Center",
+      "score": 0.374
+    }
+  ],
+  "Lubbock": [
+    {
+      "hospital": "Randolph Medical Pavilion",
+      "score": 0.094
+    },
+    {
+      "hospital": "Summit of Milford",
+      "score": 0.479
+    },
+    {
+      "hospital": "Fox Run Medical Healthcare Center",
+      "score": 0.864
+    },
+    {
+      "hospital": "Central of Redwood",
+      "score": 0.782
+    },
+    {
+      "hospital": "Metropolitan of Georgetown",
+      "score": 0.506
+    },
+    {
+      "hospital": "Union Springfield Hospital",
+      "score": 0.334
+    },
+    {
+      "hospital": "Westwood Memorial Hospital",
+      "score": 0.186
+    },
+    {
+      "hospital": "Greenville Comprehensive General Hospital",
+      "score": 0.315
+    },
+    {
+      "hospital": "Southside of Mapleton",
+      "score": 0.583
+    },
+    {
+      "hospital": "Eastside Medical Center",
+      "score": 0.552
+    },
+    {
+      "hospital": "Upper Mill Creek Community Hospital",
+      "score": 0.344
+    },
+    {
+      "hospital": "Pine Valley Comprehensive Regional Hospital",
+      "score": 0.515
+    },
+    {
+      "hospital": "Ashford Medical Center",
+      "score": 0.685
+    },
+    {
+      "hospital": "West Oxford Medical Campus",
+      "score": 0.058
+    },
+    {
+      "hospital": "Milford Riverside Hospital",
+      "score": 0.442
+    },
+    {
+      "hospital": "Harper Hospital",
+      "score": 0.186
+    },
+    {
+      "hospital": "Birchwood Lakeside Hospital",
+      "score": 0.859
+    },
+    {
+      "hospital": "Central Bristol Regional Medical Center",
+      "score": 0.572
+    },
+    {
+      "hospital": "Somerset Advanced Healthcare Center",
+      "score": 0.582
+    }
+  ]
+}

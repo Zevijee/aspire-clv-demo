@@ -1,30 +1,22 @@
-import { useEffect, useState } from 'react'
 import { TabFilterBar } from '../../../shared/components/filters/TabFilterBar'
-import { formatPayerType, getAdmissionsFilterOptions, type AdmissionsFilterOptions } from '../api/admissions'
+import { payerCode, payerLabel } from '../api/admissionsOverview'
+import { useAdmissionsReferences } from '../hooks/useAdmissionsOverview'
 import {
   overviewFilterValues, overviewFilterSettings,
   overviewSelection, type OverviewSelection,
 } from '../utils/admissionsOverviewFilters'
 import { AdmissionsLocationPicker } from './AdmissionsLocationPicker'
 
-const payers = ['Medicare', 'Medicare Advantage', 'Medicare HMO', 'Managed Medicaid', 'Medicaid', 'Hospice', 'Private Pay']
 const sources = ['Hospital', 'Skilled Nursing', 'Home', 'Rehab Facility', 'Assisted Living', 'Community']
 
 export function AdmissionsOverviewFilters({ selection, onChange }: {
   selection: OverviewSelection
   onChange: (selection: OverviewSelection) => void
 }) {
-  const [attempt, setAttempt] = useState(0)
-  const [response, setResponse] = useState<{ attempt: number; data?: AdmissionsFilterOptions; error?: string } | null>(null)
-  useEffect(() => {
-    let active = true
-    void getAdmissionsFilterOptions().then(
-      (data) => { if (active) setResponse({ attempt, data }) },
-      () => { if (active) setResponse({ attempt, error: 'Location options could not load. Please try again.' }) },
-    )
-    return () => { active = false }
-  }, [attempt])
-  const result = response?.attempt === attempt ? response : null
+  const reference = useAdmissionsReferences()
+  const locations = (reference.data?.locations ?? []).map(row => ({
+    state: row.state, portfolio: row.portfolio_name, region: row.region_name, facility: row.facility_name,
+  }))
   const values = overviewFilterValues(selection)
   return <TabFilterBar ariaLabel="Overview filters"
     settings={overviewFilterSettings(selection)}
@@ -34,11 +26,12 @@ export function AdmissionsOverviewFilters({ selection, onChange }: {
         id: 'location', label: 'Location', values: values.location,
         isApplied: selection.scope !== null,
         options: [],
-        renderPicker: (props) => <AdmissionsLocationPicker {...props} locations={result?.data?.locations ?? []} />,
-        isLoading: result === null, error: result?.error, onRetry: () => setAttempt((value) => value + 1),
+        renderPicker: (props) => <AdmissionsLocationPicker {...props} locations={locations} />,
+        isLoading: reference.loading, error: reference.error, onRetry: reference.onRetry,
       },
-      { id: 'payer', label: 'Payer types', values: values.payer,
-        options: payers.map((value) => ({ value, label: formatPayerType(value) })) },
+      { id: 'payer', label: 'Payer types', values: values.payer.map(payerCode),
+        isLoading: reference.loading, error: reference.error, onRetry: reference.onRetry,
+        options: (reference.data?.payerTypes ?? []).map(value => ({ value, label: payerLabel(value) })) },
       { id: 'source', label: 'Source types', values: values.source,
         options: sources.map((value) => ({ value, label: value })) },
     ]} />

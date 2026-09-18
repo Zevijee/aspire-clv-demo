@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aspire-database"
+version = "0.1.0"
+description = "Shared database schema, migrations and backfill lifecycle for Aspire"
+requires-python = ">=3.11"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["shared/database/requirements.txt"]}
+
+[tool.setuptools.packages.find]
+include = ["shared*"]
+
+[tool.setuptools.package-data]
+"shared.database" = ["requirements.txt", "migrations/*.mako", "migrations/legacy/*.sql"]

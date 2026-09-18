@@ -11,6 +11,7 @@ import { MonthlyAdtTrending } from '../features/adt/components/MonthlyAdtTrendin
 import { ReferringHospitalOverview } from '../features/adt/components/ReferringHospitalOverview'
 import { NetChangeFilters } from '../features/adt/components/NetChangeFilters'
 import { NetChangePayerFilter } from '../features/adt/components/NetChangePayerFilter'
+import { AdmissionsPayerFilter } from '../features/adt/components/AdmissionsPayerFilter'
 import { PayerFilter } from '../features/adt/components/PayerFilter'
 import { AdmissionsTesting } from '../features/adt/components/AdmissionsTesting'
 import { analyticsModules, reports, reportsByModule } from '../features/navigation/reportCatalog'
@@ -227,7 +228,7 @@ function App() {
         internalScroll={currentReport.path === '/adt/referring-hospital'}
         filters={
           <ReportFilters>
-            {isAdmissionsReport && <PayerFilter
+            {isAdmissionsReport && <AdmissionsPayerFilter
               values={activeAdmissionsTab === 'logs' ? searchParams.getAll('logs_payer') : overviewSelection.payers}
               onChange={payers => {
                 if (activeAdmissionsTab !== 'logs') {

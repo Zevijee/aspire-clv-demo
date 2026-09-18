@@ -10,11 +10,11 @@ export function useTableFilterOptions(source: TableFilterSource | undefined,
   useEffect(() => {
     if (!request) return
     const controller = new AbortController()
-    const [id, startDate, endDate, columnId, otherFilters, searchTerm] = JSON.parse(request)
+    const [id, startDate, endDate, columnId, otherFilters, searchTerm, endpoint] = JSON.parse(request)
     const params = new URLSearchParams({ start_date: startDate, end_date: endDate,
       column: columnId, filters: JSON.stringify(otherFilters), search: searchTerm })
     const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
-    void fetch(`${baseUrl}/api/v1/table-filter-options/${id}?${params}`, { signal: controller.signal })
+    void fetch(`${endpoint ?? `${baseUrl}/api/v1/table-filter-options/${id}`}?${params}`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error('Could not load filter options.')
         const data = await response.json() as { options: string[] }

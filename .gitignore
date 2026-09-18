@@ -4,24 +4,10 @@
 !.env.example
 !.env.docker.example
 
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-*.egg-info/
-*.egg
-.eggs/
-/backend/build/
-/backend/dist/
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-.tox/
-.nox/
-.coverage
-.coverage.*
-htmlcov/
+# Database snapshots: rebuilt from the generators, too large for git history.
+/docker/initdb/*.sql
+/docker/initdb/*.sql.gz
+/docker/initdb/*.dump
 
 # Node.js
 node_modules/
@@ -31,12 +17,28 @@ node_modules/
 *.tsbuildinfo
 coverage/
 
-# Local database and tooling
+# Local tooling
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
 *.log
 *.log.*
-pgdata/
-backups/
 /output/
+
+# Schema drafting is local working state until update publishes it. The published
+# schema, migrations and backfills are committed from their active locations.
+/shared/database/staged/
+/shared/database/stage-history/
+/shared/database/.staging.lock
+
+# Agent and editor local configuration
+/.claude/
+.claude/settings.local.json
+
+# Local Claude Code overrides
+/.claude/settings.local.json
 
 # OS and personal editor files
 .DS_Store
@@ -48,6 +50,4 @@ Desktop.ini
 *.swp
 *.swo
 
-# Keep source, migrations, Docker/Compose configuration, package manifests,
-# package-lock.json and the explicit .env templates above in version control.
-
+# Keep source, package manifests, package-lock.json and environment examples tracked.

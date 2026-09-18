@@ -1,1 +1,0 @@
-from reporting.monthly.activity import refresh_monthly_activity

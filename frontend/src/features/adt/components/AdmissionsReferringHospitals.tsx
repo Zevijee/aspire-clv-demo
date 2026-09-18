@@ -68,7 +68,7 @@ export function AdmissionsReferringHospitals() {
     return () => { active = false }
   }, [startDate, endDate, key])
   const response = result?.key === key ? result : null
-  return <Table internalScroll searchable stickyFooterRow title="Referring hospitals"
+  return <Table<HospitalRow> internalScroll searchable stickyFooterRow title="Referring hospitals"
     subtitle="Hospital admissions compared with the immediately preceding period of the same length"
     rows={response?.rows ?? []} columns={columns}
     getFooterRow={(visibleRows) => getHospitalTotal(visibleRows, days)}
