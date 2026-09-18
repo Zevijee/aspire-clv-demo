@@ -1,0 +1,93 @@
+# Clearview
+
+A skilled-nursing analytics demo for Aspire Health Group: a React dashboard over a
+synthetic dataset of resident admissions, discharges and payer activity across 253
+facilities and roughly four years of daily history.
+
+The data is generated, not copied. A day-by-day simulation produces admissions,
+discharges, payer periods and census with realistic distributions, so the reports
+can be designed and reviewed before any real pipeline exists. See
+[docs/overview.md](docs/overview.md) for why the demo is built this way.
+
+## Run it
+
+### Docker, about 30 seconds
+
+Needs Docker only. No Python, Node or PostgreSQL.
+
+```powershell
+cp .env.docker.example .env.docker      # set POSTGRES_PASSWORD
+docker compose --env-file .env.docker up --build
+```
+
+Open <http://127.0.0.1:5173>. Use `127.0.0.1` rather than `localhost`: if you also
+run the Vite dev server it holds `[::1]:5173` and will answer instead.
+
+The database starts empty and the API refuses to start without a schema. Put a
+snapshot at `docker/initdb/aspire.sql.gz` before the first start and PostgreSQL
+restores it automatically, or generate one with
+`docker compose --env-file .env.docker run --rm reset` (about ten minutes). The
+snapshot is not in this repository; see [docs/docker.md](docs/docker.md).
+
+### Locally
+
+Needs Python 3.11+ and a PostgreSQL 18 database. Put its URL in a root `.env`:
+
+```
+DATABASE_URL=postgresql://user:password@localhost:5432/your_database
+```
+
+```powershell
+python -m pip install -r sandbox-data/requirements.txt
+python -m pip install -r backend/requirements.txt
+
+cd sandbox-data
+python manage.py update            # migrate, then generate missing days
+cd ..
+python backend/manage.py serve --reload
+
+cd frontend
+npm install
+npm run dev
+```
+
+The API listens on <http://127.0.0.1:8000>, with documentation at `/docs`. The
+frontend defaults to that address, or `VITE_API_BASE_URL`.
+
+## What lives where
+
+```text
+backend/          FastAPI read-only reporting API
+  app/            one package per feature: routes, service, schemas
+sandbox-data/     the data generator and its command line
+  base.py         run order, batching, COPY and upsert machinery
+  source_data_generators/   the ADT simulation and reference data
+  summary_generators/       derived reporting tables
+shared/database/  the schema, migrations, backfills and lifecycle locking
+                  imported by both the API and the generator
+frontend/         React 19 + Vite + antd + recharts
+docker/initdb/    where a database snapshot goes
+docs/             everything below
+```
+
+## Documentation
+
+| Document | What it answers |
+| --- | --- |
+| [docs/overview.md](docs/overview.md) | Why this demo exists and how it relates to the real pipeline |
+| [docs/backend-structure.md](docs/backend-structure.md) | API architecture, every endpoint, how to add a report |
+| [docs/generators.md](docs/generators.md) | How the simulation works and which constant tunes what |
+| [docs/database-workflow.md](docs/database-workflow.md) | Schema changes, migrations, backfills, regenerating data |
+| [docs/database-schema.md](docs/database-schema.md) | Generated table and column reference |
+| [docs/scaling.md](docs/scaling.md) | Measured performance, storage, and what breaks at scale |
+| [docs/docker.md](docs/docker.md) | Containers, snapshots, and the traps in them |
+| [docs/roadmap.md](docs/roadmap.md) | What is next and what is deliberately unfinished |
+| [docs/ui-context.md](docs/ui-context.md) | Report-specific interface history |
+| [frontend/STYLE_GUIDE.md](frontend/STYLE_GUIDE.md) | Shared components and interaction patterns |
+| [AGENTS.md](AGENTS.md) | Working rules, invariants and known traps |
+
+## Current state
+
+The Admissions report is complete end to end. Five other reports exist in the
+frontend but call endpoints that the backend rebuild has not reimplemented yet, so
+they do not load. [docs/roadmap.md](docs/roadmap.md) lists them and what each needs.
