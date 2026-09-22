@@ -57,6 +57,15 @@ self-join on `period_number - 1`; `payer_change_logs` pays it once at build time
 | Payer Changes overview, 1 year | 528 ms | 144 ms |
 | Payer Changes logs, 1 year | 328 ms | 75 ms |
 
+**Three scans became one.** The Net Change overview ran a grouping set, a payer
+breakdown and a per-day census pass separately: 1,324 ms at a one-year range. The
+breakdown ignores the payer filter, so filtering in `WHERE` forced its own scan;
+moving the filter inside the aggregates lets one scan carry both the filtered
+report and the unfiltered breakdown. Carrying `sum(opening_census)` and
+`sum(closing_census)` alongside the boundary-pinned pair removed the third, because
+grouped by date those sums are that day's own census. 1,324 ms to **399 ms**, with
+every value unchanged.
+
 **Monthly trending was reading the wrong table.** It fetched 1,361 daily rows and
 bucketed them in the browser: 1,609 ms. Reading the monthly rollup instead: 208 ms.
 

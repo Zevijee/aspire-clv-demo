@@ -12,7 +12,7 @@ CHECK keeps them equal, so either can be used and they cannot drift.
 from collections import defaultdict
 from datetime import timedelta
 
-from sqlalchemy import case, func, select, tuple_
+from sqlalchemy import and_, case, func, select, tuple_
 from sqlalchemy.engine import Connection
 
 from shared.database.schema import (
@@ -27,17 +27,41 @@ ZERO = dict(opening_census=0, closing_census=0, admissions=0, discharges=0,
     payer_changes_in=0, payer_changes_out=0)
 
 
-def _measures(query):
+def _payer_filter(query):
+    """The payer selection as an expression rather than a WHERE clause.
+
+    The payer breakdown deliberately ignores the payer filter, so applying it in
+    WHERE would force a second scan. Applied inside the aggregates instead, one
+    scan can carry both the filtered report and the unfiltered breakdown.
+    """
+    return facts.c.payer_type.in_(query.payer_types) if query.payer_types else None
+
+
+def _measures(query, *, apply_payer=True, prefix=''):
     """Flows sum over the range; census is read at the two boundary dates."""
-    at = lambda column, day: func.coalesce(func.sum(  # noqa: E731 - one expression, read inline
-        case((facts.c.summary_date == day, column), else_=0)), 0)
+    keep = _payer_filter(query) if apply_payer else None
+
+    def summed(column):
+        return func.coalesce(func.sum(
+            column if keep is None else case((keep, column), else_=0)), 0)
+
+    def at(column, day):
+        on_day = facts.c.summary_date == day
+        return func.coalesce(func.sum(
+            case((on_day if keep is None else and_(on_day, keep), column), else_=0)), 0)
+
     return (
-        at(facts.c.opening_census, query.start_date).label('opening_census'),
-        at(facts.c.closing_census, query.end_date).label('closing_census'),
-        func.coalesce(func.sum(facts.c.admissions), 0).label('admissions'),
-        func.coalesce(func.sum(facts.c.discharges), 0).label('discharges'),
-        func.coalesce(func.sum(facts.c.changes_in), 0).label('payer_changes_in'),
-        func.coalesce(func.sum(facts.c.changes_out), 0).label('payer_changes_out'),
+        at(facts.c.opening_census, query.start_date).label(prefix + 'opening_census'),
+        at(facts.c.closing_census, query.end_date).label(prefix + 'closing_census'),
+        summed(facts.c.admissions).label(prefix + 'admissions'),
+        summed(facts.c.discharges).label(prefix + 'discharges'),
+        summed(facts.c.changes_in).label(prefix + 'payer_changes_in'),
+        summed(facts.c.changes_out).label(prefix + 'payer_changes_out'),
+        # Grouped by date these two are that day's own opening and closing, which
+        # the boundary-pinned pair above cannot express. Carried alongside so the
+        # daily series needs no scan of its own.
+        summed(facts.c.opening_census).label(prefix + 'day_opening'),
+        summed(facts.c.closing_census).label(prefix + 'day_closing'),
     )
 
 
@@ -123,40 +147,38 @@ def overview(connection: Connection, query: OverviewQuery):
 
     facility_ids = (None if selected_ids and len(selected_ids) == len(all_rows)
         else sorted(selected_ids))
-    every = _conditions(query, facility_ids)
+    # The payer filter lives inside the aggregates, not here, so the breakdown
+    # that ignores it can come from the same rows.
+    every = _conditions(query, facility_ids, apply_payer=False)
     id_column = _level_id(query.group_by)
 
-    # Totals, daily trend and location rows share one scan through grouping sets.
+    # One scan. Four grouping sets: the grand total, one row per location, one per
+    # day, and one per payer type. The first three read the payer-filtered
+    # measures; the payer rows read the unfiltered ones beside them.
     grouped_rows = connection.execute(select(
-        id_column.label('scope'), facts.c.summary_date,
+        id_column.label('scope'), facts.c.summary_date, facts.c.payer_type,
         func.grouping(id_column).label('no_scope'),
-        func.grouping(facts.c.summary_date).label('no_date'), *_measures(query))
+        func.grouping(facts.c.summary_date).label('no_date'),
+        func.grouping(facts.c.payer_type).label('no_payer'),
+        *_measures(query),
+        *_measures(query, apply_payer=False, prefix='any_'))
         .select_from(_source(query.group_by)).where(*every)
-        .group_by(func.grouping_sets(tuple_(), tuple_(id_column), tuple_(facts.c.summary_date)))
+        .group_by(func.grouping_sets(
+            tuple_(), tuple_(id_column), tuple_(facts.c.summary_date),
+            tuple_(facts.c.payer_type)))
     ).mappings().all()
-    total_row = next(row for row in grouped_rows if row['no_scope'] and row['no_date'])
-    daily_rows = {row['summary_date']: row for row in grouped_rows if not row['no_date']}
+
+    total_row = next(row for row in grouped_rows
+        if row['no_scope'] and row['no_date'] and row['no_payer'])
     location_rows = {str(row['scope']): row for row in grouped_rows if not row['no_scope']}
-
-    # The payer breakdown keeps the location filter but drops the payer filter,
-    # so the chart still shows the types the selection is being compared against.
-    by_payer = connection.execute(select(facts.c.payer_type, *_measures(query))
-        .where(*_conditions(query, facility_ids, apply_payer=False))
-        .group_by(facts.c.payer_type)).mappings().all()
-
-    # A day's own opening and closing, rather than the range boundaries.
-    daily_measure = dict(
-        opening_census=func.coalesce(func.sum(facts.c.opening_census), 0),
-        closing_census=func.coalesce(func.sum(facts.c.closing_census), 0))
-    daily_census = {row['summary_date']: row for row in connection.execute(
-        select(facts.c.summary_date,
-            daily_measure['opening_census'].label('opening_census'),
-            daily_measure['closing_census'].label('closing_census'),
-            func.coalesce(func.sum(facts.c.admissions), 0).label('admissions'),
-            func.coalesce(func.sum(facts.c.discharges), 0).label('discharges'),
-            func.coalesce(func.sum(facts.c.changes_in), 0).label('payer_changes_in'),
-            func.coalesce(func.sum(facts.c.changes_out), 0).label('payer_changes_out'))
-        .where(*every).group_by(facts.c.summary_date)).mappings().all()}
+    # A day's own opening and closing, not the range boundaries.
+    daily_rows = {row['summary_date']: dict(row, opening_census=row['day_opening'],
+        closing_census=row['day_closing']) for row in grouped_rows if not row['no_date']}
+    by_payer = [dict(payer_type=row['payer_type'],
+        **{key: row['any_' + key] for key in
+            ('opening_census', 'closing_census', 'admissions', 'discharges',
+             'payer_changes_in', 'payer_changes_out')})
+        for row in grouped_rows if not row['no_payer']]
 
     return dict(
         range=dict(start=query.start_date, end=query.end_date, days=days), group_by=query.group_by,
@@ -167,7 +189,7 @@ def overview(connection: Connection, query: OverviewQuery):
             for key in sorted(groups, key=lambda key: (paths[key][-1]['name'], key))],
         by_payer=[dict(payer_type=row['payer_type'], **_metrics(row, days))
             for row in sorted(by_payer, key=lambda row: row['payer_type'])],
-        daily=[dict(date=day, **_metrics(daily_census.get(day, ZERO), 1))
+        daily=[dict(date=day, **_metrics(daily_rows.get(day, ZERO), 1))
             for day in (query.start_date + timedelta(days=index) for index in range(days))],
         data_status=dict(complete=True, available_from=first, available_through=last,
             generated_at=generated_at, schema_version=1),

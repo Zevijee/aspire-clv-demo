@@ -114,8 +114,8 @@ Measured response times on the full dataset, 30-day and 1-year ranges:
 | Admissions overview | 5 ms | 5 ms |
 | Discharges overview | 28 ms | 156 ms |
 | Payer Changes overview | 23 ms | 144 ms |
-| Net Change overview | 175 ms | 1,324 ms |
+| Net Change overview | 46 ms | 399 ms |
 | Monthly trend | 47 ms | 128 ms |
 
-Net Change overview is the outlier and is known: it scans its fact table three
-times for one response where once would do.
+Net Change reads the largest table in the database (2.5M rows) and is the slowest
+of the five, but answers from a single scan.
