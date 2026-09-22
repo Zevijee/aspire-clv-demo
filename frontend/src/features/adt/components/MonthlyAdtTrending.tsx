@@ -5,8 +5,8 @@ import { Table, type TableColumn } from '../../../shared/components/Table'
 import { useSearchParams } from 'react-router-dom'
 import { getReportMonthRange } from '../../../shared/components/filters/ReportMonthRangeFilter'
 import { LineChart } from '../../../shared/components/charts/LineChart'
-import { DailyChangeChart, type DailyChangeItem } from '../../../shared/components/charts/DailyChangeChart'
-import { useNetChangeDaily, type DailyMovement } from '../hooks/useNetChangeDaily'
+import { DailyChangeChart } from '../../../shared/components/charts/DailyChangeChart'
+import { useMonthlyAdt, type MonthlyMovement } from '../hooks/useMonthlyAdt'
 import { MonthlyAdtLocations } from './MonthlyAdtLocations'
 import { AdmissionsOverviewModal, type AdmissionsMonthSelection } from './AdmissionsOverviewModal'
 
@@ -17,29 +17,10 @@ export function MonthlyAdtTrending({ activeTab }: { activeTab: string }) {
   const [params] = useSearchParams()
   const { start, end } = getReportMonthRange(params)
   const lastDay = end.isSame(dayjs(), 'month') ? dayjs() : end.endOf('month')
-  const daily = useNetChangeDaily({ startDate: start.format('YYYY-MM-DD'), endDate: lastDay.format('YYYY-MM-DD'),
+  // The API groups by month from the monthly rollup, so nothing is bucketed here.
+  const daily = useMonthlyAdt({ startDate: start.format('YYYY-MM-DD'), endDate: lastDay.format('YYYY-MM-DD'),
     payers: params.getAll('monthly_payer'), path })
-  const months = new Map<string, DailyChangeItem & { admissions: number; discharges: number; payer_changes_in: number; payer_changes_out: number; days: DailyMovement[] }>()
-  for (let month = start; !month.isAfter(end, 'month'); month = month.add(1, 'month')) {
-    months.set(month.format('YYYY-MM'), { date: month.format('YYYY-MM-DD'),
-      end_date: (month.isSame(lastDay, 'month') ? lastDay : month.endOf('month')).format('YYYY-MM-DD'),
-      value: 0, admissions: 0, discharges: 0, opening_census: 0, closing_census: 0,
-      payer_changes_in: 0, payer_changes_out: 0, days: [] })
-  }
-  for (const day of [...daily.items].sort((a, b) => a.date.localeCompare(b.date))) {
-    const month = months.get(day.date.slice(0, 7))
-    if (month) {
-      if (day.date === month.date) month.opening_census = day.opening_census
-      month.closing_census = day.closing_census
-      month.value += day.value
-      month.admissions += day.admissions
-      month.discharges += day.discharges
-      month.payer_changes_in += day.payer_changes_in
-      month.payer_changes_out += day.payer_changes_out
-      month.days.push(day)
-    }
-  }
-  const rows = [...months.values()]
+  const rows: MonthlyMovement[] = daily.months
   const tableLabel = activeTab === 'net-change' ? 'Net change' : activeTab === 'discharges' ? 'Discharges' : 'Admissions'
   const columns: TableColumn<(typeof rows)[number]>[] = [
     { id: 'date', header: 'Month', isRowHeader: true, value: row => row.date,

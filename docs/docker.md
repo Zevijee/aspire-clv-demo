@@ -4,6 +4,25 @@ Three containers: `db` (PostgreSQL 18), `api` (FastAPI) and `frontend` (the buil
 Vite app behind nginx). Nothing else needs installing — no Python, no Node, no
 local PostgreSQL.
 
+Two more exist for development, `api-dev` and `frontend-dev`, which mount the
+working tree and reload instead of serving a build:
+
+```powershell
+docker compose --env-file .env.docker up api-dev frontend-dev
+```
+
+Naming both services explicitly is what keeps the built `api` and `frontend`
+stopped; otherwise they start too and compete for `APP_PORT`. Bind mounts do not
+deliver inotify events through the Docker Desktop VM, so both watchers poll —
+`WATCHFILES_FORCE_POLLING` and `WATCH_POLLING`. Without those the reloader starts
+and then never fires.
+
+## Connecting a client to the container database
+
+`db` publishes `127.0.0.1:5433` (override with `DB_PORT`), so pgAdmin or psql can
+reach it while the network cannot. Database `aspire_analytics`, user `aspire`,
+password from `.env.docker`.
+
 ## First run
 
 ```powershell
@@ -20,6 +39,15 @@ entirely.
 
 `up` never migrates, seeds or restores. Data work is always an explicit command, so
 no stray `up` can rebuild a database someone is using.
+
+**The container database is not your local one.** Migrating locally leaves Docker
+behind; the API then fails its readiness check at startup and every browser request
+hangs with no error shown. Run migrations against both.
+
+The `update`, `reset` and `status` tools mount `backend/`, `shared/` and
+`sandbox-data/` read-only so they run the working tree. Before that they ran the
+code baked into the image, and an `update` after a schema change would report the
+database up to date while it was several migrations behind.
 
 ## Getting data in
 

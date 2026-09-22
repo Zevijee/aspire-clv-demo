@@ -20,6 +20,9 @@ class DischargeLogGenerator(BaseGenerator):
     table = BaseGenerator.discharge_logs
     SEED = 42
     DECEASED_SHARE = 0.05
+    # Share of the discharges that are neither deaths nor acute transfers which
+    # leave against medical advice. A demo choice, in the range operators report.
+    AMA_SHARE = 0.03
     DESTINATION_WEIGHTS = {
         'Hospital': 25, 'Skilled Nursing': 10, 'Home': 40,
         'Rehab Facility': 10, 'Assisted Living': 10, 'Community': 5,
@@ -97,9 +100,16 @@ class DischargeLogGenerator(BaseGenerator):
                 destination_name = rng.choices(names, cum_weights=cumulative, k=1)[0]
             else:
                 destination_name = rng.choice(self.DESTINATION_NAMES[destination_type])
+            # Same AMA rule as the simulation, but drawn from this generator's own
+            # stream rather than the simulation's per-stay one. Regenerating gives
+            # the same distribution, not the same rows. Deaths and acute transfers
+            # are already their own outcome, so neither is eligible.
+            is_ama = (not is_deceased and destination_type != 'Hospital'
+                and rng.random() < self.AMA_SHARE)
             yield dict(stay_id=row['stay_id'], discharge_date=row['discharge_date'],
                 payer_id=row['payer_id'], destination_type=destination_type,
-                destination_name=destination_name, is_deceased=is_deceased, los=los)
+                destination_name=destination_name, is_deceased=is_deceased,
+                is_ama=is_ama, los=los)
 
     def write_generated(self, connection):
         """Stream saved discharges in bounded batches and commit logs atomically."""

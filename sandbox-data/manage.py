@@ -45,8 +45,10 @@ def main():
     # Only these walk the day-by-day simulation. res_stays and the two log generators
     # rebuild from already-saved rows, so they run alone instead of being silently
     # widened into a full daily catch-up.
-    daily = args.generator in ('seed', 'update', 'all', 'admissions_summary')
-    standalone = args.generator in ('res_stays', 'admission_logs', 'discharge_logs')
+    daily = args.generator in ('seed', 'update', 'all', 'admissions_summary', 'discharges_summary',
+        'payer_changes_summary', 'net_change_summary', 'monthly_adt_summary')
+    standalone = args.generator in ('res_stays', 'admission_logs', 'discharge_logs',
+        'payer_change_logs')
     if args.date and (args.start or args.through):
         parser.error('--date cannot be combined with --from or --through.')
     if args.reset_history and args.generator != 'seed':
@@ -64,7 +66,10 @@ def main():
     if args.batch_size < 1 or (args.max_batches is not None and args.max_batches < 1):
         parser.error('Batch limits must be positive.')
     try:
-        daily_target = args.only or ('admissions_summary' if args.generator == 'admissions_summary' else 'all')
+        summaries = ('admissions_summary', 'discharges_summary', 'payer_changes_summary',
+            'net_change_summary',
+            'monthly_adt_summary')
+        daily_target = args.only or (args.generator if args.generator in summaries else 'all')
         daily_plan = BaseGenerator.daily_plan(daily_target) if daily else ()
         start = args.date or args.start
         through = args.date or args.through or BaseGenerator.today()

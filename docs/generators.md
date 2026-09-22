@@ -42,15 +42,33 @@ From `sandbox-data`:
 | `python manage.py seed --reset-history` | Drop every table and rebuild from 2023-01-01. |
 | `python manage.py status` | Applied migrations, backfills, staged drafts. |
 | `python manage.py admissions_summary --regenerate` | Rebuild facts from saved ADT. |
+| `python manage.py discharges_summary --regenerate` | Rebuild discharge facts. |
+| `python manage.py payer_changes_summary --regenerate` | Rebuild payer change facts. |
+| `python manage.py net_change_summary --regenerate` | Rebuild the daily payer census. ~8 min. |
+| `python manage.py monthly_adt_summary --regenerate` | Rebuild the monthly rollup. ~6 s. |
 | `python manage.py admission_logs --regenerate` | Rebuild admission logs from saved stays. |
 | `python manage.py discharge_logs --regenerate` | Rebuild discharge logs from saved stays. |
+| `python manage.py payer_change_logs --regenerate` | Flatten payer changes from saved periods. |
 
 `res_stays` as a standalone command deliberately fails: fixed-window stay generation
 was replaced by the daily simulation, and the guard says so.
 
-A full reset takes about nine and a half minutes at 253 facilities over four years.
-Roughly 96% of that is the simulation; reference data, residents and the fact
-rebuild account for about twenty seconds.
+A full reset takes about nine and a half minutes at 253 facilities over four years,
+plus roughly eight more for `net_change_summary`. Most of the rest is the
+simulation; reference data, residents and the other fact rebuilds account for well
+under a minute between them.
+
+**Two generators carry a running balance** and so cannot be rebuilt for a single
+day: `net_change_summary` and `monthly_adt_summary`. A day recomputed in isolation
+loses the balance carried into it. `net_change_summary` has an `extend` path for a
+contiguous tail — 1.6 s for three days, verified byte-identical to a full rebuild —
+and falls back to rebuilding everything for a gap or a rewritten earlier day.
+
+**`monthly_adt_summary` builds from `res_payer_stays`, not from the daily table.**
+Rolling the daily table up would be 10 s but requires it to be current first, which
+is 8 minutes. Built from source it is 3 s and independent. Both were verified to
+produce identical rows. The movement rules they share live in
+`summary_generators/payer_movements.py` so the two cannot diverge.
 
 ## What changing a rule costs
 

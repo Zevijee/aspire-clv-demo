@@ -4,10 +4,11 @@ import { useSearchParams } from 'react-router-dom'
 import type { TableColumn } from '../../../shared/components/Table'
 import { DrilldownTable } from '../../../shared/components/DrilldownTable'
 import { DrilldownNavigation } from '../../../shared/components/DrilldownNavigation'
+import { payerCode } from '../api/admissionsOverview'
 
 type Metric = 'admissions' | 'discharges' | 'net_change'
-type Location = { facility_code: string; facility_name: string; state: string; portfolio: string; region: string }
-type Result = { locations: Location[]; items: ({ facility_code: string; month: string } & Record<Metric, number>)[] }
+type Location = { facility_id: string; facility_name: string; state: string; portfolio: string; region: string }
+type Result = { locations: Location[]; items: ({ facility_id: string; month: string } & Record<Metric, number>)[] }
 type Row = { key: string; name: string; months: number[]; isTotal?: boolean }
 const levels = ['state', 'portfolio', 'region', 'facility_name'] as const
 const labels = ['State', 'Portfolio', 'Region', 'Facility']
@@ -19,7 +20,7 @@ export function MonthlyAdtLocations({ activeTab, startDate, endDate, path, setPa
   const [params] = useSearchParams()
   const [retry, setRetry] = useState(0)
   const request = new URLSearchParams({ start_date: startDate, end_date: endDate })
-  params.getAll('monthly_payer').forEach(payer => request.append('payer_type', payer))
+  params.getAll('monthly_payer').forEach(payer => request.append('payer_types', payerCode(payer)))
   const query = request.toString()
   const key = JSON.stringify([query, retry])
   const [response, setResponse] = useState<{ key: string; data?: Result; error?: string } | null>(null)
@@ -50,10 +51,10 @@ export function MonthlyAdtLocations({ activeTab, startDate, endDate, path, setPa
     const name = location[levels[depth]]
     let row = groups.get(name)
     if (!row) { row = { key: name, name, months: months.map(() => 0) }; groups.set(name, row) }
-    facilityGroups.set(location.facility_code, row)
+    facilityGroups.set(location.facility_id, row)
   }
   for (const item of result?.data?.items ?? []) {
-    const row = facilityGroups.get(item.facility_code)
+    const row = facilityGroups.get(item.facility_id)
     const index = months.indexOf(item.month)
     if (row && index >= 0) row.months[index] += Number(item[metric])
   }

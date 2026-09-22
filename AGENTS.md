@@ -65,8 +65,12 @@ Breaking one of these is a design change, not a refactor. Each was measured; see
 - **One fact table per event type, not per report.** Six ADT reports derive from
   four event sources. Referring Hospital needs no new table — `source_name` is
   already at the grain.
-- **Keep dimension keys at the grain** (`payer_id`, not `payer_type`). The finer
-  grain measured as free and makes future breakdowns possible without regenerating.
+- **Keep dimension keys at the grain** (`payer_id`, not `payer_type`) *when the
+  finer grain is close to free*. For admissions and discharges it measured free.
+  It is not a universal rule: at `payer_id` grain `daily_payer_change_facts` came to
+  **99.9% of its source rows**, which is a copy rather than a summary, so payer
+  change and payer census facts use `payer_type` and leave plan names in the logs.
+  Measure the row count at both grains before choosing.
 - **Sum numerators, divide once.** Never average a column of averages. Store
   `sum_los` and a count as separate columns, never a pre-computed mean, or every
   roll-up above facility level is silently wrong.
@@ -85,6 +89,9 @@ Check this before editing a generator. Full detail in
 | Metric derivable from existing fact dimensions | **Nothing** |
 | Referral sources, hospital scores, discharge destinations | `admission_logs --regenerate`, seconds |
 | New additive measure on a fact table | Column, backfill, `admissions_summary --regenerate` |
+| Payer change reporting, from saved periods | `payer_change_logs --regenerate`, ~4 s |
+| Monthly trending, from saved periods | `monthly_adt_summary --regenerate`, ~6 s |
+| Net change / payer census | `net_change_summary --regenerate`, ~8 min |
 | **Any payer rule, stay length or census target** | **Full `seed --reset-history`, ~9.5 min** |
 
 The last row is circular and unavoidable: payer decides length of stay, which decides
@@ -100,9 +107,24 @@ python manage.py update                         # migrate, then generate missing
 python manage.py seed --reset-history           # drop everything, rebuild from 2023-01-01
 python manage.py status                         # migrations, backfills, staged drafts
 python manage.py admissions_summary --regenerate
+python manage.py discharges_summary --regenerate
+python manage.py payer_changes_summary --regenerate
+python manage.py net_change_summary --regenerate      # ~8 min; rebuilds 2.5M rows
+python manage.py monthly_adt_summary --regenerate     # ~6 s, independent of the above
 python manage.py admission_logs --regenerate    # rebuild one table from saved stays
+python manage.py discharge_logs --regenerate
+python manage.py payer_change_logs --regenerate
 python backend/manage.py serve --reload         # from the repository root
-docker compose --env-file .env.docker up --build
+docker compose --env-file .env.docker up --build            # built images
+docker compose --env-file .env.docker up api-dev frontend-dev   # source mounted, reloads
+```
+
+Anything run against the container database goes through the tools, which mount the
+working tree:
+
+```powershell
+docker compose --env-file .env.docker run --rm update python manage.py upgrade
+docker compose --env-file .env.docker run --rm reset         # full reseed, ~5 min
 ```
 
 ## Traps that have already cost time
@@ -128,16 +150,32 @@ docker compose --env-file .env.docker up --build
   `manage.py stage` creates the draft; `update` publishes it.
 - **VS Code's git badges go stale** after a commit made outside the editor. Trust
   `git status`.
+- **The container database is not your local one.** Migrating locally leaves Docker
+  behind, and the API then fails its readiness check at startup and every request
+  hangs with no error in the browser. Migrate both.
+- **`docker compose run --rm update` used to run the image's code, not the working
+  tree**, so an `update` after a schema change reported the database up to date while
+  it was several migrations behind. The tools now mount `backend/`, `shared/` and
+  `sandbox-data/`; keep it that way.
+- **A generator that carries a running balance cannot be rebuilt for one day.**
+  `net_change_summary` and `monthly_adt_summary` recompute from the first affected
+  row onward. `net_change_summary` has an `extend` path for a contiguous tail only,
+  and falls back to a full rebuild for anything else.
 
 ## Do not "fix" these
 
-- **Five frontend reports call endpoints that do not exist.** They are awaiting
-  rebuild, not broken. [docs/roadmap.md](docs/roadmap.md#dead-frontend-reports) lists
-  each one and what it calls.
+- **Referring Hospital and Live Census call endpoints that do not exist.** They are
+  awaiting rebuild, not broken. Admissions, Discharges, Payer Changes, Net Change and
+  Monthly ADT Trending all work end to end.
+  [docs/roadmap.md](docs/roadmap.md#dead-frontend-reports) lists what is left.
 - **`manage.py res_stays` fails deliberately.** Fixed-window stay generation was
   replaced by the daily simulation; the guard says so.
-- **A payer change can never move a stay into skilled coverage.** Deliberate, and
-  correct for traditional Medicare. Recorded as a known simplification.
+- **A payer change can move a stay only from managed Medicare into Original
+  Medicare, never into any other skilled payer.** Medicare Advantage disenrolment
+  mid-stay is real, so `medicare_hmo` and `medicare_comm` may move to `medicare`.
+  It continues the same 100-day allowance rather than restarting it, which is why
+  every other skilled destination is still blocked. See `MANAGED_MEDICARE` and
+  `MANAGED_DISENROLMENT_SHARE` in `aspire-res-stays.py`.
 - **`aspire-admission-logs.py` and `aspire-discharge-logs.py` look unused.** They
   supply the simulation's rules and can rebuild their own table standalone. There is
   a real duplication to remove there, but read

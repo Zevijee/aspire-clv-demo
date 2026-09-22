@@ -58,6 +58,34 @@ erDiagram
     }
     facilities ||--o{ daily_admission_facts : "facility_id"
     payers ||--o{ daily_admission_facts : "payer_id"
+    daily_discharge_facts {
+        Date summary_date PK
+        Uuid facility_id PK
+        Uuid payer_id PK
+        String destination_type PK
+        String destination_name PK
+    }
+    facilities ||--o{ daily_discharge_facts : "facility_id"
+    payers ||--o{ daily_discharge_facts : "payer_id"
+    daily_payer_census_facts {
+        Date summary_date PK
+        Uuid facility_id PK
+        String payer_type PK
+    }
+    facilities ||--o{ daily_payer_census_facts : "facility_id"
+    daily_payer_change_facts {
+        Date summary_date PK
+        Uuid facility_id PK
+        String previous_payer_type PK
+        String new_payer_type PK
+    }
+    facilities ||--o{ daily_payer_change_facts : "facility_id"
+    monthly_payer_census_facts {
+        Date month_start PK
+        Uuid facility_id PK
+        String payer_type PK
+    }
+    facilities ||--o{ monthly_payer_census_facts : "facility_id"
     residents {
         Uuid resident_id PK
     }
@@ -96,6 +124,15 @@ erDiagram
     payers ||--o{ medicaid_applications : "approved_payer_id"
     res_payer_stays ||--o| medicaid_applications : "payer_stay_id"
     res_stays ||--o| medicaid_applications : "stay_id"
+    payer_change_logs {
+        Uuid payer_stay_id PK
+    }
+    facilities ||--o{ payer_change_logs : "facility_id"
+    payers ||--o{ payer_change_logs : "new_payer_id"
+    payers ||--o{ payer_change_logs : "previous_payer_id"
+    res_payer_stays ||--o| payer_change_logs : "payer_stay_id"
+    res_stays ||--o{ payer_change_logs : "stay_id"
+    residents ||--o{ payer_change_logs : "resident_id"
 ```
 
 ## database_backfill_runs
@@ -265,6 +302,84 @@ Additive daily admission measures at facility/payer/source grain. Reports group 
 - CHECK: `source_type IN ('Hospital', 'Skilled Nursing', 'Home', 'Rehab Facility', 'Assisted Living', 'Community')`
 - INDEX `ix_daily_admission_facts_facility`: facility_id, summary_date
 
+## daily_discharge_facts
+
+Additive daily discharge measures at facility/payer/destination/disposition grain. Length of stay is a sum beside its count so any grouping divides correctly.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| summary_date | DATE | no | PK |  |  |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| payer_id | UUID | no | PK, FK → payers.payer_id |  |  |
+| destination_type | VARCHAR | no | PK |  |  |
+| destination_name | VARCHAR | no | PK |  |  |
+| discharges | INTEGER | no |  |  |  |
+| ama_discharges | INTEGER | no |  |  | Discharges against medical advice among the grouped rows. Transfers and deaths need no measure: they are destination_type Hospital and Funeral Home. |
+| length_of_stay_days | INTEGER | no |  |  | Summed length of stay for the grouped discharges. Divide by discharges for an average; never store the average. |
+
+- CHECK: `ama_discharges BETWEEN 0 AND discharges`
+- CHECK: `destination_type IN ('Hospital', 'Skilled Nursing', 'Home', 'Rehab Facility', 'Assisted Living', 'Community', 'Funeral Home')`
+- CHECK: `discharges > 0`
+- CHECK: `length(trim(destination_name)) > 0`
+- CHECK: `length_of_stay_days >= discharges`
+- INDEX `ix_daily_discharge_facts_facility`: facility_id, summary_date
+
+## daily_payer_census_facts
+
+Daily census and movement by payer type: opening + admissions + changes in - discharges - changes out = closing. Sums back to adt_daily_census.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| summary_date | DATE | no | PK |  |  |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| payer_type | VARCHAR | no | PK |  |  |
+| opening_census | SMALLINT | no |  |  |  |
+| admissions | SMALLINT | no |  |  |  |
+| discharges | SMALLINT | no |  |  |  |
+| changes_in | SMALLINT | no |  |  |  |
+| changes_out | SMALLINT | no |  |  |  |
+| closing_census | SMALLINT | no |  |  |  |
+
+- CHECK: `closing_census = opening_census + admissions + changes_in - discharges - changes_out`
+- CHECK: `opening_census >= 0 AND closing_census >= 0 AND admissions >= 0 AND discharges >= 0 AND changes_in >= 0 AND changes_out >= 0`
+- INDEX `ix_daily_payer_census_facts_facility`: facility_id, summary_date
+
+## daily_payer_change_facts
+
+Additive daily payer-change counts at facility/from-type/to-type grain. Residents affected is a distinct count and is read from res_payer_stays instead.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| summary_date | DATE | no | PK |  |  |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| previous_payer_type | VARCHAR | no | PK |  | Payer type of the period that ended on this date. |
+| new_payer_type | VARCHAR | no | PK |  | Payer type of the period that began on this date. |
+| changes | INTEGER | no |  |  | Payer periods that began as a change from the previous period, at payer-type grain. A change within one payer type (plan only) has previous_payer_type = new_payer_type. |
+
+- CHECK: `changes > 0`
+- INDEX `ix_daily_payer_change_facts_facility`: facility_id, summary_date
+
+## monthly_payer_census_facts
+
+Calendar-month rollup of daily_payer_census_facts for monthly trending. Flows are summed; census is taken from the first and last day of each month.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| month_start | DATE | no | PK |  |  |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| payer_type | VARCHAR | no | PK |  |  |
+| opening_census | SMALLINT | no |  |  |  |
+| admissions | SMALLINT | no |  |  |  |
+| discharges | SMALLINT | no |  |  |  |
+| changes_in | SMALLINT | no |  |  |  |
+| changes_out | SMALLINT | no |  |  |  |
+| closing_census | SMALLINT | no |  |  |  |
+
+- CHECK: `closing_census = opening_census + admissions + changes_in - discharges - changes_out`
+- CHECK: `date_trunc('month', month_start) = month_start`
+- CHECK: `opening_census >= 0 AND closing_census >= 0 AND admissions >= 0 AND discharges >= 0 AND changes_in >= 0 AND changes_out >= 0`
+- INDEX `ix_monthly_payer_census_facts_facility`: facility_id, month_start
+
 ## residents
 
 Saved resident identities associated with a facility. Stays reference these saved IDs.
@@ -351,8 +466,10 @@ One actual discharge event per closed episode. LOS measures the final payer peri
 | destination_type | VARCHAR | no |  |  |  |
 | destination_name | VARCHAR | no |  |  |  |
 | is_deceased | BOOLEAN | no |  |  |  |
+| is_ama | BOOLEAN | no |  | false | Left against medical advice. Deaths and acute transfers are already implied by destination_type, so neither is eligible and the three outcomes stay disjoint. |
 | los | INTEGER | no |  |  | Discharge date minus the final payer period start date, in days; not admission LOS. |
 
+- CHECK: `NOT (is_ama AND (is_deceased OR destination_type = 'Hospital'))`
 - CHECK: `destination_type IN ('Hospital', 'Skilled Nursing', 'Home', 'Rehab Facility', 'Assisted Living', 'Community', 'Funeral Home')`
 - CHECK: `is_deceased = (destination_type = 'Funeral Home')`
 - CHECK: `length(trim(destination_name)) > 0`
@@ -379,6 +496,7 @@ Payer periods inside an admission episode. The active period has no end date.
 - CHECK: `(period_number = 1 AND start_reason = 'admission') OR (period_number > 1 AND start_reason = 'payer_change')`
 - CHECK: `end_date IS NULL OR end_date > start_date`
 - CHECK: `period_number BETWEEN 1 AND 3`
+- INDEX `ix_res_payer_stays_changes`: start_date, stay_id
 - INDEX `ix_res_payer_stays_end_date`: end_date
 - INDEX `ix_res_payer_stays_payer_id`: payer_id
 - INDEX `ix_res_payer_stays_start_date`: start_date
@@ -413,3 +531,28 @@ Admissions that started pending Medicaid. Preserves application/approval metrics
 - INDEX `ix_medicaid_applications_application_date`: application_date
 - INDEX `ix_medicaid_applications_approved_date`: approved_date
 - UNIQUE: `payer_stay_id`
+
+## payer_change_logs
+
+One row per payer change, flattened with the period it moved from. Derived from res_payer_stays to spare every report the self-join on period_number - 1.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| payer_stay_id | UUID | no | PK, FK → res_payer_stays.payer_stay_id |  |  |
+| stay_id | UUID | no | FK → res_stays.stay_id |  |  |
+| resident_id | UUID | no | FK → residents.resident_id |  |  |
+| facility_id | UUID | no | FK → facilities.facility_id |  |  |
+| change_date | DATE | no |  |  |  |
+| previous_payer_id | UUID | no | FK → payers.payer_id |  |  |
+| new_payer_id | UUID | no | FK → payers.payer_id |  |  |
+| previous_start_date | DATE | no |  |  |  |
+| new_end_date | DATE | yes |  |  |  |
+| is_type_change | BOOLEAN | no |  |  |  |
+
+- CHECK: `change_date > previous_start_date`
+- CHECK: `new_end_date IS NULL OR new_end_date > change_date`
+- CHECK: `previous_payer_id <> new_payer_id`
+- INDEX `ix_payer_change_logs_change_date`: change_date
+- INDEX `ix_payer_change_logs_facility`: facility_id, change_date
+- INDEX `ix_payer_change_logs_resident_id`: resident_id
+- INDEX `ix_payer_change_logs_stay_id`: stay_id

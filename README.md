@@ -29,6 +29,17 @@ restores it automatically, or generate one with
 `docker compose --env-file .env.docker run --rm reset` (about ten minutes). The
 snapshot is not in this repository; see [docs/docker.md](docs/docker.md).
 
+### Docker, with reload
+
+Mounts the source and reloads both services on edit, instead of serving a build.
+
+```powershell
+docker compose --env-file .env.docker up api-dev frontend-dev
+```
+
+Frontend on <http://127.0.0.1:5173>, API on <http://127.0.0.1:8000>. Only rebuild
+(`--build`) after changing `requirements.txt` or `package.json`.
+
 ### Locally
 
 Needs Python 3.11+ and a PostgreSQL 18 database. Put its URL in a root `.env`:
@@ -88,6 +99,23 @@ docs/             everything below
 
 ## Current state
 
-The Admissions report is complete end to end. Five other reports exist in the
-frontend but call endpoints that the backend rebuild has not reimplemented yet, so
-they do not load. [docs/roadmap.md](docs/roadmap.md) lists them and what each needs.
+Five reports work end to end: **Admissions**, **Discharges**, **Payer Changes**,
+**Net Change** and **Monthly ADT Trending**. Each has an overview built on a fact
+table, a logs tab reading source rows, filter options and CSV export.
+
+**Referring Hospital** and **Live Census** still call endpoints that do not exist.
+[docs/roadmap.md](docs/roadmap.md) lists what each needs. Referring Hospital needs
+no new table — `source_name` is already at the grain of `daily_admission_facts`.
+
+Measured response times on the full dataset, 30-day and 1-year ranges:
+
+| Endpoint | 30 days | 1 year |
+| --- | --- | --- |
+| Admissions overview | 5 ms | 5 ms |
+| Discharges overview | 28 ms | 156 ms |
+| Payer Changes overview | 23 ms | 144 ms |
+| Net Change overview | 175 ms | 1,324 ms |
+| Monthly trend | 47 ms | 128 ms |
+
+Net Change overview is the outlier and is known: it scans its fact table three
+times for one response where once would do.

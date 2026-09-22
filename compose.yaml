@@ -1,8 +1,12 @@
 name: aspire
 
-# Ordinary `up` starts the database, API and frontend. It never migrates, seeds or
-# restores: data work is explicit, under the tools profile, so nobody loses a
-# database to a stray command.
+# Ordinary `up` starts the database, API and frontend as built images. It never
+# migrates, seeds or restores: data work is explicit, under the tools profile, so
+# nobody loses a database to a stray command.
+#
+#   docker compose up                          built images, no reload
+#   docker compose up api-dev frontend-dev     source mounted, both reload
+#   docker compose run --rm update             migrate and fill missing days
 
 x-python: &python
   image: aspire-backend:local
@@ -22,6 +26,15 @@ x-python: &python
   depends_on:
     db:
       condition: service_healthy
+
+# The data tools read the repository, not the image. Without this an `update`
+# after a schema change runs the code baked in at build time and reports the
+# database up to date while it is really several migrations behind.
+x-source: &source
+  volumes:
+    - ./backend:/app/backend:ro
+    - ./shared:/app/shared:ro
+    - ./sandbox-data:/app/sandbox-data:ro
 
 x-postgres-tool: &postgres-tool
   image: postgres:18-bookworm
@@ -43,6 +56,11 @@ services:
   db:
     image: postgres:18-bookworm
     restart: "no"
+    ports:
+      # Bound to loopback only, so the database is reachable from a local client
+      # such as pgAdmin but never from the network. 5433 by default to leave a
+      # local PostgreSQL on 5432 alone.
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-aspire_analytics}
       POSTGRES_USER: ${POSTGRES_USER:-aspire}
@@ -98,24 +116,72 @@ services:
       retries: 6
       start_period: 5s
 
+  # ---- Development: source is mounted and both services reload ----
+  # docker compose up api-dev frontend-dev
+  #
+  # Naming them explicitly enables their profile and pulls in db, so the built
+  # api/frontend above stay stopped and nothing competes for APP_PORT.
+
+  api-dev:
+    <<: *python
+    profiles: ["dev"]
+    command: ["python", "backend/manage.py", "serve", "--host", "0.0.0.0", "--reload"]
+    environment:
+      <<: *python-environment
+      # Bind mounts do not deliver inotify events through the Docker Desktop VM,
+      # so the reloader polls. Without this it starts and then never fires.
+      WATCHFILES_FORCE_POLLING: "true"
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    volumes:
+      # Read-only: the API never writes source, and this keeps a container from
+      # dropping root-owned files into the working tree.
+      - ./backend:/app/backend:ro
+      - ./shared:/app/shared:ro
+      - ./sandbox-data:/app/sandbox-data:ro
+
+  frontend-dev:
+    image: aspire-frontend:dev
+    build:
+      context: ./frontend
+      target: development
+    profiles: ["dev"]
+    init: true
+    restart: "no"
+    environment:
+      # Same-origin in the browser: Vite proxies /api to the API container, so no
+      # CORS entry and no VITE_API_BASE_URL are needed.
+      API_PROXY_TARGET: http://api-dev:8000
+      WATCH_POLLING: "true"
+    ports:
+      - "127.0.0.1:${APP_PORT:-5173}:8080"
+    volumes:
+      - ./frontend:/app
+      # Anonymous volume, so the image's installed modules survive the bind above
+      # instead of being shadowed by the host's (absent, or built for Windows).
+      - /app/node_modules
+    depends_on:
+      api-dev:
+        condition: service_started
+
   # ---- Explicit one-off jobs: docker compose run --rm <name> ----
 
   # Migrate, then generate any days that are missing. Safe to repeat.
   update:
-    <<: *python
+    <<: [*python, *source]
     profiles: ["tools"]
     working_dir: /app/sandbox-data
     command: ["python", "manage.py", "update"]
 
   # Drop every table and rebuild from 2023-01-01. Takes several minutes.
   reset:
-    <<: *python
+    <<: [*python, *source]
     profiles: ["tools"]
     working_dir: /app/sandbox-data
     command: ["python", "manage.py", "seed", "--reset-history"]
 
   status:
-    <<: *python
+    <<: [*python, *source]
     profiles: ["tools"]
     working_dir: /app/sandbox-data
     command: ["python", "manage.py", "status"]

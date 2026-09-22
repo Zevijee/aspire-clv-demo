@@ -16,7 +16,9 @@ function Content({ month }: { month: AdmissionsMonthSelection }) {
   const [selection, setSelection] = useState<OverviewSelection>({ payers: month.payers, sources: [],
     scope: month.path.length ? { state: month.path[0], portfolio: month.path[1], region: month.path[2], facility: month.path[3] } : null })
   const [dischargeSelection, setDischargeSelection] = useState<DischargeSelection>({
-    path: month.path, payers: month.payers.map(formatPayerType), destinations: [],
+    scope: month.path.length ? { state: month.path[0], portfolio: month.path[1],
+      region: month.path[2], facility: month.path[3] } : null,
+    payers: month.payers.map(formatPayerType), destinations: [],
   })
   if (month.report === 'net-change') return <NetChangeOverview />
   return params.get('view') === 'logs' ? <>

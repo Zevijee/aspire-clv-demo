@@ -6,7 +6,8 @@ Table/column info holds documentation without changing database DDL.
 """
 from sqlalchemy import (
     Boolean, CheckConstraint, Column, Date, DateTime, ForeignKey, Index, Integer,
-    JSON, MetaData, PrimaryKeyConstraint, String, Table, UniqueConstraint, Uuid, func,
+    JSON, MetaData, PrimaryKeyConstraint, SmallInteger, String, Table, UniqueConstraint, Uuid,
+    false, func, text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -96,6 +97,11 @@ res_payer_stays = Table('res_payer_stays', metadata,
     CheckConstraint("(end_date IS NULL AND end_reason IS NULL) OR "
         "(end_date IS NOT NULL AND end_reason IS NOT NULL "
         "AND end_reason IN ('payer_change', 'discharge'))"),
+    # Payer change reporting reads only the periods that start a change, which is
+    # 38% of this table. A partial index keeps the residents-affected count and
+    # the logs off a scan of every period ever recorded.
+    Index('ix_res_payer_stays_changes', 'start_date', 'stay_id',
+        postgresql_where=text('period_number > 1')),
 )
 
 admission_logs = Table('admission_logs', metadata,
@@ -111,6 +117,35 @@ admission_logs = Table('admission_logs', metadata,
         "'Rehab Facility', 'Assisted Living', 'Community')"),
     CheckConstraint("length(trim(source_name)) > 0"),
     CheckConstraint('NOT is_30_day_readmission OR is_readmission'),
+)
+
+payer_change_logs = Table('payer_change_logs', metadata,
+    # One row per payer period that began as a change, flattened alongside the
+    # period it moved from. Unlike admission_logs and discharge_logs this carries
+    # no new facts -- everything here is implied by two adjacent rows in
+    # res_payer_stays -- but reading it back needs a self-join on
+    # period_number - 1, which is what made the payer-change reports the slowest
+    # in the app. This trades a derived table for that join.
+    Column('payer_stay_id', Uuid, ForeignKey('res_payer_stays.payer_stay_id'), primary_key=True),
+    Column('stay_id', Uuid, ForeignKey('res_stays.stay_id'), nullable=False, index=True),
+    # Carried so residents affected is a count over this table rather than a
+    # second join back through res_stays.
+    Column('resident_id', Uuid, ForeignKey('residents.resident_id'), nullable=False, index=True),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('change_date', Date, nullable=False, index=True),
+    Column('previous_payer_id', Uuid, ForeignKey('payers.payer_id'), nullable=False),
+    Column('new_payer_id', Uuid, ForeignKey('payers.payer_id'), nullable=False),
+    # The date the ended period began, so its length is a subtraction.
+    Column('previous_start_date', Date, nullable=False),
+    # Null while the new period is still open. Its length is measured against
+    # today, so it is deliberately not stored: it would be stale tomorrow.
+    Column('new_end_date', Date),
+    # Whether the move crossed payer types or only changed plan inside one.
+    Column('is_type_change', Boolean, nullable=False),
+    CheckConstraint('change_date > previous_start_date'),
+    CheckConstraint('new_end_date IS NULL OR new_end_date > change_date'),
+    CheckConstraint('previous_payer_id <> new_payer_id'),
+    Index('ix_payer_change_logs_facility', 'facility_id', 'change_date'),
 )
 
 medicaid_applications = Table('medicaid_applications', metadata,
@@ -130,11 +165,18 @@ discharge_logs = Table('discharge_logs', metadata,
     Column('destination_type', String, nullable=False),
     Column('destination_name', String, nullable=False),
     Column('is_deceased', Boolean, nullable=False),
+    # Left against medical advice. A flag beside is_deceased rather than a
+    # disposition column: transfers and deaths are already implied by the
+    # destination, so this is the only outcome the destination cannot express.
+    Column('is_ama', Boolean, nullable=False, server_default=false()),
     Column('los', Integer, nullable=False),
     CheckConstraint("destination_type IN ('Hospital', 'Skilled Nursing', 'Home', "
         "'Rehab Facility', 'Assisted Living', 'Community', 'Funeral Home')"),
     CheckConstraint("length(trim(destination_name)) > 0"),
     CheckConstraint("is_deceased = (destination_type = 'Funeral Home')"),
+    # Keeps the three reported outcomes disjoint, so a stacked chart of
+    # transfers, deaths and AMA never counts one discharge twice.
+    CheckConstraint("NOT (is_ama AND (is_deceased OR destination_type = 'Hospital'))"),
     CheckConstraint('los > 0'),
 )
 
@@ -161,6 +203,109 @@ daily_admission_facts = Table('daily_admission_facts', metadata,
     CheckConstraint('readmissions_30_day BETWEEN 0 AND readmissions'),
     CheckConstraint('medicaid_pending_admissions BETWEEN 0 AND admissions'),
     Index('ix_daily_admission_facts_facility', 'facility_id', 'summary_date'),
+)
+
+daily_discharge_facts = Table('daily_discharge_facts', metadata,
+    # One row per (date, facility, payer, destination) that had discharges. Same
+    # rules as daily_admission_facts: parent scopes are GROUP BY results rather
+    # than stored rows, and a day with no discharges has no rows.
+    Column('summary_date', Date, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('payer_id', Uuid, ForeignKey('payers.payer_id'), nullable=False),
+    Column('destination_type', String, nullable=False),
+    Column('destination_name', String, nullable=False),
+    Column('discharges', Integer, nullable=False),
+    # Transfers and deaths are read back from destination_type, so only AMA needs
+    # its own measure. Every column here is additive across any set of rows.
+    Column('ama_discharges', Integer, nullable=False),
+    # Length of stay is stored as a sum beside its count, never as an average:
+    # averaging stored averages is wrong at every level above facility.
+    Column('length_of_stay_days', Integer, nullable=False),
+    PrimaryKeyConstraint('summary_date', 'facility_id', 'payer_id',
+        'destination_type', 'destination_name'),
+    CheckConstraint("destination_type IN ('Hospital', 'Skilled Nursing', 'Home', "
+        "'Rehab Facility', 'Assisted Living', 'Community', 'Funeral Home')"),
+    CheckConstraint("length(trim(destination_name)) > 0"),
+    CheckConstraint('discharges > 0'),
+    CheckConstraint('ama_discharges BETWEEN 0 AND discharges'),
+    CheckConstraint('length_of_stay_days >= discharges'),
+    Index('ix_daily_discharge_facts_facility', 'facility_id', 'summary_date'),
+)
+
+daily_payer_change_facts = Table('daily_payer_change_facts', metadata,
+    # One row per (date, facility, payer type moved from, payer type moved to).
+    # The grain is payer TYPE, not payer id: the reports group by type, and the id
+    # grain measured at 99.9% of the source rows, which is not a summary at all.
+    # Individual plan names stay in res_payer_stays for the logs to read.
+    Column('summary_date', Date, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('previous_payer_type', String, nullable=False),
+    Column('new_payer_type', String, nullable=False),
+    Column('changes', Integer, nullable=False),
+    PrimaryKeyConstraint('summary_date', 'facility_id', 'previous_payer_type', 'new_payer_type'),
+    CheckConstraint('changes > 0'),
+    # Residents affected is a distinct count and cannot be stored here: the same
+    # resident can change payer on two days, so no per-day row can be summed into
+    # one. The report counts it directly from res_payer_stays instead.
+    Index('ix_daily_payer_change_facts_facility', 'facility_id', 'summary_date'),
+)
+
+daily_payer_census_facts = Table('daily_payer_census_facts', metadata,
+    # adt_daily_census one level down: the same opening/flow/closing identity, but
+    # split by payer type. Net change by payer cannot be derived from the facility
+    # census, because a payer change moves a resident between payer types without
+    # touching the facility total.
+    #
+    # Deliberately dense -- a row for every day a facility/payer pair exists, not
+    # only days with movement. A sparse table with a running total measured three
+    # times smaller but needed a LATERAL lookup per pair at each period boundary,
+    # which ran 546ms against 73ms for the dense form.
+    Column('summary_date', Date, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('payer_type', String, nullable=False),
+    # Census is bounded by licensed beds and movements by daily volume, so these
+    # never approach a smallint. Six narrower columns over millions of rows is
+    # worth more than the uniformity of Integer here.
+    Column('opening_census', SmallInteger, nullable=False),
+    Column('admissions', SmallInteger, nullable=False),
+    Column('discharges', SmallInteger, nullable=False),
+    # Moves between payer types within the same stay. A plan change inside one
+    # payer type is excluded: it is not a move into or out of that type.
+    Column('changes_in', SmallInteger, nullable=False),
+    Column('changes_out', SmallInteger, nullable=False),
+    Column('closing_census', SmallInteger, nullable=False),
+    PrimaryKeyConstraint('summary_date', 'facility_id', 'payer_type'),
+    CheckConstraint('closing_census = opening_census + admissions + changes_in '
+        '- discharges - changes_out'),
+    CheckConstraint('opening_census >= 0 AND closing_census >= 0 AND admissions >= 0 '
+        'AND discharges >= 0 AND changes_in >= 0 AND changes_out >= 0'),
+    Index('ix_daily_payer_census_facts_facility', 'facility_id', 'summary_date'),
+)
+
+monthly_payer_census_facts = Table('monthly_payer_census_facts', metadata,
+    # A calendar-month rollup of daily_payer_census_facts, for the monthly ADT
+    # trending report. Rolling the daily table up on every request measured
+    # 362-423ms; at 30 times fewer rows this answers the same questions from a
+    # table small enough to stay cached.
+    #
+    # Flows are summed. Census is not: opening comes from the month's first day
+    # and closing from its last, because census is a level rather than a flow.
+    Column('month_start', Date, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('payer_type', String, nullable=False),
+    Column('opening_census', SmallInteger, nullable=False),
+    Column('admissions', SmallInteger, nullable=False),
+    Column('discharges', SmallInteger, nullable=False),
+    Column('changes_in', SmallInteger, nullable=False),
+    Column('changes_out', SmallInteger, nullable=False),
+    Column('closing_census', SmallInteger, nullable=False),
+    PrimaryKeyConstraint('month_start', 'facility_id', 'payer_type'),
+    CheckConstraint('closing_census = opening_census + admissions + changes_in '
+        '- discharges - changes_out'),
+    CheckConstraint('opening_census >= 0 AND closing_census >= 0 AND admissions >= 0 '
+        'AND discharges >= 0 AND changes_in >= 0 AND changes_out >= 0'),
+    CheckConstraint("date_trunc('month', month_start) = month_start"),
+    Index('ix_monthly_payer_census_facts_facility', 'facility_id', 'month_start'),
 )
 
 daily_runs = Table('sandbox_daily_runs', metadata,
@@ -232,7 +377,12 @@ _descriptions = {
     'admission_logs': 'One actual admission event per episode, including referring source and readmission flags.',
     'medicaid_applications': 'Admissions that started pending Medicaid. Preserves application/approval metrics after payer records are retroactively corrected.',
     'discharge_logs': 'One actual discharge event per closed episode. LOS measures the final payer period.',
+    'payer_change_logs': 'One row per payer change, flattened with the period it moved from. Derived from res_payer_stays to spare every report the self-join on period_number - 1.',
     'daily_admission_facts': 'Additive daily admission measures at facility/payer/source grain. Reports group these rows; parent scopes are not stored.',
+    'daily_discharge_facts': 'Additive daily discharge measures at facility/payer/destination/disposition grain. Length of stay is a sum beside its count so any grouping divides correctly.',
+    'daily_payer_change_facts': 'Additive daily payer-change counts at facility/from-type/to-type grain. Residents affected is a distinct count and is read from res_payer_stays instead.',
+    'daily_payer_census_facts': 'Daily census and movement by payer type: opening + admissions + changes in - discharges - changes out = closing. Sums back to adt_daily_census.',
+    'monthly_payer_census_facts': 'Calendar-month rollup of daily_payer_census_facts for monthly trending. Flows are summed; census is taken from the first and last day of each month.',
     'adt_daily_census': 'Daily facility census: opening + admissions - discharges = closing.',
     'sandbox_schema_migrations': 'Preserved legacy SQL migration history; new migrations use Alembic.',
     'sandbox_generator_runs': 'Reference-generator completion records used to retain existing data.',
@@ -246,6 +396,12 @@ for _name, _description in _descriptions.items():
     metadata.tables[_name].info['description'] = _description
 
 discharge_logs.c.los.info['description'] = 'Discharge date minus the final payer period start date, in days; not admission LOS.'
+discharge_logs.c.is_ama.info['description'] = 'Left against medical advice. Deaths and acute transfers are already implied by destination_type, so neither is eligible and the three outcomes stay disjoint.'
+daily_discharge_facts.c.ama_discharges.info['description'] = 'Discharges against medical advice among the grouped rows. Transfers and deaths need no measure: they are destination_type Hospital and Funeral Home.'
+daily_discharge_facts.c.length_of_stay_days.info['description'] = 'Summed length of stay for the grouped discharges. Divide by discharges for an average; never store the average.'
+daily_payer_change_facts.c.changes.info['description'] = 'Payer periods that began as a change from the previous period, at payer-type grain. A change within one payer type (plan only) has previous_payer_type = new_payer_type.'
+daily_payer_change_facts.c.previous_payer_type.info['description'] = 'Payer type of the period that ended on this date.'
+daily_payer_change_facts.c.new_payer_type.info['description'] = 'Payer type of the period that began on this date.'
 admission_logs.c.is_readmission.info['description'] = 'Resident has a previous admission episode.'
 admission_logs.c.is_30_day_readmission.info['description'] = 'Return within 30 days of the previous discharge; also a readmission.'
 daily_admission_facts.c.source_name.info['description'] = 'Referring source name; referring-hospital metrics count distinct names where source_type is Hospital.'

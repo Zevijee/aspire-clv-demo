@@ -29,16 +29,17 @@ step-by-step.
 
 ## Dead frontend reports
 
-Five reports render but do not load. The components, filters and drilldowns are
+Two reports render but do not load. The components, filters and drilldowns are
 written; they call endpoints that no longer exist.
 
 | Report | Path | Calls |
 | --- | --- | --- |
-| Discharges | `/adt/discharges` | `/adt/discharges`, `/overview`, `/by-destination`, `/by-payer`, `/daily-trend` |
-| Payer Changes | `/adt/payer-changes` | `/adt/payer-changes` |
-| Net Change | `/adt/net-change` | `/adt/net-change`, `/daily`, `/payers`, `/logs`, `/monthly-locations` |
 | Referring Hospital | `/adt/referring-hospital` | `/adt/admissions/by-referring-hospital`, `/referring-hospital-performance`, `/referring-hospital-location-performance` |
 | Live Census | `/census/daily-census` | `/census/live` |
+
+Discharges, Payer Changes, Net Change and Monthly ADT Trending were rebuilt and now
+work end to end. Each follows the same shape: an overview on a fact table, a logs
+tab reading source rows, server-side filter options and a streamed CSV export.
 
 The frontend also still calls fourteen removed `/adt/admissions/*` endpoints from
 the legacy `api/admissions.ts` client (`/kpis`, `/by-region`, `/by-payer`,

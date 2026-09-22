@@ -16,6 +16,50 @@ future decisions can argue with evidence instead of intuition.
 | Full rebuild | ~9.5 min |
 | Compressed snapshot | 129 MB |
 
+## Fact tables and what each cost
+
+Added after the original admissions store. Every row here was measured on the same
+database.
+
+| Table | Rows | Size | Rebuild | Serves |
+| --- | --- | --- | --- | --- |
+| `daily_admission_facts` | 429,971 | 89 MB | ~21 s | Admissions |
+| `daily_discharge_facts` | 407,054 | 37 MB | ~3 s | Discharges |
+| `daily_payer_change_facts` | 250,382 | 20 MB | ~5 s | Payer Changes |
+| `payer_change_logs` | 269,269 | — | ~4 s | Payer Changes logs and residents count |
+| `daily_payer_census_facts` | 2,517,053 | 331 MB | ~8 min | Net Change |
+| `monthly_payer_census_facts` | 83,730 | 14 MB | ~6 s | Monthly ADT Trending |
+
+**Grain is not always finer-is-better.** `daily_payer_change_facts` at `payer_id`
+grain measured 268,929 rows against 269,269 source events — 99.9%, a copy rather
+than a summary. At `payer_type` grain it is 250,382 rows and answers the same
+questions, because the report groups by type. Plan names stay in the logs.
+
+**Dense beat sparse for the payer census.** A sparse table holding a running
+balance was three times smaller but needed a LATERAL lookup per facility/payer pair
+at each period boundary: 546 ms against 73 ms. The dense form costs 331 MB, more
+than doubling the database, and is the largest single object in it.
+
+**Where the 8 minutes goes.** Profiled: 435.6 s computing, ~10 s writing, 7.4 s
+building indexes. It is the query, not the I/O — `generate_series` expands 1,771
+facility/payer pairs across 1,361 days into 2.5M rows and sorts all of them in one
+window. `monthly_payer_census_facts` runs the identical shape over 45 months in 3 s:
+30× the rows, 145× the time, which is the sort spilling to disk.
+
+That is why monthly trending is built from `res_payer_stays` directly rather than
+rolled up from the daily table. Both were verified to produce byte-identical rows.
+
+**A derived log table bought 4× on the payer-change endpoints.** Every query paid a
+self-join on `period_number - 1`; `payer_change_logs` pays it once at build time.
+
+| | Before | After |
+| --- | --- | --- |
+| Payer Changes overview, 1 year | 528 ms | 144 ms |
+| Payer Changes logs, 1 year | 328 ms | 75 ms |
+
+**Monthly trending was reading the wrong table.** It fetched 1,361 daily rows and
+bucketed them in the browser: 1,609 ms. Reading the monthly rollup instead: 208 ms.
+
 ## The reporting store decision
 
 The original design stored one JSONB document per scope per day across group,

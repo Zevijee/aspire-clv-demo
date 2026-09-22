@@ -79,7 +79,7 @@ function ModuleIcon({ module }: { module: AnalyticsModule }) {
 
 function App() {
   const { pathname } = useLocation()
-  const [dischargeSelection, setDischargeSelection] = useState<DischargeSelection>({ path: [], payers: [], destinations: [] })
+  const [dischargeSelection, setDischargeSelection] = useState<DischargeSelection>({ scope: null, payers: [], destinations: [] })
   const [overviewSelection, setOverviewSelection] = useState<OverviewSelection>({ scope: null, payers: [], sources: [] })
   const [expandedModules, setExpandedModules] = useState<Set<AnalyticsModule>>(
     () => {

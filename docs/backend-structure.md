@@ -68,6 +68,29 @@ All under `/api/v1`.
 | `GET /adt/admissions/logs` | Paginated matching admissions with saved IDs |
 | `GET /adt/admissions/logs/filter-options` | Distinct values across the filtered result |
 | `GET /adt/admissions/logs/export` | The entire matching result as streamed CSV |
+| `GET /adt/discharges/overview` | Totals, locations, payer/destination/disposition breakdowns |
+| `GET /adt/discharges/logs` + `/filter-options` + `/export` | Discharge events |
+| `GET /adt/payer-changes/overview` | Counts, residents affected, from/to transition matrix |
+| `GET /adt/payer-changes/logs` + `/filter-options` + `/export` | Payer change events |
+| `GET /adt/net-change/overview` | Census movement: opening, flows, closing, by payer |
+| `GET /adt/net-change/monthly` | Monthly totals with their days nested |
+| `GET /adt/net-change/monthly-locations` | Per-facility monthly totals |
+| `GET /adt/net-change/logs` + `/filter-options` + `/export` | Admissions, discharges and payer changes as one list |
+
+Every overview reads a fact table and nothing else. Every logs endpoint reads source
+rows, because a log lists named residents and a fact table has no resident in it.
+
+Three rules the overviews share, each with a reason:
+
+- **Facets omit their own filter.** The payer breakdown on Discharges keeps the
+  destination filter and drops the payer one, so the chart still shows what the
+  selection is being compared against.
+- **Census is a level, not a flow.** Net Change reads opening from the first day of
+  the range and closing from the last. Summing census across days would count every
+  resident once per day present.
+- **Non-additive measures are counted live, never stored.** Residents affected on
+  Payer Changes is a distinct count: in one 30-day window 491 residents changed payer
+  more than once, so any sum of per-day rows would over-count by 13%.
 
 Reference lists return `{items, total, limit, offset}` and accept `limit` (1–500,
 default 50), `offset`, `sort` and `direction=asc|desc`. Allowed sorts are

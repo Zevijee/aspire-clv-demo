@@ -1,47 +1,54 @@
-import { useEffect, useState } from 'react'
 import { useReportSearchParams as useSearchParams } from '../../../shared/components/ReportSearchContext'
-import type { DailyChangeItem } from '../../../shared/components/charts/DailyChangeChart'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
+import { payerCode } from '../api/admissionsOverview'
+import { netChangeParameters, type NetChangeSelection } from '../api/netChangeOverview'
+import { getLocationLevel, locationLevels } from '../utils/admissionsOverviewFilters'
+import { useAdmissionsReferences } from './useAdmissionsOverview'
+import { useNetChangeOverview } from './useNetChangeOverview'
+import type { DailyMovement } from '../components/NetChangeDayOverDay'
+import type { DrilldownScope } from '../utils/admissionsDrilldown'
 
-export type DailyMovement = DailyChangeItem & {
-  admissions: number; discharges: number; payer_changes_in: number; payer_changes_out: number
-}
+export type { DailyMovement }
 
-export function useNetChangeDaily(range?: { startDate: string; endDate: string; payers?: string[]; path?: string[] }) {
+/** Daily census movement, either from the report's URL state or an explicit range.
+ *
+ * The daily series is part of the overview response, so this shares that request
+ * rather than calling a separate endpoint.
+ */
+export function useNetChangeDaily(range?: {
+  startDate: string; endDate: string; payers?: string[]; path?: string[]
+}) {
   const [params] = useSearchParams()
   const defaults = getDefaultReportDateRange()
-  const [retry, setRetry] = useState(0)
-  const request = new URLSearchParams({
-    start_date: range?.startDate ?? params.get('start_date') ?? defaults.startDate,
-    end_date: range?.endDate ?? params.get('end_date') ?? defaults.endDate,
-    locations: range ? '[]' : JSON.stringify(params.getAll('net_location').map(value => JSON.parse(value))),
-    path: range ? JSON.stringify(range.path ?? []) : JSON.stringify(params.getAll('net_scope').slice(0, 4)),
-  })
-  const payers = range ? range.payers ?? [] : params.getAll('net_payer')
-  payers.forEach(payer => request.append('payer_type', payer))
-  const query = request.toString()
-  const key = JSON.stringify([query, retry])
-  const [response, setResponse] = useState<{
-    key: string; items: DailyMovement[]; error?: string
-  } | null>(null)
-  useEffect(() => {
-    const controller = new AbortController()
-    const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
-    void fetch(`${base}/api/v1/adt/net-change/daily?${query}`, { signal: controller.signal })
-      .then(async response => {
-        const body = await response.json()
-        if (!response.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Daily net change could not load.')
-        return body as { items: DailyMovement[] }
-      }).then(data => {
-        if (!controller.signal.aborted) setResponse({ key, items: data.items })
-      }).catch((error: Error) => {
-        if (!controller.signal.aborted) setResponse({ key, items: [], error: error.message })
-      })
-    return () => controller.abort()
-  }, [query, key])
-  const result = response?.key === key ? response : null
-  return { items: result?.items ?? [], loading: result === null, error: result?.error,
-    onRetry: () => setRetry(value => value + 1),
-    startDate: request.get('start_date')!, endDate: request.get('end_date')!,
-    hasPayers: payers.length > 0 }
+  const startDate = range?.startDate ?? params.get('start_date') ?? defaults.startDate
+  const endDate = range?.endDate ?? params.get('end_date') ?? defaults.endDate
+  const payers = (range ? range.payers ?? [] : params.getAll('net_payer')).map(payerCode)
+  const path = range ? range.path ?? [] : params.getAll('net_scope').slice(0, 4)
+  const locations = range ? [] : params.getAll('net_location')
+
+  const scope: DrilldownScope = path.length
+    ? { state: path[0], portfolio: path[1], region: path[2], facility: path[3] } : null
+  const requested = params.get('net_level')
+  const groupBy = locationLevels.find(value => value === requested)
+    ?? getLocationLevel(locations) ?? 'state'
+  const selection: NetChangeSelection = { scope, payers, locations, groupBy }
+
+  const references = useAdmissionsReferences()
+  const parameters = references.data
+    ? netChangeParameters(selection, references.data, groupBy).toString() : null
+  const overview = useNetChangeOverview(startDate, endDate, parameters)
+
+  const items: DailyMovement[] = (overview.data?.daily ?? []).map(row => ({
+    date: row.date, value: row.net_change,
+    opening_census: row.opening_census, closing_census: row.closing_census,
+    admissions: row.admissions, discharges: row.discharges,
+    payer_changes_in: row.payer_changes_in, payer_changes_out: row.payer_changes_out,
+  }))
+  return {
+    items,
+    loading: references.loading || overview.loading,
+    error: references.error ?? overview.error,
+    onRetry: references.error ? references.onRetry : overview.onRetry,
+    startDate, endDate, hasPayers: payers.length > 0,
+  }
 }

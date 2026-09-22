@@ -33,6 +33,16 @@ class ResidentStayGenerator(BaseGenerator):
     STATE_MEDICAID_SHARE = 0.50
     MEDICAID_PENDING_SHARE = 0.50
     MAX_SKILLED_DAYS = 100
+    # Medicare Advantage plans. A resident can disenrol from one mid-stay and
+    # finish under Original Medicare, which is the only skilled-to-skilled payer
+    # change that exists here.
+    MANAGED_MEDICARE = ('medicare_hmo', 'medicare_comm')
+    # Below this the remaining allowance is too short to divide between two
+    # skilled periods, so the move is not offered.
+    MIN_DAYS_TO_SPLIT_SKILLED = 14
+    # Share of eligible managed-Medicare changes that disenrol to Original
+    # Medicare rather than moving to Private Pay or Medicaid. A demo choice.
+    MANAGED_DISENROLMENT_SHARE = 0.12
     INITIAL_PAYER_WEIGHTS = {
         'medicare': 40, 'medicare_hmo': 23, 'medicare_comm': 10,
         'medicaid': 20, 'private': 4, 'va': 2, 'hospice': 1,
@@ -178,23 +188,51 @@ class ResidentStayGenerator(BaseGenerator):
             if choice_key not in self._transition_choices:
                 if previous['payer_type'] == 'medicaid':
                     transitions = {'medicaid': 85, 'private': 8, 'hospice': 7}
+                elif previous['payer_type'] in self.MANAGED_MEDICARE:
+                    # Disenrolling from a Medicare Advantage plan mid-stay moves
+                    # the resident to Original Medicare. This is the only skilled
+                    # destination there is, and it continues the same 100-day
+                    # allowance rather than starting a new one. Its share is
+                    # applied after the census mix adjustment below, not as a
+                    # weight here; eligibility is checked there too.
+                    transitions = {'private': 70, 'medicaid': 24, 'hospice': 6, 'medicare': 0}
                 elif previous['is_skilled']:
-                    transitions = {'private': 75, 'medicaid': 25}
+                    transitions = {'private': 70, 'medicaid': 24, 'hospice': 6}
                 elif previous['payer_type'] == 'private':
-                    transitions = {'medicaid': 100}
+                    transitions = {'medicaid': 92, 'hospice': 8}
                 else:
                     transitions = {'medicaid': 90, 'hospice': 10}
+                # Electing hospice is available from every payer, but only as the
+                # last period: the benefit runs to the end of the stay.
                 if number < count - 1:
                     transitions.pop('hospice', None)
-                # A payer change cannot restart the skilled allowance.
+                # No other payer change may restart the skilled allowance.
                 transitions = {category: weight for category, weight in transitions.items()
-                    if category not in self._skilled_types}
+                    if category not in self._skilled_types or category == 'medicare'}
                 if not transitions:
                     raise ValueError('Skilled stays require a non-skilled Private or Medicaid payer to transition to.')
                 self._transition_choices[choice_key] = (tuple(transitions), tuple(transitions.values()))
             choices, weights = self._transition_choices[choice_key]
             adjusted = {category: weight * mix[category] / self.INITIAL_PAYER_WEIGHTS[category]
                 for category, weight in zip(choices, weights)}
+            if 'medicare' in adjusted:
+                # Two skilled periods share what is left of the allowance, so the
+                # move is only offered while there is enough to split between them.
+                blocked = skilled_remaining < self.MIN_DAYS_TO_SPLIT_SKILLED
+                # Taking it on the final period leaves the whole stay skilled, so
+                # the entire stay then has to fit inside the allowance.
+                if (number == count - 1 and length > skilled_remaining
+                        and all(payer['is_skilled'] for payer in payers)):
+                    blocked = True
+                if blocked:
+                    adjusted.pop('medicare')
+                else:
+                    # Set the share directly. Scaling it by the census mix like the
+                    # others would divide by Medicare's initial weight of 40 against
+                    # Private's 4, leaving disenrolment at well under 1%.
+                    share = self.MANAGED_DISENROLMENT_SHARE
+                    others = sum(value for key, value in adjusted.items() if key != 'medicare')
+                    adjusted['medicare'] = others * share / (1 - share)
             if previous['is_skilled']:
                 # Private remains the usual next payer after skilled coverage,
                 # even when the census is currently below its Medicaid target.
@@ -202,16 +240,30 @@ class ResidentStayGenerator(BaseGenerator):
             category = rng.choices(tuple(adjusted), weights=tuple(adjusted.values()), k=1)[0]
             payers.append(self._pick_payer(category, previous, catalog, rng))
 
+        # The leading run of skilled payers shares one allowance. A managed-to-
+        # traditional Medicare change makes that run two periods long; the days
+        # are split between them rather than granted twice.
+        skilled_count = 0
+        for payer in payers:
+            if not payer['is_skilled']:
+                break
+            skilled_count += 1
         skilled_days = 0
-        if payers[0]['is_skilled']:
-            if count == 1:
+        if skilled_count:
+            if skilled_count == count:
+                # Every period is skilled, so the whole stay draws on the
+                # allowance. The choice above only permits this when it fits.
                 skilled_days = length
-                lengths = [length]
+                lengths = self._allocate(length,
+                    [rng.random() + 0.1 for _ in range(count)], minimum=1)
             else:
-                maximum = min(skilled_remaining, length - (count - 1))
-                skilled_days = max(1, int(rng.triangular(1, maximum, min(skilled_mode, maximum))))
-                lengths = [skilled_days] + self._allocate(length - skilled_days,
-                    [rng.random() + 0.1 for _ in range(count - 1)], minimum=1)
+                maximum = min(skilled_remaining, length - (count - skilled_count))
+                skilled_days = max(skilled_count,
+                    int(rng.triangular(1, maximum, min(skilled_mode, maximum))))
+                lengths = self._allocate(skilled_days,
+                    [rng.random() + 0.1 for _ in range(skilled_count)], minimum=1)
+                lengths += self._allocate(length - skilled_days,
+                    [rng.random() + 0.1 for _ in range(count - skilled_count)], minimum=1)
         else:
             lengths = self._allocate(length - minimum_first_days + 1,
                 [rng.random() + 0.1 for _ in range(count)], minimum=1)
@@ -669,6 +721,11 @@ class DailyAdtGenerator(DailyGenerator):
             name = rng.choices(names, cum_weights=cumulative, k=1)[0]
         else:
             name = rng.choice(self._discharge_rules.DESTINATION_NAMES[destination])
+        # Leaving against medical advice. Deaths and acute transfers are already
+        # implied by the destination, so neither is eligible and the three
+        # reported outcomes stay disjoint.
+        is_ama = (not deceased and destination != 'Hospital'
+            and rng.random() < self._discharge_rules.AMA_SHARE)
         state.update(last_discharge=self._day, is_deceased=deceased,
             eligible_after=None if deceased or state['admissions'] >= state['admission_limit']
                 else self._day + timedelta(days=rng.randint(1, 90)),
@@ -680,7 +737,8 @@ class DailyAdtGenerator(DailyGenerator):
         self._put(self.res_payer_stays, periods[-1])
         self._put(self.discharge_logs, dict(stay_id=stay['stay_id'], discharge_date=self._day,
             payer_id=periods[-1]['payer_id'], destination_type=destination, destination_name=name,
-            is_deceased=deceased, los=(self._day - periods[-1]['start_date']).days))
+            is_deceased=deceased, is_ama=is_ama,
+            los=(self._day - periods[-1]['start_date']).days))
         self._closed.append(stay['stay_id'])
         del self._active[stay['stay_id']]
         self._census[facility_id] -= 1
