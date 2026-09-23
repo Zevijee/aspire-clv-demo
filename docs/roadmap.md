@@ -5,53 +5,33 @@ against work already done; it is the list of things consciously left.
 
 ## Where things stand
 
-The backend was rebuilt from per-report SQL into feature packages over a fact table.
-Admissions is complete end to end. The other reports have frontend components but no
-backend, because the endpoints they call were removed in that rebuild and have not
-been reimplemented.
-
-## Next: discharges
-
-The natural second module, for three reasons: it reconnects a dead report, it is the
-other half of net change and monthly trending, and it gives the **second** real
-example needed to factor out the shared report shape (below).
-
-`DischargeLogGenerator` already rebuilds `discharge_logs` from saved stays with the
-same seed the simulation uses, so the source data needs no work. What is needed is a
-`daily_discharge_facts` table, a generator, a service and a client.
-
-Store `sum_los` and a discharge count as **separate additive columns**, never a
-pre-computed average. A stored mean makes every roll-up above facility level
-silently wrong. The same applies to any ratio: sum the numerators, divide once.
-
-See [backend-structure.md](backend-structure.md#adding-a-report-module) for the
-step-by-step.
+The backend was rebuilt from per-report SQL into feature packages over fact tables.
+Six of seven reports are complete end to end: Admissions, Discharges, Payer Changes,
+Net Change, Monthly ADT Trending and Referring Hospital. Live Census is the one that
+still has a frontend component and no backend.
 
 ## Dead frontend reports
 
-Two reports render but do not load. The components, filters and drilldowns are
-written; they call endpoints that no longer exist.
+One report renders but does not load. Its component is written; it calls an endpoint
+that no longer exists.
 
 | Report | Path | Calls |
 | --- | --- | --- |
-| Referring Hospital | `/adt/referring-hospital` | `/adt/admissions/by-referring-hospital`, `/referring-hospital-performance`, `/referring-hospital-location-performance` |
 | Live Census | `/census/daily-census` | `/census/live` |
 
-Discharges, Payer Changes, Net Change and Monthly ADT Trending were rebuilt and now
-work end to end. Each follows the same shape: an overview on a fact table, a logs
-tab reading source rows, server-side filter options and a streamed CSV export.
+Referring Hospital was rebuilt on `monthly_referral_facts` and a `referring_hospitals`
+catalogue, and reads a single endpoint, `/adt/referring-hospital/performance`. It is
+the one report with no date range: its window is part of its definition.
 
 The frontend also still calls fourteen removed `/adt/admissions/*` endpoints from
 the legacy `api/admissions.ts` client (`/kpis`, `/by-region`, `/by-payer`,
 `/daily-trend`, `/historical-comparisons` and others). Only
-`api/admissionsOverview.ts` targets the current API.
+`api/admissionsOverview.ts`, `api/dischargesOverview.ts`,
+`api/payerChangesOverview.ts`, `api/netChangeOverview.ts` and
+`api/referringHospitalPerformance.ts` target the current API.
 
 Read the components before designing each response. They already encode a shape, and
 matching it is cheaper than rewriting both ends.
-
-**Referring Hospital needs no new fact table.** `daily_admission_facts` keeps
-`source_name` at the grain, so it is a different `GROUP BY` over data that already
-exists.
 
 ## Factoring out the shared report shape
 
@@ -93,9 +73,12 @@ byte-for-byte and then delete the inline copy.
 is set, but `seed --reset-history` now drops and recreates the schema first, so it
 truncates empty tables. Harmless, redundant.
 
-**Empty staged draft.** `shared/database/staged/` holds a draft identical to the
-active schema, left from a schema experiment. It is gitignored, but `update` will
-try to publish it each run.
+**Orphaned referring-hospital components.** `HospitalPerformanceLocations.tsx` and
+`ReferringHospitalsModal.tsx` are imported by nothing and call removed endpoints.
+They predate the Referring Hospital rebuild, which reconnected
+`ReferringHospitalOverview.tsx` only. Read them before deleting: the locations view
+compares hospitals per facility, which the rebuilt report does not show and
+`monthly_referral_facts` could answer.
 
 ## Data tuning
 
@@ -124,9 +107,10 @@ will not. Worth knowing before designing a Payer Changes report against it.
 industry ~20%, and "readmission" means any resident with a prior stay, which climbs
 with history toward 60%. Explain these before a demo, not during one.
 
-**No dump in the repository.** `docker/initdb/aspire.sql.gz` is 129 MB and
-gitignored. A teammate cloning the repo gets the stack but an empty database.
-Distribute it as a release asset. See [docker.md](docker.md).
+**No dump in the repository.** A teammate cloning the repo gets an empty database
+and has to run `manage.py update`, which is about 18 minutes the first time. A dump
+would be roughly 129 MB, too large to commit; generation being deterministic is what
+makes shipping one unnecessary.
 
 **Empty directories.** `frontend/src/api/` and `frontend/src/components/layout/` are
 leftovers from the refactor.

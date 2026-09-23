@@ -44,6 +44,10 @@ erDiagram
         Uuid facility_id PK
     }
     regions ||--o{ facilities : "region_id"
+    referring_hospitals {
+        String hospital PK
+    }
+    regions ||--o{ referring_hospitals : "region_id"
     adt_daily_census {
         Uuid facility_id PK
         Date census_date PK
@@ -86,6 +90,14 @@ erDiagram
         String payer_type PK
     }
     facilities ||--o{ monthly_payer_census_facts : "facility_id"
+    monthly_referral_facts {
+        Date month_start PK
+        String hospital PK
+        Uuid facility_id PK
+        String payer_type PK
+    }
+    facilities ||--o{ monthly_referral_facts : "facility_id"
+    referring_hospitals ||--o{ monthly_referral_facts : "hospital"
     residents {
         Uuid resident_id PK
     }
@@ -128,8 +140,8 @@ erDiagram
         Uuid payer_stay_id PK
     }
     facilities ||--o{ payer_change_logs : "facility_id"
-    payers ||--o{ payer_change_logs : "new_payer_id"
     payers ||--o{ payer_change_logs : "previous_payer_id"
+    payers ||--o{ payer_change_logs : "new_payer_id"
     res_payer_stays ||--o| payer_change_logs : "payer_stay_id"
     res_stays ||--o{ payer_change_logs : "stay_id"
     residents ||--o{ payer_change_logs : "resident_id"
@@ -260,6 +272,18 @@ Facilities and their licensed/demo bed capacity.
 - CHECK: `beds >= 0`
 - UNIQUE: `region_id, facility`
 
+## referring_hospitals
+
+The hospitals that refer residents in, and the region each one refers into. State and portfolio are joins through regions, never stored copies.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| hospital | VARCHAR | no | PK |  |  |
+| region_id | UUID | no | FK → regions.region_id |  | The region this hospital refers into. Verified one region per hospital, so this is a fact about the hospital rather than a summary of its referrals. |
+
+- CHECK: `length(trim(hospital)) > 0`
+- INDEX `ix_referring_hospitals_region_id`: region_id
+
 ## adt_daily_census
 
 Daily facility census: opening + admissions - discharges = closing.
@@ -379,6 +403,26 @@ Calendar-month rollup of daily_payer_census_facts for monthly trending. Flows ar
 - CHECK: `date_trunc('month', month_start) = month_start`
 - CHECK: `opening_census >= 0 AND closing_census >= 0 AND admissions >= 0 AND discharges >= 0 AND changes_in >= 0 AND changes_out >= 0`
 - INDEX `ix_monthly_payer_census_facts_facility`: facility_id, month_start
+
+## monthly_referral_facts
+
+Calendar-month rollup of the hospital referrals in daily_admission_facts, at hospital/facility/payer-type grain. Flows only, so every column sums over any set of rows.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| month_start | DATE | no | PK |  |  |
+| hospital | VARCHAR | no | PK, FK → referring_hospitals.hospital |  | Referring hospital name, matching daily_admission_facts.source_name where source_type is Hospital. |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| payer_type | VARCHAR | no | PK |  | Payer type of the admissions counted. Deliberately coarser than the daily table: at payer_id grain this rollup came to 88% of its source rows. |
+| admissions | SMALLINT | no |  |  | Admissions referred by this hospital into this facility on this payer type during the month. |
+| readmissions | SMALLINT | no |  |  |  |
+| readmissions_30_day | SMALLINT | no |  |  |  |
+
+- CHECK: `admissions > 0`
+- CHECK: `date_trunc('month', month_start) = month_start`
+- CHECK: `readmissions BETWEEN 0 AND admissions`
+- CHECK: `readmissions_30_day BETWEEN 0 AND readmissions`
+- INDEX `ix_monthly_referral_facts_hospital`: hospital, month_start
 
 ## residents
 

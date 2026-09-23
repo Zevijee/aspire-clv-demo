@@ -23,6 +23,9 @@ export type References = { locations: FacilityLocation[]; payerTypes: string[] }
 export type HospitalCount = { hospital_name: string; admissions: number }
 export type SummaryMetrics = {
   admissions: number; readmissions: number; readmissions_30_day: number
+  // Admissions that began pending Medicaid. Survives the retroactive payer
+  // correction, so it stays countable after approval rewrites the payer period.
+  medicaid_pending_admissions: number
   referring_hospitals: number; average_per_day: number
 }
 export type SummaryLocation = SummaryMetrics & {

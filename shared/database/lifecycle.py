@@ -26,6 +26,18 @@ def postgres_url(value):
     return url.set(drivername='postgresql+psycopg')
 
 
+def describe_url(value):
+    """Name the database a command is about to touch, without its credentials.
+
+    There is one database and it runs in Docker, but the host reaches it on a
+    published port while containers reach it on the compose network. Printing the
+    resolved target is what makes those two spellings obviously the same database.
+    """
+    url = make_url(value)
+    port = f':{url.port}' if url.port else ''
+    return f'{url.database} @ {url.host or "localhost"}{port}'
+
+
 def configuration(connection=None, *, draft=False):
     config = Config()
     config.set_main_option('script_location', str(MIGRATIONS).replace('%', '%%'))

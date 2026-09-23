@@ -29,11 +29,33 @@ database.
 | `payer_change_logs` | 269,269 | — | ~4 s | Payer Changes logs and residents count |
 | `daily_payer_census_facts` | 2,517,053 | 331 MB | ~8 min | Net Change |
 | `monthly_payer_census_facts` | 83,730 | 14 MB | ~6 s | Monthly ADT Trending |
+| `monthly_referral_facts` | 165,665 | 31 MB | ~0.3 s | Referring Hospital |
 
 **Grain is not always finer-is-better.** `daily_payer_change_facts` at `payer_id`
 grain measured 268,929 rows against 269,269 source events — 99.9%, a copy rather
 than a summary. At `payer_type` grain it is 250,382 rows and answers the same
 questions, because the report groups by type. Plan names stay in the logs.
+
+**A rollup can be worth building without compressing anything.**
+`monthly_referral_facts` is 165,665 rows against the 198,014 hospital rows of
+`daily_admission_facts` it summarises — 84%, which by the row-count test above is a
+copy. It was built anyway, and measured, because the referring hospital report reads
+36 complete months for every hospital on every load:
+
+| Query | `daily_admission_facts` | `monthly_referral_facts` |
+| --- | --- | --- |
+| Report list, 36 months, all hospitals | 79 ms | 32 ms |
+| Report list, payer filtered | 37 ms | 26 ms |
+| One hospital's detail | 13.7 ms | 0.6 ms |
+
+The win is narrowness and ordering rather than fewer rows: no per-row `date_trunc`,
+no `payers` lookup, no scan of the 54% of daily rows that are not hospital
+referrals, and an index on `(hospital, month_start)` that the detail view reads
+directly. The cheaper alternative was measured too — a partial index on
+`daily_admission_facts (source_name, summary_date) WHERE source_type = 'Hospital'`
+costs 8.9 MB and takes the detail view to 2.8 ms, but leaves the list query at
+83.7 ms, because that query reads every hospital and no index helps it. The list is
+the query the report always runs.
 
 **Dense beat sparse for the payer census.** A sparse table holding a running
 balance was three times smaller but needed a LATERAL lookup per facility/payer pair

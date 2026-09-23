@@ -49,6 +49,8 @@ From `sandbox-data`:
 | `python manage.py admission_logs --regenerate` | Rebuild admission logs from saved stays. |
 | `python manage.py discharge_logs --regenerate` | Rebuild discharge logs from saved stays. |
 | `python manage.py payer_change_logs --regenerate` | Flatten payer changes from saved periods. |
+| `python manage.py referring_hospitals --regenerate` | Rebuild the 384-hospital catalogue from hospitals.json. |
+| `python manage.py referrals_summary --regenerate` | Roll the daily facts up into referral months. ~1 s. |
 
 `res_stays` as a standalone command deliberately fails: fixed-window stay generation
 was replaced by the daily simulation, and the guard says so.
@@ -63,6 +65,15 @@ day: `net_change_summary` and `monthly_adt_summary`. A day recomputed in isolati
 loses the balance carried into it. `net_change_summary` has an `extend` path for a
 contiguous tail — 1.6 s for three days, verified byte-identical to a full rebuild —
 and falls back to rebuilding everything for a gap or a rewritten earlier day.
+
+**`referrals_summary` is the one summary built from another summary.** It rolls
+`daily_admission_facts` up by month for the referring hospital report, rather than
+rebuilding from `admission_logs`. The daily facts are written earlier in the same run
+and the rollup costs about 300 ms, so the reason to prefer them is consistency: the
+two reports read the same rows and cannot disagree about a hospital's admissions.
+Verified across all 166,140 rows — zero disagreements at every grain, and totals
+equal to the daily table's hospital half exactly. It carries no running balance, so
+rebuilding one month is byte-identical to a full rebuild.
 
 **`monthly_adt_summary` builds from `res_payer_stays`, not from the daily table.**
 Rolling the daily table up would be 10 s but requires it to be current first, which

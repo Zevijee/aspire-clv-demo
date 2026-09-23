@@ -3,6 +3,7 @@ export type Admission = {
   region: string
   portfolio: string
   is_readmission: boolean
+  started_medicaid_pending: boolean
   admission_date: string
   admission_id: string
   admission_source_name: string

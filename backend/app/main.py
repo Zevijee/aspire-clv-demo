@@ -18,6 +18,7 @@ from .adt.admissions.routes import router as admissions_router
 from .adt.discharges.routes import router as discharges_router
 from .adt.payer_changes.routes import router as payer_changes_router
 from .adt.net_change.routes import router as net_change_router
+from .adt.referring_hospital.routes import router as referring_hospital_router
 
 logger = logging.getLogger('aspire.api')
 
@@ -74,4 +75,5 @@ def create_app() -> FastAPI:
     app.include_router(discharges_router, prefix='/api/v1')
     app.include_router(payer_changes_router, prefix='/api/v1')
     app.include_router(net_change_router, prefix='/api/v1')
+    app.include_router(referring_hospital_router, prefix='/api/v1')
     return app

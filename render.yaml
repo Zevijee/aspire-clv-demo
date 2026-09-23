@@ -1,0 +1,86 @@
+# One platform, one file: database, API, frontend and the daily generation.
+#
+# Render reconciles all four from this file on every push to the connected branch.
+# Pushes never touch data: the API and frontend rebuild, the database keeps its rows,
+# and only the cron adds days. That is the same split compose.yaml enforces locally.
+#
+# Before the first apply, check two things against current Render docs and pricing:
+#   - the `plan` values below; the database must hold about 1.4 GB at full
+#     253-facility scale, which no free tier allows
+#   - the API's real URL after it first deploys. Render appends a suffix when a name
+#     is taken, and the frontend's /api rewrite below hardcodes it.
+
+databases:
+  - name: aspire-db
+    databaseName: aspire_analytics
+    user: aspire
+    # 1,393 MB measured at full scale, and the seeder needs headroom to rebuild
+    # daily_payer_census_facts in place.
+    diskSizeGB: 10
+    plan: basic-1gb
+
+services:
+  # ---- The API. Same image as the seeder: which one runs is a command. ----
+  - type: web
+    name: aspire-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/v1/health
+    # The API refuses to start against an unmigrated database, on purpose, so the
+    # migration has to land before the new version goes live. This is the step whose
+    # absence makes every request hang with nothing in the browser to explain it.
+    preDeployCommand: python sandbox-data/manage.py upgrade
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aspire-db
+          property: connectionString
+      - key: API_TIMEZONE
+        value: America/New_York
+      # No API_CORS_ORIGINS. The browser only ever talks to the frontend's origin,
+      # because the rewrite below keeps /api on it.
+
+  # ---- The frontend, built same-origin and served as static files. ----
+  - type: web
+    name: aspire-frontend
+    runtime: static
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      # Empty means relative /api/v1/... paths, exactly as the Docker stages build
+      # it. Verified: an empty base leaves no absolute URL in the bundle at all.
+      - key: VITE_API_BASE_URL
+        value: ""
+    routes:
+      # Same-origin, so there is no CORS and no API hostname in the bundle.
+      - type: rewrite
+        source: /api/*
+        destination: https://aspire-api.onrender.com/api/*
+      # React Router owns every other path. Real files are matched first.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # ---- Generate the day's synthetic data. ----
+  # 16:00 UTC is noon in America/New_York during daylight saving and 11:00 outside
+  # it; cron here has no timezone. The hour only has to stay inside the simulation's
+  # own day, which it does either way.
+  #
+  # Which day that is comes from BaseGenerator.SIMULATION_TIMEZONE in
+  # sandbox-data/base.py, a constant rather than a setting. API_TIMEZONE below
+  # configures only the API's own reporting date, so leave the two agreeing.
+  #
+  # The first run seeds everything: `update` migrates, then generates every missing
+  # day from 2023-01-01, which is about 18 minutes. Every run after it has one day
+  # to add and takes seconds. Trigger it by hand once rather than waiting for noon.
+  - type: cron
+    name: aspire-daily-update
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    schedule: "0 16 * * *"
+    dockerCommand: python sandbox-data/manage.py update
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aspire-db
+          property: connectionString

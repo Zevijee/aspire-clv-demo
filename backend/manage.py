@@ -21,6 +21,17 @@ def main():
         # Uvicorn recognizes directory exclusions only when they already exist.
         for directory in excluded:
             directory.mkdir(parents=True, exist_ok=True)
+    # Resolve settings before uvicorn starts, so a missing or wrong DATABASE_URL
+    # is a one-line message here rather than a failed startup inside the server,
+    # and so the log always names the database being served.
+    from backend.app.config import Settings
+    from shared.database.lifecycle import describe_url
+    try:
+        settings = Settings()
+    except Exception as error:
+        parser.error(f'Configuration is incomplete: {error}')
+    print(f'Serving {describe_url(settings.database_url.get_secret_value())} '
+        f'on http://{args.host}:{args.port}', flush=True)
     import uvicorn
     uvicorn.run('backend.app.main:create_app', factory=True, host=args.host, port=args.port,
         reload=args.reload, reload_dirs=[str(ROOT / 'backend'), str(ROOT / 'shared')] if args.reload else None,

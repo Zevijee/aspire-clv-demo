@@ -91,6 +91,15 @@ const columns: TableColumn<Admission>[] = [
     id: 'readmission',
     value: (admission) => admission.is_readmission === true ? 'Yes' : admission.is_readmission === false ? 'No' : 'Unavailable',
   },
+  {
+    filterable: true,
+    header: 'Medicaid pending',
+    dataType: 'boolean',
+    // The id is the backend's own filter key, which its allowlist validates.
+    id: 'medicaid-pending-on-admission',
+    value: (admission) => admission.started_medicaid_pending === true ? 'Yes'
+      : admission.started_medicaid_pending === false ? 'No' : 'Unavailable',
+  },
 ]
 
 export function AdmissionsLogs() {

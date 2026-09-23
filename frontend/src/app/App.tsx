@@ -279,7 +279,7 @@ function App() {
                 setSearchParams(next)
               }} />}
             {currentReport.path === '/adt/net-change' && <NetChangePayerFilter />}
-            {currentReport.path === '/adt/referring-hospital' && <PayerFilter values={searchParams.getAll('referring_payer')}
+            {currentReport.path === '/adt/referring-hospital' && <AdmissionsPayerFilter values={searchParams.getAll('referring_payer')}
               onChange={payers => {
                 const next = new URLSearchParams(searchParams)
                 next.delete('referring_payer')

@@ -34,6 +34,7 @@ backend/
       errors.py                Safe, expected API errors
     reference/                 Shared location and payer catalogues
     adt/admissions/            Overview, logs, filter options, CSV export
+    adt/referring_hospital/    Referral performance per hospital, fixed 36-month window
     system/                    Health, readiness, generator coverage
 ```
 
@@ -76,6 +77,7 @@ All under `/api/v1`.
 | `GET /adt/net-change/monthly` | Monthly totals with their days nested |
 | `GET /adt/net-change/monthly-locations` | Per-facility monthly totals |
 | `GET /adt/net-change/logs` + `/filter-options` + `/export` | Admissions, discharges and payer changes as one list |
+| `GET /adt/referring-hospital/performance` | Referral volume per hospital over 36 complete months |
 
 Every overview reads a fact table and nothing else. Every logs endpoint reads source
 rows, because a log lists named residents and a fact table has no resident in it.
@@ -91,6 +93,16 @@ Three rules the overviews share, each with a reason:
 - **Non-additive measures are counted live, never stored.** Residents affected on
   Payer Changes is a distinct count: in one 30-day window 491 residents changed payer
   more than once, so any sum of per-day rows would over-count by 13%.
+
+Referring Hospital is the one report that takes no date range. Its period is part of
+its definition — the last 3 complete months against the preceding 24, inside 36
+months of history — so the service derives the window from the report's today rather
+than from the caller, and excludes the current month because a partial month would
+understate every average. Location selection still narrows which admissions count.
+Naming a `hospital` returns that one hospital with a month series on each receiving
+facility; the list form returns all 384 with facility totals and no series, which is
+what the table shows. Measured on the full dataset: 105 ms for the list, 13 ms for
+one hospital.
 
 Reference lists return `{items, total, limit, offset}` and accept `limit` (1–500,
 default 50), `offset`, `sort` and `direction=asc|desc`. Allowed sorts are

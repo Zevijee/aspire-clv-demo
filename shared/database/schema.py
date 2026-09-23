@@ -69,6 +69,21 @@ payers = Table('payers', metadata,
     Column('is_skilled', Boolean, nullable=False),
     UniqueConstraint('payer_type', 'payer_name'),
 )
+referring_hospitals = Table('referring_hospitals', metadata,
+    # The hospitals that refer residents in, one row per hospital name. Names are
+    # globally unique in hospitals.json, so the name is the key the admission
+    # rows already carry and no surrogate id is needed.
+    #
+    # A hospital refers into exactly one region -- verified: zero of 384 hospitals
+    # send admissions to facilities in more than one region -- so region_id is a
+    # fact about the hospital rather than a summary of where it happens to send.
+    # State and portfolio are joins away through regions and are deliberately not
+    # copied here, for the same reason parent location scopes are never stored.
+    Column('hospital', String, primary_key=True),
+    Column('region_id', Uuid, ForeignKey('regions.region_id'), nullable=False, index=True),
+    CheckConstraint('length(trim(hospital)) > 0'),
+)
+
 res_stays = Table('res_stays', metadata,
     Column('stay_id', Uuid, primary_key=True),
     Column('resident_id', Uuid, ForeignKey('residents.resident_id'), nullable=False, index=True),
@@ -308,6 +323,47 @@ monthly_payer_census_facts = Table('monthly_payer_census_facts', metadata,
     Index('ix_monthly_payer_census_facts_facility', 'facility_id', 'month_start'),
 )
 
+monthly_referral_facts = Table('monthly_referral_facts', metadata,
+    # A calendar-month rollup of the hospital referrals inside
+    # daily_admission_facts, for the referring hospital report. That report reads
+    # 36 complete months for every hospital at once, which is the whole of the
+    # daily table's hospital half on every load.
+    #
+    # This is not a row-count win and was not built for one: at 165,665 rows it is
+    # 84% of the 198,014 daily rows it summarises, because a facility/payer/hospital
+    # combination rarely recurs inside one month. It was built because it is narrow,
+    # ordered for this report, and free of the per-row date_trunc and the payers
+    # lookup. Measured against the same queries on daily_admission_facts:
+    # the report list 32ms against 79ms, and one hospital's detail 0.6ms against
+    # 13.7ms, or 2.8ms with a partial index on (source_name, summary_date) added to
+    # the daily table instead. The index alone does nothing for the list query,
+    # which reads every hospital, and that is the query the report always runs.
+    #
+    # Flows only. There is no census here, so every column sums over any set of
+    # rows and a month can be rebuilt from its own days alone.
+    Column('month_start', Date, nullable=False),
+    Column('hospital', String, ForeignKey('referring_hospitals.hospital'), nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    # Payer TYPE, not payer_id. At payer_id grain this rollup measured 378,357 rows
+    # against 429,418 source rows -- a copy rather than a summary, the same trap
+    # daily_payer_change_facts documents. The report filters by type and never
+    # shows a plan name; plan names stay in admission_logs.
+    Column('payer_type', String, nullable=False),
+    # Referrals are bounded by monthly admission volume per hospital/facility pair,
+    # which never approaches a smallint.
+    Column('admissions', SmallInteger, nullable=False),
+    Column('readmissions', SmallInteger, nullable=False),
+    Column('readmissions_30_day', SmallInteger, nullable=False),
+    PrimaryKeyConstraint('month_start', 'hospital', 'facility_id', 'payer_type'),
+    CheckConstraint('admissions > 0'),
+    CheckConstraint('readmissions BETWEEN 0 AND admissions'),
+    CheckConstraint('readmissions_30_day BETWEEN 0 AND readmissions'),
+    CheckConstraint("date_trunc('month', month_start) = month_start"),
+    # The report's detail view reads one hospital across every month. Without this
+    # it scans the table; with it the lookup is 0.6ms.
+    Index('ix_monthly_referral_facts_hospital', 'hospital', 'month_start'),
+)
+
 daily_runs = Table('sandbox_daily_runs', metadata,
     Column('generator', String, primary_key=True),
     Column('simulation_date', Date, primary_key=True),
@@ -372,6 +428,7 @@ _descriptions = {
     'facilities': 'Facilities and their licensed/demo bed capacity.',
     'residents': 'Saved resident identities associated with a facility. Stays reference these saved IDs.',
     'payers': 'Payer catalog. Skilled classification applies to Medicare categories and VA.',
+    'referring_hospitals': 'The hospitals that refer residents in, and the region each one refers into. State and portfolio are joins through regions, never stored copies.',
     'res_stays': 'Admission-to-discharge episodes. A null discharge date means currently admitted.',
     'res_payer_stays': 'Payer periods inside an admission episode. The active period has no end date.',
     'admission_logs': 'One actual admission event per episode, including referring source and readmission flags.',
@@ -383,6 +440,7 @@ _descriptions = {
     'daily_payer_change_facts': 'Additive daily payer-change counts at facility/from-type/to-type grain. Residents affected is a distinct count and is read from res_payer_stays instead.',
     'daily_payer_census_facts': 'Daily census and movement by payer type: opening + admissions + changes in - discharges - changes out = closing. Sums back to adt_daily_census.',
     'monthly_payer_census_facts': 'Calendar-month rollup of daily_payer_census_facts for monthly trending. Flows are summed; census is taken from the first and last day of each month.',
+    'monthly_referral_facts': 'Calendar-month rollup of the hospital referrals in daily_admission_facts, at hospital/facility/payer-type grain. Flows only, so every column sums over any set of rows.',
     'adt_daily_census': 'Daily facility census: opening + admissions - discharges = closing.',
     'sandbox_schema_migrations': 'Preserved legacy SQL migration history; new migrations use Alembic.',
     'sandbox_generator_runs': 'Reference-generator completion records used to retain existing data.',
@@ -406,6 +464,10 @@ admission_logs.c.is_readmission.info['description'] = 'Resident has a previous a
 admission_logs.c.is_30_day_readmission.info['description'] = 'Return within 30 days of the previous discharge; also a readmission.'
 daily_admission_facts.c.source_name.info['description'] = 'Referring source name; referring-hospital metrics count distinct names where source_type is Hospital.'
 daily_admission_facts.c.medicaid_pending_admissions.info['description'] = 'Admissions that began pending Medicaid; retained after retroactive payer approval.'
+referring_hospitals.c.region_id.info['description'] = 'The region this hospital refers into. Verified one region per hospital, so this is a fact about the hospital rather than a summary of its referrals.'
+monthly_referral_facts.c.hospital.info['description'] = 'Referring hospital name, matching daily_admission_facts.source_name where source_type is Hospital.'
+monthly_referral_facts.c.payer_type.info['description'] = 'Payer type of the admissions counted. Deliberately coarser than the daily table: at payer_id grain this rollup came to 88% of its source rows.'
+monthly_referral_facts.c.admissions.info['description'] = 'Admissions referred by this hospital into this facility on this payer type during the month.'
 res_payer_stays.c.end_date.info['description'] = 'Exclusive period end; null until payer change or discharge actually occurs.'
 medicaid_applications.c.application_date.info['description'] = 'Admission date when Medicaid coverage was pending; a row permanently identifies a pending-at-admission case.'
 medicaid_applications.c.approved_date.info['description'] = 'Actual approval date; null while unresolved. Approved coverage is retroactive to application_date.'

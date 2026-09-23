@@ -46,7 +46,7 @@ def main():
     # rebuild from already-saved rows, so they run alone instead of being silently
     # widened into a full daily catch-up.
     daily = args.generator in ('seed', 'update', 'all', 'admissions_summary', 'discharges_summary',
-        'payer_changes_summary', 'net_change_summary', 'monthly_adt_summary')
+        'payer_changes_summary', 'net_change_summary', 'monthly_adt_summary', 'referrals_summary')
     standalone = args.generator in ('res_stays', 'admission_logs', 'discharge_logs',
         'payer_change_logs')
     if args.date and (args.start or args.through):
@@ -68,7 +68,7 @@ def main():
     try:
         summaries = ('admissions_summary', 'discharges_summary', 'payer_changes_summary',
             'net_change_summary',
-            'monthly_adt_summary')
+            'monthly_adt_summary', 'referrals_summary')
         daily_target = args.only or (args.generator if args.generator in summaries else 'all')
         daily_plan = BaseGenerator.daily_plan(daily_target) if daily else ()
         start = args.date or args.start
@@ -84,7 +84,7 @@ def main():
             parser.error('History reset starts on 2023-01-01 and runs all daily handlers without --regenerate.')
         # A reset drops every table, so the resident pool has to be rebuilt before ADT
         # runs; otherwise the simulation invents residents on demand under different IDs.
-        reference = ('states', 'portfolios', 'regions', 'facilities', 'payers')
+        reference = ('states', 'portfolios', 'regions', 'facilities', 'payers', 'referring_hospitals')
         if args.reset_history:
             reference += ('residents',)
         if args.generator in database_commands:
@@ -144,6 +144,10 @@ def main():
     database_url = os.getenv('DATABASE_URL')
     if not database_url:
         parser.error('Set DATABASE_URL in the repository root .env or your environment.')
+    # Say which database, every time. Two databases with the same schema and
+    # different data is the failure this prevents.
+    message(f'  Database    {lifecycle.describe_url(database_url)}')
+    message()
 
     started = perf_counter()
     try:

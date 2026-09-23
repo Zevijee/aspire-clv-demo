@@ -68,7 +68,7 @@ export function AdmissionsOverview({ selection, onChangeSelection }: {
     navigate({ state: path.state, ...(path.portfolio ? { portfolio: path.portfolio } : {}),
       ...(path.region ? { region: path.region } : {}), ...(path.facility ? { facility: path.facility } : {}) })
   }
-  function openLogs(row: Row, readmissions = false, hospital?: string) {
+  function openLogs(row: Row, only?: 'readmissions' | 'medicaid-pending', hospital?: string) {
     const params = new URLSearchParams(searchParams)
     for (const key of [...params.keys()]) if (key.startsWith('logs_')) params.delete(key)
     params.set('view', 'logs')
@@ -78,7 +78,8 @@ export function AdmissionsOverview({ selection, onChangeSelection }: {
     payers.forEach(payer => params.append('logs_payer', payer))
     const selectedSources = hospital ? ['Hospital'] : sources
     selectedSources.forEach(source => params.append('logs_source-type', source))
-    if (readmissions) params.set('logs_readmission', 'true')
+    if (only === 'readmissions') params.set('logs_readmission', 'true')
+    if (only === 'medicaid-pending') params.set('logs_medicaid-pending', 'true')
     if (hospital) params.set('logs_admission-source', hospital)
     setHospitalSelection(null)
     setSearchParams(params)
@@ -93,6 +94,7 @@ export function AdmissionsOverview({ selection, onChangeSelection }: {
       prior, change: prior === null ? null : admissions - prior,
       readmissions: visible.reduce((sum, row) => sum + row.readmissions, 0),
       readmissions_30_day: visible.reduce((sum, row) => sum + row.readmissions_30_day, 0),
+      medicaid_pending_admissions: visible.reduce((sum, row) => sum + row.medicaid_pending_admissions, 0),
       average_per_day: admissions / days, referring_hospitals: hospitals.size,
       facility_ids: [...new Set(visible.flatMap(row => row.facility_ids))],
       hospitals: [...hospitals].map(([hospital_name, count]) => ({ hospital_name, admissions: count })) }
@@ -109,10 +111,17 @@ export function AdmissionsOverview({ selection, onChangeSelection }: {
       initialSortDirection: 'descending' as const, value: (row: Row) => row[metric],
       format: (value: string | number, row: Row) => <button type="button"
         className="admissions-explorer__drill admissions-explorer__drill--count"
-        aria-label={`View ${metric} for ${row.name} in Logs`} onClick={() => openLogs(row, metric === 'readmissions')}>{value.toLocaleString()}</button> })),
+        aria-label={`View ${metric} for ${row.name} in Logs`} onClick={() => openLogs(row, metric === 'readmissions' ? 'readmissions' : undefined)}>{value.toLocaleString()}</button> })),
     { id: 'prior', header: 'Prior-period admissions', numeric: true, value: row => row.prior ?? '—',
       format: value => value.toLocaleString() },
     { id: 'change', header: 'Admissions vs Prior', numeric: true, value: row => row.change ?? '—', change: { favorable: 'increase' } },
+    { id: 'medicaid-pending', header: 'Medicaid pending', numeric: true,
+      initialSortDirection: 'descending', value: row => row.medicaid_pending_admissions,
+      format: (value, row) => <button type="button"
+        className="admissions-explorer__drill admissions-explorer__drill--count"
+        aria-label={`View Medicaid pending admissions for ${row.name} in Logs`}
+        title="Admissions that began with Medicaid coverage pending. Counted at admission, so a later retroactive approval does not remove it."
+        onClick={() => openLogs(row, 'medicaid-pending')}>{value.toLocaleString()}</button> },
     { id: 'hospitals', header: 'Referring hospitals', numeric: true, value: row => row.referring_hospitals,
       format: (value, row) => <button type="button" aria-haspopup="dialog"
         className="admissions-explorer__drill admissions-explorer__drill--count"
@@ -123,7 +132,7 @@ export function AdmissionsOverview({ selection, onChangeSelection }: {
     { id: 'hospital', header: 'Referring hospital', isRowHeader: true, value: row => row.hospital_name },
     { id: 'admissions', header: 'Admissions', numeric: true, value: row => row.admissions,
       format: (value, row) => <button type="button" className="admissions-explorer__drill admissions-explorer__drill--count"
-        onClick={() => { if (hospitalRow) openLogs(hospitalRow, false, row.hospital_name) }}>{value.toLocaleString()}</button> },
+        onClick={() => { if (hospitalRow) openLogs(hospitalRow, undefined, row.hospital_name) }}>{value.toLocaleString()}</button> },
   ]
   const blockSize = trendBlockSize(startDate, endDate)
   const trend = groupTrendPeriods((current.data?.daily ?? []).map(row => ({ date: row.date, value: row.admissions })), startDate, blockSize)

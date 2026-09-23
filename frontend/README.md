@@ -25,15 +25,10 @@ npm run dev
 
 Defaults to `http://localhost:8000` for the API, or `VITE_API_BASE_URL`.
 
-Note the port: this dev server binds 5173, and so does the Docker frontend. If both
-run, `localhost:5173` resolves to IPv6 and reaches this dev server while the
-container sits on IPv4. Use `127.0.0.1:5173` for the container, or change `APP_PORT`
-in `.env.docker`.
-
-For the whole stack in containers, see the [Docker guide](../docs/docker.md). Set
-`API_PROXY_TARGET` to have Vite proxy `/api` instead of calling the API's origin
-directly — `vite.config.ts` reads it, and containers use it so the browser stays on
-one origin.
+Set `API_PROXY_TARGET` to have Vite proxy `/api` instead of calling the API's origin
+directly — `vite.config.ts` reads it. A hosted deployment serves both on one origin
+that way, so it is the closer match to production; see
+[deploying.md](../docs/deploying.md).
 
 ## Which API each report uses
 

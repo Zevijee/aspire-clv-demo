@@ -58,6 +58,7 @@ export function getHospitalAdmissionLogsParams(
 export function getAdmissionLogsFilters(params: URLSearchParams): Record<string, string[]> {
   const filters: Record<string, string[]> = {}
   if (params.get('logs_readmission') === 'true') filters.readmission = ['Yes']
+  if (params.get('logs_medicaid-pending') === 'true') filters['medicaid-pending-on-admission'] = ['Yes']
   for (const key of ['state', 'portfolio', 'region', 'facility', 'facility-id', 'payer', 'source-type', 'admission-source']) {
     const values = params.getAll(`logs_${key}`)
     if (values.length) {
