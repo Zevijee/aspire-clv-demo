@@ -88,6 +88,7 @@ class BaseGenerator(ABC):
     res_stays = schema.res_stays
     res_payer_stays = schema.res_payer_stays
     admission_logs = schema.admission_logs
+    payer_change_logs = schema.payer_change_logs
     medicaid_applications = schema.medicaid_applications
     discharge_logs = schema.discharge_logs
     daily_runs = schema.daily_runs
