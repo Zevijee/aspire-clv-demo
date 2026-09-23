@@ -21,6 +21,13 @@ set -a
 . /etc/aspire/api.env
 set +a
 
+echo "==> syncing dependencies"
+# Without this, adding a package to requirements.txt deploys cleanly and then the
+# API crashes on import. The frontend's npm ci runs in CI; this is its counterpart.
+"$APP/venv/bin/pip" install -q --disable-pip-version-check \
+    -r "$APP/backend/requirements.txt" \
+    -r "$APP/sandbox-data/requirements.txt"
+
 echo "==> migrating"
 # This has to succeed before the new code serves traffic: the API refuses to
 # start against a database behind its schema, and a database ahead of the code
