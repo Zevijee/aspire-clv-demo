@@ -6,8 +6,8 @@ from fastapi.responses import StreamingResponse
 from ...common.errors import ErrorResponse
 from ...common.tables import Page
 from ...database import DbConnection
-from .schemas import Overview, OverviewQuery
-from .service import overview
+from .schemas import MonthlyLocations, MonthlyQuery, MonthlyTrend, Overview, OverviewQuery
+from .service import monthly_locations, monthly_trend, overview
 from . import logs
 
 router = APIRouter(prefix='/adt/discharges', tags=['Discharges'])
@@ -23,6 +23,28 @@ def discharges_overview(connection: DbConnection, query: Annotated[OverviewQuery
     derived from that pair rather than from per-row averages.
     """
     return overview(connection, query)
+
+
+@router.get('/monthly', response_model=MonthlyTrend, responses={409: {'model': ErrorResponse}})
+def discharges_monthly(connection: DbConnection, query: Annotated[MonthlyQuery, Query()]):
+    """Monthly discharges with their days nested, narrowed by destination.
+
+    The admissions mirror image. The payer census rollup that serves this
+    report's net change view carries monthly discharges but has no destination
+    dimension and cannot gain one, because census is a level rather than a flow.
+
+    `by_destination` drops the destination filter so the control still shows
+    what the selection is compared against.
+    """
+    return monthly_trend(connection, query)
+
+
+@router.get('/monthly-locations', response_model=MonthlyLocations,
+    responses={409: {'model': ErrorResponse}})
+def discharges_monthly_locations(connection: DbConnection,
+        query: Annotated[MonthlyQuery, Query()]):
+    """Per-facility monthly discharges, under the same filters as `/monthly`."""
+    return monthly_locations(connection, query)
 
 
 @router.get('/logs', response_model=Page[logs.Discharge])

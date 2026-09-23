@@ -5,8 +5,8 @@ from fastapi.responses import StreamingResponse
 
 from ...common.errors import ErrorResponse
 from ...database import DbConnection
-from .schemas import Overview, OverviewQuery
-from .service import overview
+from .schemas import MonthlyLocations, MonthlyQuery, MonthlyTrend, Overview, OverviewQuery
+from .service import monthly_locations, monthly_trend, overview
 from . import logs
 from ...common.tables import Page
 
@@ -21,6 +21,36 @@ def admissions_overview(connection: DbConnection, query: Annotated[OverviewQuery
     location rows, hospitals and daily counts apply both filters.
     """
     return overview(connection, query)
+
+
+@router.get('/monthly', response_model=MonthlyTrend, responses={409: {'model': ErrorResponse}})
+def admissions_monthly(connection: DbConnection, query: Annotated[MonthlyQuery, Query()]):
+    """Monthly admissions with their days nested, narrowed by referral source.
+
+    The Monthly ADT report reads census from the payer census rollup, which has
+    no source dimension and cannot have one -- a resident's presence in a bed is
+    not divisible by where they arrived from. Admissions are, because
+    `source_type` sits at the grain of the daily admission facts, so this reads
+    those instead. Both tables report identical monthly admissions.
+
+    The days travel with each month because the report shows its highest and
+    lowest day, which no month-grain table can answer. `by_source` drops the
+    source filter so the control still shows what the selection is compared
+    against.
+    """
+    return monthly_trend(connection, query)
+
+
+@router.get('/monthly-locations', response_model=MonthlyLocations,
+    responses={409: {'model': ErrorResponse}})
+def admissions_monthly_locations(connection: DbConnection,
+        query: Annotated[MonthlyQuery, Query()]):
+    """Per-facility monthly admissions, under the same filters as `/monthly`.
+
+    It shares a screen with that trend, so it has to narrow identically: an
+    unfiltered location table beside a filtered chart is worse than no filter.
+    """
+    return monthly_locations(connection, query)
 
 
 @router.get('/logs', response_model=Page[logs.Admission])

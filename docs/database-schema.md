@@ -84,6 +84,20 @@ erDiagram
         String new_payer_type PK
     }
     facilities ||--o{ daily_payer_change_facts : "facility_id"
+    monthly_admission_facts {
+        Date month_start PK
+        Uuid facility_id PK
+        String payer_type PK
+        String source_type PK
+    }
+    facilities ||--o{ monthly_admission_facts : "facility_id"
+    monthly_discharge_facts {
+        Date month_start PK
+        Uuid facility_id PK
+        String payer_type PK
+        String destination_type PK
+    }
+    facilities ||--o{ monthly_discharge_facts : "facility_id"
     monthly_payer_census_facts {
         Date month_start PK
         Uuid facility_id PK
@@ -382,6 +396,48 @@ Additive daily payer-change counts at facility/from-type/to-type grain. Resident
 
 - CHECK: `changes > 0`
 - INDEX `ix_daily_payer_change_facts_facility`: facility_id, summary_date
+
+## monthly_admission_facts
+
+Calendar-month rollup of daily_admission_facts at facility/payer-type/source-type grain, for monthly admissions trending by referral source. monthly_payer_census_facts carries monthly admissions too but has no source dimension and cannot gain one, because census is a level rather than a flow.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| month_start | DATE | no | PK |  |  |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| payer_type | VARCHAR | no | PK |  |  |
+| source_type | VARCHAR | no | PK |  | Referral source category the admissions came from. The dimension this table exists to provide; monthly_payer_census_facts cannot carry it. |
+| admissions | SMALLINT | no |  |  | Admissions into this facility on this payer type from this source category during the month. |
+| readmissions | SMALLINT | no |  |  |  |
+| readmissions_30_day | SMALLINT | no |  |  |  |
+
+- CHECK: `admissions > 0`
+- CHECK: `date_trunc('month', month_start) = month_start`
+- CHECK: `readmissions BETWEEN 0 AND admissions`
+- CHECK: `readmissions_30_day BETWEEN 0 AND readmissions`
+- CHECK: `source_type IN ('Hospital', 'Skilled Nursing', 'Home', 'Rehab Facility', 'Assisted Living', 'Community')`
+- INDEX `ix_monthly_admission_facts_facility`: facility_id, month_start
+
+## monthly_discharge_facts
+
+Calendar-month rollup of daily_discharge_facts at facility/payer-type/destination-type grain, for monthly discharge trending by destination. Length of stay is a sum beside its count so any grouping divides correctly.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| month_start | DATE | no | PK |  |  |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| payer_type | VARCHAR | no | PK |  |  |
+| destination_type | VARCHAR | no | PK |  | Destination category the residents were discharged to. The dimension this table exists to provide. |
+| discharges | SMALLINT | no |  |  |  |
+| ama_discharges | SMALLINT | no |  |  |  |
+| length_of_stay_days | INTEGER | no |  |  | Summed length of stay for the grouped discharges. Divide by discharges for an average; never store the average. |
+
+- CHECK: `ama_discharges BETWEEN 0 AND discharges`
+- CHECK: `date_trunc('month', month_start) = month_start`
+- CHECK: `destination_type IN ('Hospital', 'Skilled Nursing', 'Home', 'Rehab Facility', 'Assisted Living', 'Community', 'Funeral Home')`
+- CHECK: `discharges > 0`
+- CHECK: `length_of_stay_days >= discharges`
+- INDEX `ix_monthly_discharge_facts_facility`: facility_id, month_start
 
 ## monthly_payer_census_facts
 

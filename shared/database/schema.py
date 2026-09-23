@@ -323,6 +323,77 @@ monthly_payer_census_facts = Table('monthly_payer_census_facts', metadata,
     Index('ix_monthly_payer_census_facts_facility', 'facility_id', 'month_start'),
 )
 
+monthly_admission_facts = Table('monthly_admission_facts', metadata,
+    # A calendar-month rollup of daily_admission_facts, for the monthly ADT
+    # trending report's admissions view.
+    #
+    # It exists because monthly_payer_census_facts cannot answer this question.
+    # That table serves the same report's net change view and already carries
+    # monthly admissions, but it has no referral source and could not gain one:
+    # its opening_census and closing_census are a level rather than a flow, and
+    # a resident's presence in a bed does not divide by the place they arrived
+    # from. Adding source there would multiply every census row six ways for a
+    # number that does not decompose, and break the CHECK that keeps the
+    # opening/flow/closing identity honest.
+    #
+    # 177,519 rows against the 429,722 daily rows it summarises -- 41%, which is
+    # poor compression, so the case for it is the dimension rather than the size.
+    # Measured at the report's 24-month default: monthly totals cost 44ms grouped
+    # from the daily table and about 6ms here.
+    #
+    # Flows only. Every column sums over any set of rows, so a month is the sum
+    # of its own days and needs no balance carried into it.
+    Column('month_start', Date, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    # Payer TYPE, matching monthly_payer_census_facts and monthly_referral_facts.
+    # The report filters by type and never shows a plan name; plan names stay in
+    # daily_admission_facts and admission_logs.
+    Column('payer_type', String, nullable=False),
+    # Where the resident came from. This is the dimension the table exists for.
+    # Kept at type rather than name: the referring hospital report reads names,
+    # and it has monthly_referral_facts for exactly that.
+    Column('source_type', String, nullable=False),
+    Column('admissions', SmallInteger, nullable=False),
+    Column('readmissions', SmallInteger, nullable=False),
+    Column('readmissions_30_day', SmallInteger, nullable=False),
+    PrimaryKeyConstraint('month_start', 'facility_id', 'payer_type', 'source_type'),
+    CheckConstraint("source_type IN ('Hospital', 'Skilled Nursing', 'Home', "
+        "'Rehab Facility', 'Assisted Living', 'Community')"),
+    CheckConstraint('admissions > 0'),
+    CheckConstraint('readmissions BETWEEN 0 AND admissions'),
+    CheckConstraint('readmissions_30_day BETWEEN 0 AND readmissions'),
+    CheckConstraint("date_trunc('month', month_start) = month_start"),
+    Index('ix_monthly_admission_facts_facility', 'facility_id', 'month_start'),
+)
+
+monthly_discharge_facts = Table('monthly_discharge_facts', metadata,
+    # The discharge counterpart to monthly_admission_facts, carrying the
+    # dimension monthly_payer_census_facts cannot: where the resident went.
+    #
+    # 200,295 rows against the 405,579 daily rows it summarises, 49%. As with
+    # admissions the case is the dimension rather than the compression.
+    Column('month_start', Date, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('payer_type', String, nullable=False),
+    # Where the resident went. Type rather than name, matching the report's filter.
+    Column('destination_type', String, nullable=False),
+    Column('discharges', SmallInteger, nullable=False),
+    Column('ama_discharges', SmallInteger, nullable=False),
+    # Summed, never averaged: a stored mean makes every roll-up above facility
+    # level silently wrong. Integer rather than SmallInteger because this is a
+    # sum of stay lengths, bounded by nothing the way a bed count is -- the worst
+    # monthly cell measures 2,362 today, which a larger dataset would outgrow.
+    Column('length_of_stay_days', Integer, nullable=False),
+    PrimaryKeyConstraint('month_start', 'facility_id', 'payer_type', 'destination_type'),
+    CheckConstraint("destination_type IN ('Hospital', 'Skilled Nursing', 'Home', "
+        "'Rehab Facility', 'Assisted Living', 'Community', 'Funeral Home')"),
+    CheckConstraint('discharges > 0'),
+    CheckConstraint('ama_discharges BETWEEN 0 AND discharges'),
+    CheckConstraint('length_of_stay_days >= discharges'),
+    CheckConstraint("date_trunc('month', month_start) = month_start"),
+    Index('ix_monthly_discharge_facts_facility', 'facility_id', 'month_start'),
+)
+
 monthly_referral_facts = Table('monthly_referral_facts', metadata,
     # A calendar-month rollup of the hospital referrals inside
     # daily_admission_facts, for the referring hospital report. That report reads
@@ -440,6 +511,8 @@ _descriptions = {
     'daily_payer_change_facts': 'Additive daily payer-change counts at facility/from-type/to-type grain. Residents affected is a distinct count and is read from res_payer_stays instead.',
     'daily_payer_census_facts': 'Daily census and movement by payer type: opening + admissions + changes in - discharges - changes out = closing. Sums back to adt_daily_census.',
     'monthly_payer_census_facts': 'Calendar-month rollup of daily_payer_census_facts for monthly trending. Flows are summed; census is taken from the first and last day of each month.',
+    'monthly_admission_facts': 'Calendar-month rollup of daily_admission_facts at facility/payer-type/source-type grain, for monthly admissions trending by referral source. monthly_payer_census_facts carries monthly admissions too but has no source dimension and cannot gain one, because census is a level rather than a flow.',
+    'monthly_discharge_facts': 'Calendar-month rollup of daily_discharge_facts at facility/payer-type/destination-type grain, for monthly discharge trending by destination. Length of stay is a sum beside its count so any grouping divides correctly.',
     'monthly_referral_facts': 'Calendar-month rollup of the hospital referrals in daily_admission_facts, at hospital/facility/payer-type grain. Flows only, so every column sums over any set of rows.',
     'adt_daily_census': 'Daily facility census: opening + admissions - discharges = closing.',
     'sandbox_schema_migrations': 'Preserved legacy SQL migration history; new migrations use Alembic.',
@@ -465,6 +538,10 @@ admission_logs.c.is_30_day_readmission.info['description'] = 'Return within 30 d
 daily_admission_facts.c.source_name.info['description'] = 'Referring source name; referring-hospital metrics count distinct names where source_type is Hospital.'
 daily_admission_facts.c.medicaid_pending_admissions.info['description'] = 'Admissions that began pending Medicaid; retained after retroactive payer approval.'
 referring_hospitals.c.region_id.info['description'] = 'The region this hospital refers into. Verified one region per hospital, so this is a fact about the hospital rather than a summary of its referrals.'
+monthly_discharge_facts.c.destination_type.info['description'] = 'Destination category the residents were discharged to. The dimension this table exists to provide.'
+monthly_discharge_facts.c.length_of_stay_days.info['description'] = 'Summed length of stay for the grouped discharges. Divide by discharges for an average; never store the average.'
+monthly_admission_facts.c.source_type.info['description'] = 'Referral source category the admissions came from. The dimension this table exists to provide; monthly_payer_census_facts cannot carry it.'
+monthly_admission_facts.c.admissions.info['description'] = 'Admissions into this facility on this payer type from this source category during the month.'
 monthly_referral_facts.c.hospital.info['description'] = 'Referring hospital name, matching daily_admission_facts.source_name where source_type is Hospital.'
 monthly_referral_facts.c.payer_type.info['description'] = 'Payer type of the admissions counted. Deliberately coarser than the daily table: at payer_id grain this rollup came to 88% of its source rows.'
 monthly_referral_facts.c.admissions.info['description'] = 'Admissions referred by this hospital into this facility on this payer type during the month.'

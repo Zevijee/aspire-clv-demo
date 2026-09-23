@@ -7,6 +7,7 @@ import { getReportMonthRange } from '../../../shared/components/filters/ReportMo
 import { LineChart } from '../../../shared/components/charts/LineChart'
 import { DailyChangeChart } from '../../../shared/components/charts/DailyChangeChart'
 import { useMonthlyAdt, type MonthlyMovement } from '../hooks/useMonthlyAdt'
+import { monthlyFilter, type MonthlyTab } from '../api/monthlyAdt'
 import { MonthlyAdtLocations } from './MonthlyAdtLocations'
 import { AdmissionsOverviewModal, type AdmissionsMonthSelection } from './AdmissionsOverviewModal'
 
@@ -17,9 +18,14 @@ export function MonthlyAdtTrending({ activeTab }: { activeTab: string }) {
   const [params] = useSearchParams()
   const { start, end } = getReportMonthRange(params)
   const lastDay = end.isSame(dayjs(), 'month') ? dayjs() : end.endOf('month')
-  // The API groups by month from the monthly rollup, so nothing is bucketed here.
+  const tab = (['admissions', 'discharges', 'net-change'].includes(activeTab)
+    ? activeTab : 'admissions') as MonthlyTab
+  const filter = monthlyFilter[tab as keyof typeof monthlyFilter]
+  const filterValues = filter ? params.getAll(filter.search) : []
+  // The API groups by month from each view's own monthly rollup, so nothing is
+  // bucketed here.
   const daily = useMonthlyAdt({ startDate: start.format('YYYY-MM-DD'), endDate: lastDay.format('YYYY-MM-DD'),
-    payers: params.getAll('monthly_payer'), path })
+    payers: params.getAll('monthly_payer'), path, tab, filterValues })
   const rows: MonthlyMovement[] = daily.months
   const tableLabel = activeTab === 'net-change' ? 'Net change' : activeTab === 'discharges' ? 'Discharges' : 'Admissions'
   const columns: TableColumn<(typeof rows)[number]>[] = [
@@ -76,7 +82,7 @@ export function MonthlyAdtTrending({ activeTab }: { activeTab: string }) {
   ] as const).filter(metric => metric.key === activeTab).map(metric => <LineChart key={metric.key} title={metric.title}
     onSelect={item => setAdmissionsMonth({ start: item.date, end: item.end_date ?? item.date, path, payers: params.getAll('monthly_payer'), report: metric.key })}
     headerActions={<button type="button" className="report-table__export" onClick={() => setShowTable(true)}>See in table view</button>}
-    subtitle={`Total ${metric.label.toLowerCase()} per calendar month.${end.isSame(dayjs(), 'month') ? ' Current month is month to date.' : ''}${metric.key === 'admissions' ? ' Click a month to open Admissions Overview.' : ''}`}
+    subtitle={`Total ${metric.label.toLowerCase()} per calendar month.${filterValues.length ? ` ${filter.label} ${filterValues.join(', ')}.` : ''}${end.isSame(dayjs(), 'month') ? ' Current month is month to date.' : ''}${metric.key === 'admissions' ? ' Click a month to open Admissions Overview.' : ''}`}
     items={rows.map(row => ({ date: row.date, end_date: row.end_date, value: row[metric.key] }))}
     variant="bar" interval="month" height={400} signed={metric.signed} barColor={metric.color} showDailyAverage
     valueLabel={metric.label} loading={daily.loading} error={daily.error} onRetry={daily.onRetry} />)}
@@ -85,7 +91,8 @@ export function MonthlyAdtTrending({ activeTab }: { activeTab: string }) {
       width="calc(100vw - 48px)" className="net-change-daily-modal"
       style={{ top: 24, paddingBottom: 0, maxWidth: 'calc(100vw - 48px)' }} destroyOnHidden>
       <div className="net-change-daily-modal__table">
-        <Table key={activeTab} title={`Monthly ${tableLabel.toLowerCase()}`} subtitle="Monthly totals for the selected locations and payers."
+        <Table key={activeTab} title={`Monthly ${tableLabel.toLowerCase()}`}
+          subtitle={`Monthly totals for the selected locations and payers.${filterValues.length ? ` ${filter.label} ${filterValues.join(', ')}.` : ''}`}
           columns={tableColumns} rows={rows} getRowKey={row => row.date}
           loading={daily.loading} error={daily.error} onRetry={daily.onRetry}
           initialSort={{ columnId: 'date', direction: 'ascending' }} internalScroll stickyFirstColumn

@@ -4,11 +4,14 @@ import { useSearchParams } from 'react-router-dom'
 import type { TableColumn } from '../../../shared/components/Table'
 import { DrilldownTable } from '../../../shared/components/DrilldownTable'
 import { DrilldownNavigation } from '../../../shared/components/DrilldownNavigation'
-import { payerCode } from '../api/admissionsOverview'
+import { useAdmissionsReferences } from '../hooks/useAdmissionsOverview'
+import {
+  getMonthlyLocations, monthlyFilter, monthlyParameters,
+  type MonthlyLocation, type MonthlyLocationItem, type MonthlyTab,
+} from '../api/monthlyAdt'
 
 type Metric = 'admissions' | 'discharges' | 'net_change'
-type Location = { facility_id: string; facility_name: string; state: string; portfolio: string; region: string }
-type Result = { locations: Location[]; items: ({ facility_id: string; month: string } & Record<Metric, number>)[] }
+type Result = { locations: MonthlyLocation[]; items: MonthlyLocationItem[] }
 type Row = { key: string; name: string; months: number[]; isTotal?: boolean }
 const levels = ['state', 'portfolio', 'region', 'facility_name'] as const
 const labels = ['State', 'Portfolio', 'Region', 'Facility']
@@ -19,23 +22,27 @@ export function MonthlyAdtLocations({ activeTab, startDate, endDate, path, setPa
 }) {
   const [params] = useSearchParams()
   const [retry, setRetry] = useState(0)
-  const request = new URLSearchParams({ start_date: startDate, end_date: endDate })
-  params.getAll('monthly_payer').forEach(payer => request.append('payer_types', payerCode(payer)))
-  const query = request.toString()
-  const key = JSON.stringify([query, retry])
+  const references = useAdmissionsReferences()
+  const tab = (['admissions', 'discharges', 'net-change'].includes(activeTab)
+    ? activeTab : 'admissions') as MonthlyTab
+  // This table shares a screen with the trend chart, so it reads the same
+  // endpoint family and narrows by the same filter. Unfiltered totals beside a
+  // filtered chart would be worse than having no filter at all.
+  const filter = monthlyFilter[tab as keyof typeof monthlyFilter]
+  const query = references.data
+    ? monthlyParameters({ references: references.data, payers: params.getAll('monthly_payer'),
+        path: [], filter, values: filter ? params.getAll(filter.search) : [] }).toString()
+    : null
+  const key = JSON.stringify([query, tab, startDate, endDate, retry])
   const [response, setResponse] = useState<{ key: string; data?: Result; error?: string } | null>(null)
   useEffect(() => {
+    if (query === null) return
     const controller = new AbortController()
-    const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
-    void fetch(`${base}/api/v1/adt/net-change/monthly-locations?${query}`, { signal: controller.signal })
-      .then(async result => {
-        const body = await result.json()
-        if (!result.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Monthly locations could not load.')
-        return body as Result
-      }).then(data => { if (!controller.signal.aborted) setResponse({ key, data }) })
-      .catch((error: Error) => { if (!controller.signal.aborted) setResponse({ key, error: error.message }) })
+    void getMonthlyLocations(tab, startDate, endDate, query, controller.signal)
+      .then(data => { if (!controller.signal.aborted) setResponse({ key, data }) },
+        (error: Error) => { if (!controller.signal.aborted) setResponse({ key, error: error.message }) })
     return () => controller.abort()
-  }, [query, key])
+  }, [query, tab, startDate, endDate, key])
   const result = response?.key === key ? response : null
   const metric: Metric = activeTab === 'net-change' ? 'net_change' : activeTab === 'discharges' ? 'discharges' : 'admissions'
   const label = metric === 'net_change' ? 'Net change' : metric === 'admissions' ? 'Admissions' : 'Discharges'
@@ -83,13 +90,17 @@ export function MonthlyAdtLocations({ activeTab, startDate, endDate, path, setPa
       { id: 'root', label: 'All states', onSelect: () => setPath([]) },
       ...path.map((name, index) => ({ id: String(index), label: name, onSelect: () => setPath(path.slice(0, index + 1)) })),
     ]} level={{ current: depth + 1, total: 4, label: labels[depth] }} />
-    <DrilldownTable title={`${label} by location`} subtitle="Monthly averages and highest and lowest months."
+    <DrilldownTable title={`${label} by location`}
+      subtitle={`Monthly averages and highest and lowest months.${filter && params.getAll(filter.search).length
+        ? ` ${filter.label} ${params.getAll(filter.search).join(', ')}.` : ''}`}
       columns={columns} rows={[...groups.values()]} getRowKey={row => row.key}
       getFooterRow={rows => ({ key: 'total', name: 'Total', isTotal: true,
         months: months.map((_, index) => rows.reduce((sum, row) => sum + row.months[index], 0)),
       })}
       initialSort={{ columnId: 'average', direction: 'descending' }} stickyFirstColumn
-      loading={result === null} error={result?.error} onRetry={() => setRetry(value => value + 1)}
+      loading={references.loading || result === null}
+      error={references.error ?? result?.error}
+      onRetry={references.error ? references.onRetry : () => setRetry(value => value + 1)}
       emptyMessage="No locations match the selected range and payers."
       csvFileName={`monthly-${activeTab}-locations-${startDate}-to-${endDate}.csv`} />
   </>

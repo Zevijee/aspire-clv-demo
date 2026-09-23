@@ -1,41 +1,44 @@
 import { useEffect, useState } from 'react'
-import { payerCode, readJson, type References } from '../api/admissionsOverview'
-import { netChangeBase } from '../api/netChangeOverview'
 import { useAdmissionsReferences } from './useAdmissionsOverview'
-import type { DailyMovement } from '../components/NetChangeDayOverDay'
+import {
+  getMonthlyTrend, monthlyFilter, monthlyParameters,
+  type MonthlyRow, type MonthlyTab,
+} from '../api/monthlyAdt'
 
-export type MonthlyMovement = DailyMovement & {
-  month: string
-  end_date: string
-  days: DailyMovement[]
-}
+export type MonthlyMovement = MonthlyRow
 
-/** Monthly totals with their days nested, from the monthly rollup.
+/** Monthly totals with their days nested.
  *
- * The chart is monthly, so it reads the monthly table rather than fetching every
- * day and bucketing in the browser. The days still come along because the table
- * shows the highest and lowest day inside each month.
+ * Each tab reads its own monthly table: net change from the payer census
+ * rollup, admissions and discharges from the rollups that carry a referral
+ * source and a destination. The census table cannot answer those, because
+ * census is a level rather than a flow and does not divide by where a resident
+ * came from.
+ *
+ * The days travel with each month because the table shows the highest and
+ * lowest day inside it, which no month-grain table can answer.
  */
-export function useMonthlyAdt({ startDate, endDate, payers, path }: {
+export function useMonthlyAdt({ startDate, endDate, payers, path, tab, filterValues }: {
   startDate: string; endDate: string; payers: string[]; path: string[]
+  tab: MonthlyTab; filterValues: string[]
 }) {
   const [attempt, setAttempt] = useState(0)
   const references = useAdmissionsReferences()
+  const filter = monthlyFilter[tab as keyof typeof monthlyFilter]
   const parameters = references.data
-    ? monthlyParameters(references.data, payers, path).toString() : null
-  const key = JSON.stringify([startDate, endDate, parameters, attempt])
-  const [result, setResult] = useState<{ key: string; months?: MonthlyMovement[]; error?: string } | null>(null)
+    ? monthlyParameters({ references: references.data, payers, path, filter,
+        values: filterValues }).toString()
+    : null
+  const key = JSON.stringify([startDate, endDate, parameters, tab, attempt])
+  const [result, setResult] = useState<{ key: string; months?: MonthlyRow[]; error?: string } | null>(null)
   useEffect(() => {
     if (parameters === null) return
     const controller = new AbortController()
-    const params = new URLSearchParams(parameters)
-    params.set('start_date', startDate)
-    params.set('end_date', endDate)
-    void readJson<{ months: MonthlyMovement[] }>(`${netChangeBase}/monthly?${params}`, controller.signal)
-      .then(data => { if (!controller.signal.aborted) setResult({ key, months: data.months }) },
+    void getMonthlyTrend(tab, startDate, endDate, parameters, controller.signal)
+      .then(months => { if (!controller.signal.aborted) setResult({ key, months }) },
         (error: Error) => { if (!controller.signal.aborted) setResult({ key, error: error.message }) })
     return () => controller.abort()
-  }, [startDate, endDate, parameters, key])
+  }, [startDate, endDate, parameters, tab, key])
   const current = result?.key === key ? result : null
   return {
     months: current?.months ?? [],
@@ -44,18 +47,4 @@ export function useMonthlyAdt({ startDate, endDate, payers, path }: {
     onRetry: references.error ? references.onRetry : () => setAttempt(value => value + 1),
     startDate, endDate, hasPayers: payers.length > 0,
   }
-}
-
-function monthlyParameters(references: References, payers: string[], path: string[]) {
-  const params = new URLSearchParams()
-  if (path.length) {
-    // The drill-down carries location names; resolve them to saved facility ids.
-    const selected = references.locations.filter(row =>
-      [row.state, row.portfolio_name, row.region_name, row.facility_name]
-        .every((part, index) => index >= path.length || part === path[index]))
-    if (!selected.length) params.set('match_none', 'true')
-    selected.forEach(row => params.append('facility_ids', row.facility_id))
-  }
-  payers.forEach(value => params.append('payer_types', payerCode(value)))
-  return params
 }

@@ -24,6 +24,68 @@ class OverviewQuery(DateRange, LocationSelection):
         return self
 
 
+class MonthlyQuery(DateRange, LocationSelection):
+    """Monthly discharge trending, narrowed by payer and by where they went.
+
+    Mirrors the admissions side: monthly_payer_census_facts serves the same
+    report's net change view and carries monthly discharges, but has no
+    destination dimension and cannot gain one, because census is a level rather
+    than a flow. monthly_discharge_facts exists for exactly this.
+    """
+    payer_types: list[str] = Field(default_factory=list, max_length=100)
+    destination_types: list[DestinationType] = Field(default_factory=list)
+    match_none: bool = False
+
+    @model_validator(mode='after')
+    def bounded_range(self):
+        if self.days > 3660:
+            raise ValueError('Choose a date range of at most 10 years.')
+        return self
+
+
+class MonthlyDay(BaseModel):
+    date: date
+    discharges: int
+
+
+class MonthlyMonth(MonthlyDay):
+    month: str = Field(description='Calendar month as YYYY-MM.')
+    end_date: date = Field(description='Last day shown for this month.')
+    days: list[MonthlyDay] = Field(description=
+        'The days inside this month, for the highest and lowest day columns.')
+
+
+class MonthlyDestinationCount(BaseModel):
+    destination_type: str
+    discharges: int
+
+
+class MonthlyTrend(BaseModel):
+    months: list[MonthlyMonth]
+    by_destination: list[MonthlyDestinationCount] = Field(description=
+        'Discharges per destination across the range, ignoring the destination '
+        'filter so the control shows what the selection is compared against.')
+
+
+class MonthlyLocation(BaseModel):
+    facility_id: UUID
+    facility_name: str
+    state: str
+    portfolio: str
+    region: str
+
+
+class MonthlyLocationCount(BaseModel):
+    facility_id: UUID
+    month: str
+    discharges: int
+
+
+class MonthlyLocations(BaseModel):
+    locations: list[MonthlyLocation]
+    items: list[MonthlyLocationCount]
+
+
 class Range(BaseModel):
     start: date
     end: date

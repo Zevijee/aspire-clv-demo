@@ -46,7 +46,8 @@ def main():
     # rebuild from already-saved rows, so they run alone instead of being silently
     # widened into a full daily catch-up.
     daily = args.generator in ('seed', 'update', 'all', 'admissions_summary', 'discharges_summary',
-        'payer_changes_summary', 'net_change_summary', 'monthly_adt_summary', 'referrals_summary')
+        'payer_changes_summary', 'net_change_summary', 'monthly_adt_summary', 'referrals_summary',
+        'monthly_adt_facts')
     standalone = args.generator in ('res_stays', 'admission_logs', 'discharge_logs',
         'payer_change_logs')
     if args.date and (args.start or args.through):
@@ -68,7 +69,7 @@ def main():
     try:
         summaries = ('admissions_summary', 'discharges_summary', 'payer_changes_summary',
             'net_change_summary',
-            'monthly_adt_summary', 'referrals_summary')
+            'monthly_adt_summary', 'referrals_summary', 'monthly_adt_facts')
         daily_target = args.only or (args.generator if args.generator in summaries else 'all')
         daily_plan = BaseGenerator.daily_plan(daily_target) if daily else ()
         start = args.date or args.start

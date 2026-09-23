@@ -12,6 +12,7 @@ import { ReferringHospitalOverview } from '../features/adt/components/ReferringH
 import { NetChangeFilters } from '../features/adt/components/NetChangeFilters'
 import { NetChangePayerFilter } from '../features/adt/components/NetChangePayerFilter'
 import { AdmissionsPayerFilter } from '../features/adt/components/AdmissionsPayerFilter'
+import { monthlyFilter } from '../features/adt/api/monthlyAdt'
 import { PayerFilter } from '../features/adt/components/PayerFilter'
 import { AdmissionsTesting } from '../features/adt/components/AdmissionsTesting'
 import { analyticsModules, reports, reportsByModule } from '../features/navigation/reportCatalog'
@@ -293,6 +294,21 @@ function App() {
                 payers.forEach(payer => next.append('monthly_payer', payer))
                 setSearchParams(next)
               }} />}
+            {/* Only the admissions and discharges views have a source or destination.
+                Net change reads census, which is a level and does not divide by
+                where a resident came from or went to. */}
+            {isMonthlyAdtReport && monthlyTab in monthlyFilter && (() => {
+              const filter = monthlyFilter[monthlyTab as keyof typeof monthlyFilter]
+              return <FilterDropdown label={filter.label} placeholder={filter.placeholder}
+                options={filter.options.map(value => ({ value, label: value }))}
+                values={searchParams.getAll(filter.search)}
+                onChange={values => {
+                  const next = new URLSearchParams(searchParams)
+                  next.delete(filter.search)
+                  values.forEach(value => next.append(filter.search, value))
+                  setSearchParams(next)
+                }} />
+            })()}
             {isMonthlyAdtReport ? <ReportMonthRangeFilter /> : currentReport.path !== '/adt/referring-hospital' && currentReport.path !== '/census/daily-census' ? <ReportDateRangeFilter /> : null}
           </ReportFilters>
         }
@@ -320,6 +336,15 @@ function App() {
                 onTabChange: (id: string) => {
                   setMonthlyTab(id)
                   try { localStorage.setItem('monthly-adt-tab', id) } catch { /* Keep selection in memory when storage is unavailable. */ }
+                  // Drop the other views' filters. A source selection left in the
+                  // URL while looking at discharges would read as an active
+                  // filter that narrows nothing.
+                  const next = new URLSearchParams(searchParams)
+                  let changed = false
+                  for (const [key, value] of Object.entries(monthlyFilter)) {
+                    if (key !== id && next.has(value.search)) { next.delete(value.search); changed = true }
+                  }
+                  if (changed) setSearchParams(next)
                 },
               } : undefined
         }

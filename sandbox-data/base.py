@@ -68,13 +68,14 @@ class BaseGenerator(ABC):
         'summary_generators.aspire-net-change',
         'summary_generators.aspire-monthly-adt',
         'summary_generators.aspire-referrals',
+        'summary_generators.aspire-monthly-admissions',
     )
     RUN_ORDER = ('states', 'portfolios', 'regions', 'facilities', 'payers',
         'referring_hospitals', 'residents',
         'res_stays', 'admission_logs', 'discharge_logs', 'payer_change_logs',
         'admissions_summary',
         'discharges_summary', 'payer_changes_summary', 'net_change_summary',
-        'monthly_adt_summary', 'referrals_summary')
+        'monthly_adt_summary', 'referrals_summary', 'monthly_adt_facts')
     metadata = schema.metadata
     migration_history = schema.migration_history
     run_history = schema.run_history

@@ -12,7 +12,8 @@ from sqlalchemy import case, func, select, tuple_
 from sqlalchemy.engine import Connection
 
 from shared.database.schema import (
-    daily_discharge_facts as facts, daily_runs, facilities, payers, portfolios, regions)
+    daily_discharge_facts as facts, daily_runs, facilities,
+    monthly_discharge_facts as months, payers, portfolios, regions)
 from ...common.errors import ApiError
 from ...common.locations import LocationSelection, facility_locations
 from .schemas import OverviewQuery
@@ -182,3 +183,97 @@ def overview(connection: Connection, query: OverviewQuery):
         data_status=dict(complete=True, available_from=first, available_through=last,
             generated_at=generated_at, schema_version=1),
     )
+
+
+def _monthly_conditions(query, facility_ids, *, apply_destination=True):
+    conditions = [months.c.month_start.between(
+        query.start_date.replace(day=1), query.end_date)]
+    if facility_ids is not None:
+        conditions.append(months.c.facility_id.in_(facility_ids))
+    if query.payer_types:
+        conditions.append(months.c.payer_type.in_(query.payer_types))
+    if apply_destination and query.destination_types:
+        conditions.append(months.c.destination_type.in_(query.destination_types))
+    return conditions
+
+
+def _daily_conditions(query, facility_ids):
+    """The day series stays on the daily table: a month-grain rollup cannot
+    answer the report's highest and lowest day columns."""
+    conditions = [facts.c.summary_date.between(query.start_date, query.end_date)]
+    if facility_ids is not None:
+        conditions.append(facts.c.facility_id.in_(facility_ids))
+    if query.payer_types:
+        conditions.append(facts.c.payer_id.in_(
+            select(payers.c.payer_id).where(payers.c.payer_type.in_(query.payer_types))))
+    if query.destination_types:
+        conditions.append(facts.c.destination_type.in_(query.destination_types))
+    return conditions
+
+
+def _selected_facility_ids(connection, query):
+    all_rows = connection.execute(facility_locations(LocationSelection())).mappings().all()
+    selected = ([] if query.match_none else
+        connection.execute(facility_locations(query)).mappings().all())
+    if selected and len(selected) == len(all_rows):
+        return None, selected
+    return sorted(row['facility_id'] for row in selected), selected
+
+
+def monthly_trend(connection: Connection, query):
+    """Monthly discharges by destination, with their days nested.
+
+    The admissions mirror image, reading monthly_discharge_facts. The days come
+    from the daily table because the report shows the highest and lowest day in
+    each month, which no month-grain table can answer.
+    """
+    _coverage(connection, query)
+    facility_ids, _ = _selected_facility_ids(connection, query)
+    summed = func.coalesce(func.sum(months.c.discharges), 0).label('discharges')
+
+    totals = {row['month_start']: row['discharges'] for row in connection.execute(
+        select(months.c.month_start, summed)
+        .where(*_monthly_conditions(query, facility_ids))
+        .group_by(months.c.month_start)).mappings()}
+
+    # The destination breakdown drops its own filter, so the control keeps
+    # showing what the selection is being compared against.
+    by_destination = connection.execute(select(months.c.destination_type, summed)
+        .where(*_monthly_conditions(query, facility_ids, apply_destination=False))
+        .group_by(months.c.destination_type)).mappings().all()
+
+    days = defaultdict(list)
+    for row in connection.execute(select(
+            facts.c.summary_date, func.coalesce(func.sum(facts.c.discharges), 0).label('discharges'))
+            .where(*_daily_conditions(query, facility_ids))
+            .group_by(facts.c.summary_date).order_by(facts.c.summary_date)).mappings():
+        days[row['summary_date'].replace(day=1)].append(
+            dict(date=row['summary_date'], discharges=row['discharges']))
+
+    trend = []
+    for month_start in sorted(totals):
+        inside = days.get(month_start, [])
+        trend.append(dict(
+            month=month_start.strftime('%Y-%m'), date=month_start,
+            end_date=inside[-1]['date'] if inside else month_start,
+            discharges=totals[month_start], days=inside))
+    return dict(months=trend, by_destination=[
+        dict(destination_type=row['destination_type'], discharges=row['discharges'])
+        for row in sorted(by_destination, key=lambda row: row['destination_type'])])
+
+
+def monthly_locations(connection: Connection, query):
+    """Per-facility monthly discharges, under the same filters as the trend."""
+    _coverage(connection, query)
+    facility_ids, selected = _selected_facility_ids(connection, query)
+    locations = [dict(facility_id=row['facility_id'], facility_name=row['facility_name'],
+        state=row['state'], portfolio=row['portfolio_name'], region=row['region_name'])
+        for row in selected]
+    if not locations:
+        return dict(locations=[], items=[])
+    rows = connection.execute(select(
+        months.c.facility_id, func.to_char(months.c.month_start, 'YYYY-MM').label('month'),
+        func.coalesce(func.sum(months.c.discharges), 0).label('discharges'))
+        .where(*_monthly_conditions(query, facility_ids))
+        .group_by(months.c.facility_id, months.c.month_start)).mappings().all()
+    return dict(locations=locations, items=[dict(row) for row in rows])
