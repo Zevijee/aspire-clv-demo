@@ -22,6 +22,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Refuse to deploy an unintended ref
+        # GitHub only lists a workflow_dispatch workflow if it exists on the
+        # default branch, so this file is on main as well. main is behind the
+        # deployed code, and deploying it would leave the API refusing to start
+        # against a database ahead of its schema. Name the branch explicitly.
+        if: github.ref_name != 'refactor-backend-and-seeder'
+        run: |
+          echo "Refusing to deploy '${{ github.ref_name }}'." >&2
+          echo "Deploys come from refactor-backend-and-seeder; change this guard when that moves." >&2
+          exit 1
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
