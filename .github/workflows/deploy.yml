@@ -1,0 +1,94 @@
+name: Deploy
+
+# Manual by default. The demo is public, so a work-in-progress commit should not
+# reach it on its own; swap in the `push` trigger below when that changes.
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [refactor-backend-and-seeder]
+
+concurrency:
+  # Two deploys running at once would sync files under a live migration.
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  DEPLOY_HOST: demo.clearviewreports.net
+  DEPLOY_USER: deploy
+  APP_DIR: /opt/aspire
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build the frontend
+        working-directory: frontend
+        # An empty base makes every request a relative /api/v1/... path, which
+        # nginx proxies on the same origin. That is what avoids CORS entirely and
+        # keeps an HTTPS page from ever calling an HTTP API.
+        env:
+          VITE_API_BASE_URL: ''
+        run: |
+          npm ci
+          npm run build
+
+      - name: Authorise SSH
+        run: |
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 0600 ~/.ssh/deploy_key
+          # Pin the host key rather than accepting blindly, so a DNS or routing
+          # change cannot silently point this deploy at another machine.
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/known_hosts
+
+      - name: Sync application code
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts" \
+            --exclude '__pycache__' --exclude '*.pyc' \
+            --exclude 'staged' --exclude 'stage-history' \
+            backend shared sandbox-data pyproject.toml deploy \
+            "$DEPLOY_USER@$DEPLOY_HOST:$APP_DIR/"
+
+      - name: Sync the built frontend
+        # Separate from the code sync because dist/ is a build artifact with its
+        # own --delete scope; folding them together would let a stale asset
+        # survive or delete the venv.
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts" \
+            frontend/dist/ "$DEPLOY_USER@$DEPLOY_HOST:$APP_DIR/dist/"
+
+      - name: Migrate and restart
+        run: |
+          ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "$DEPLOY_USER@$DEPLOY_HOST" 'bash -s' < deploy/remote-deploy.sh
+
+      - name: Smoke test the public site
+        # The deploy is not finished because files landed. These are the requests
+        # a visitor's first page load actually makes.
+        run: |
+          set -euo pipefail
+          base="https://$DEPLOY_HOST"
+          end=$(date -u +%F)
+          start=$(date -u -d '-29 days' +%F)
+          check() {
+            code=$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 60 "$1") \
+              || { echo "FAILED $1"; exit 1; }
+            echo "  $code  $2"
+          }
+          check "$base/" "index"
+          check "$base/adt/admissions" "client-side route"
+          check "$base/api/v1/ready" "readiness"
+          check "$base/api/v1/adt/admissions/overview?start_date=$start&end_date=$end&group_by=state" "admissions overview"
+          check "$base/api/v1/adt/referring-hospital/performance" "referring hospital"
