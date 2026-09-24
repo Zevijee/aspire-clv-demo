@@ -1,11 +1,11 @@
 name: Deploy
 
-# Manual by default. The demo is public, so a work-in-progress commit should not
-# reach it on its own; swap in the `push` trigger below when that changes.
+# Every push to the deployed branch ships, and it can still be run by hand. The
+# guard below keeps any other branch off the server.
 on:
   workflow_dispatch:
-  # push:
-  #   branches: [refactor-backend-and-seeder]
+  push:
+    branches: [refactor-backend-and-seeder]
 
 concurrency:
   # Two deploys running at once would sync files under a live migration.
