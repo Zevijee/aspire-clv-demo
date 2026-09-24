@@ -21,6 +21,7 @@ from .adt.discharges.routes import router as discharges_router
 from .adt.payer_changes.routes import router as payer_changes_router
 from .adt.net_change.routes import router as net_change_router
 from .adt.referring_hospital.routes import router as referring_hospital_router
+from .census.routes import router as census_router
 
 logger = logging.getLogger('aspire.api')
 
@@ -53,11 +54,11 @@ def create_app() -> FastAPI:
     app.add_middleware(SessionMiddleware,
         secret_key=settings.session_secret.get_secret_value(),
         session_cookie='clearview_session', https_only=settings.session_https_only,
-        same_site='lax', max_age=settings.session_hours * 3600)
+        same_site='lax', max_age=settings.session_minutes * 60)
     # allow_credentials is required for the browser to send the session cookie at
     # all, and a credentialed request may not use a wildcard origin -- so the
     # origin list is now load bearing rather than advisory. POST is allowed for
-    # login and logout only; the reports remain GET.
+    # login, refresh and logout only; the reports remain GET.
     app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins),
         allow_credentials=True, allow_methods=['GET', 'POST'],
         allow_headers=['Accept', 'Content-Type'])
@@ -95,4 +96,5 @@ def create_app() -> FastAPI:
     app.include_router(payer_changes_router, prefix='/api/v1', dependencies=locked)
     app.include_router(net_change_router, prefix='/api/v1', dependencies=locked)
     app.include_router(referring_hospital_router, prefix='/api/v1', dependencies=locked)
+    app.include_router(census_router, prefix='/api/v1', dependencies=locked)
     return app

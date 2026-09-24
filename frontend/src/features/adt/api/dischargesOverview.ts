@@ -1,6 +1,7 @@
 import type { LocationLevel } from '../utils/admissionsOverviewFilters'
 import type { DrilldownScope } from '../utils/admissionsDrilldown'
 import { payerCode, readJson, type References } from './admissionsOverview'
+import { authorizedFetch } from '../../auth/api'
 
 const base = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').replace(/\/$/, '')
 export const dischargesBase = `${base}/api/v1/adt/discharges`
@@ -117,8 +118,7 @@ export function getDischargeLogs(start: string, end: string, offset: number,
 }
 
 export async function downloadDischargeLogs(start: string, end: string, query: DischargeLogsQuery) {
-  const response = await fetch(`${dischargesBase}/logs/export?${dischargeLogParameters(start, end, query)}`,
-    { credentials: 'include' })
+  const response = await authorizedFetch(`${dischargesBase}/logs/export?${dischargeLogParameters(start, end, query)}`)
   if (!response.ok) throw new Error('Discharge export could not complete.')
   const url = URL.createObjectURL(await response.blob())
   const anchor = document.createElement('a')

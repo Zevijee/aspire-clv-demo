@@ -1,5 +1,6 @@
 import type { OverviewSelection, LocationLevel } from '../utils/admissionsOverviewFilters'
 import type { Admission, AdmissionsLogsQuery } from './admissions'
+import { authorizedFetch } from '../../auth/api'
 
 const base = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').replace(/\/$/, '')
 export const admissionsBase = `${base}/api/v1/adt/admissions`
@@ -46,7 +47,7 @@ export async function readJson<T>(url: string, signal?: AbortSignal): Promise<T>
   // credentials: the session cookie must ride along. Same-origin in a
   // deployment, but the dev server and the API are different ports, which
   // the browser treats as cross-origin and so omits cookies by default.
-  const response = await fetch(url, { signal, credentials: 'include' })
+  const response = await authorizedFetch(url, { signal })
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { detail?: string }
     throw new Error(typeof body.detail === 'string' ? body.detail : `Request failed (${response.status}).`)
@@ -112,8 +113,7 @@ export function logParameters(start: string, end: string, query: AdmissionsLogsQ
 }
 
 export async function downloadAdmissionLogs(start: string, end: string, query: AdmissionsLogsQuery) {
-  const response = await fetch(`${admissionsBase}/logs/export?${logParameters(start, end, query)}`,
-    { credentials: 'include' })
+  const response = await authorizedFetch(`${admissionsBase}/logs/export?${logParameters(start, end, query)}`)
   if (!response.ok) throw new Error('Admission export could not complete.')
   const url = URL.createObjectURL(await response.blob())
   const anchor = document.createElement('a')

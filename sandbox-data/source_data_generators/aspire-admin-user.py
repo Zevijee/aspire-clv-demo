@@ -9,13 +9,15 @@ repository is the same as no password, because it ships to every clone and every
 deploy, and nobody changes it. Running without the variable fails and says so.
 
 Rerunning with a different password updates the stored digest, which is how the
-password is rotated -- there is no separate command for it.
+password is rotated -- there is no separate command for it. It also revokes every
+refresh token, so everyone signed in has to sign in again.
 """
 from datetime import datetime, timezone
 import os
 
 from base import BaseGenerator
 from shared.database.passwords import hash_password
+from shared.database.schema import refresh_tokens
 
 USERNAME = 'admin'
 
@@ -43,6 +45,10 @@ class AdminUserGenerator(BaseGenerator):
                 'Set ADMIN_PASSWORD before seeding the admin user. Put it in the root .env '
                 'for local work, or in the service environment file on a server. It is not '
                 'defaulted on purpose: a password committed to a repository protects nothing.')
+        # A new password ends every existing sign-in, in the same transaction as
+        # the new digest. Otherwise a stolen refresh token would outlive the
+        # password it was issued under.
+        connection.execute(refresh_tokens.delete())
 
     def expected_rows(self):
         return 1

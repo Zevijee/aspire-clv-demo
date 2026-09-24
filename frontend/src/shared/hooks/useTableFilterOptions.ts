@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { tableFilterRequestKey, type TableFilterSource } from '../utils/tableFilters'
+import { authorizedFetch } from '../../features/auth/api'
 
 export function useTableFilterOptions(source: TableFilterSource | undefined,
   column: string | null, filters: Record<string, string[]>, search: string) {
@@ -14,7 +15,7 @@ export function useTableFilterOptions(source: TableFilterSource | undefined,
     const params = new URLSearchParams({ start_date: startDate, end_date: endDate,
       column: columnId, filters: JSON.stringify(otherFilters), search: searchTerm })
     const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
-    void fetch(`${endpoint ?? `${baseUrl}/api/v1/table-filter-options/${id}`}?${params}`, { signal: controller.signal, credentials: 'include' })
+    void authorizedFetch(`${endpoint ?? `${baseUrl}/api/v1/table-filter-options/${id}`}?${params}`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error('Could not load filter options.')
         const data = await response.json() as { options: string[] }

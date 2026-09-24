@@ -25,6 +25,10 @@ type BarChartRankingProps = DataStateProps & {
   onClear?: () => void
   title: string
   valueLabel: string
+  // For values that are not counts, such as a rate. Share of total is only
+  // meaningful when the values add up to something, so it can be turned off.
+  formatValue?: (value: number) => string
+  showShare?: boolean
 }
 
 type RankingTooltipProps = {
@@ -32,9 +36,11 @@ type RankingTooltipProps = {
   label?: string
   payload?: { value?: number }[]
   total: number
+  formatValue: (value: number) => string
+  showShare: boolean
 }
 
-function RankingTooltip({ active, label, payload, total }: RankingTooltipProps) {
+function RankingTooltip({ active, label, payload, total, formatValue, showShare }: RankingTooltipProps) {
   if (!active || payload?.[0]?.value === undefined) {
     return null
   }
@@ -46,7 +52,7 @@ function RankingTooltip({ active, label, payload, total }: RankingTooltipProps) 
     <div className="ranking-tooltip">
       <p>{label}</p>
       <span>
-        {value.toLocaleString()} ({percentage}%)
+        {formatValue(value)}{showShare && ` (${percentage}%)`}
       </span>
     </div>
   )
@@ -63,7 +69,10 @@ export function BarChartRanking({
   valueLabel,
   selectedLabels = [], onSelect, onClear,
   clearLabel = 'Clear source filter',
+  formatValue: axisFormat,
+  showShare = true,
 }: BarChartRankingProps) {
+  const formatValue = axisFormat ?? ((value: number) => value.toLocaleString())
   const largestValue = Math.max(...items.map((item) => item.value), 1)
   const total = items.reduce((sum, item) => sum + item.value, 0)
 
@@ -79,7 +88,7 @@ export function BarChartRanking({
         </div>
       ) : <div
         aria-label={`${title}: ${items
-          .map((item) => `${item.label}, ${item.value.toLocaleString()} ${valueLabel}`)
+          .map((item) => `${item.label}, ${formatValue(item.value)} ${valueLabel}`)
           .join('; ')}`}
         className="bar-chart-ranking__plot"
         role="img"
@@ -104,6 +113,7 @@ export function BarChartRanking({
               axisLine={false}
               domain={[0, largestValue]}
               tick={{ fill: 'var(--color-chart-axis)', fontSize: 12 }}
+              tickFormatter={axisFormat}
               tickLine={false}
               type="number"
             />
@@ -116,7 +126,7 @@ export function BarChartRanking({
               width={90}
             />
             <Tooltip
-              content={<RankingTooltip total={total} />}
+              content={<RankingTooltip total={total} formatValue={formatValue} showShare={showShare} />}
               cursor={{ fill: 'var(--color-chart-hover)' }}
             />
             <Bar
@@ -144,7 +154,7 @@ export function BarChartRanking({
           {items.map((item) => (
             <tr key={item.label}>
               <td>{onSelect ? <button type="button" aria-pressed={selectedLabels.includes(item.label)} onClick={() => onSelect(item.label)}>{item.label}</button> : item.label}</td>
-              <td>{item.value.toLocaleString()}</td>
+              <td>{formatValue(item.value)}</td>
             </tr>
           ))}
         </tbody>

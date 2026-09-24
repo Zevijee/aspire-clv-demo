@@ -66,10 +66,10 @@
 
 .module-navigation {
   display: flex;
-  flex: 0 1 auto;
+  /* Fills the space between the brand and the account footer, and scrolls. */
+  flex: 1 1 auto;
   flex-direction: column;
   gap: var(--space-3);
-  height: calc(100dvh - 56px);
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
@@ -187,6 +187,151 @@
 .report-link--active:hover {
   background: var(--color-primary-hover);
   color: var(--color-surface);
+}
+
+.census-history__variance {
+  font-size: 0.75rem;
+  margin-left: var(--space-2);
+}
+
+.sidebar-account {
+  align-items: center;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--space-1);
+  padding: var(--space-2);
+}
+
+.sidebar-account__settings,
+.sidebar-account__sign-out {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--color-text);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+}
+
+.sidebar-account__settings {
+  flex: 1 1 auto;
+  gap: var(--space-2);
+  min-height: 40px;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+  text-decoration: none;
+}
+
+.sidebar-account__settings--active,
+.sidebar-account__settings--active:hover {
+  background: var(--color-primary-active-subtle);
+}
+
+.sidebar-account__sign-out {
+  color: var(--color-text-muted);
+  flex: 0 0 auto;
+  height: 36px;
+  justify-content: center;
+  width: 36px;
+}
+
+.sidebar-account__settings:hover,
+.sidebar-account__sign-out:hover {
+  background: var(--color-surface-subtle);
+}
+
+.sidebar-account__sign-out:hover {
+  color: var(--color-text);
+}
+
+.sidebar-account__settings:focus-visible,
+.sidebar-account__sign-out:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.sidebar-account__avatar {
+  align-items: center;
+  background: var(--color-primary-subtle);
+  border-radius: 50%;
+  color: var(--color-primary-hover);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  height: 28px;
+  justify-content: center;
+  text-transform: uppercase;
+  width: 28px;
+}
+
+.sidebar-account__copy {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.sidebar-account__copy strong {
+  font-size: 0.875rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-account__copy small {
+  color: var(--color-text-subtle);
+  font-size: 0.75rem;
+}
+
+.user-settings {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-report-card);
+  max-width: 480px;
+  padding: var(--space-4);
+}
+
+.user-settings h2 {
+  font-size: 1rem;
+  margin: 0 0 var(--space-3);
+}
+
+.user-settings dl {
+  margin: 0;
+}
+
+.user-settings dl > div {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: 120px minmax(0, 1fr);
+}
+
+.user-settings dt {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.user-settings dd {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.sidebar-account__sign-out svg {
+  fill: none;
+  height: 18px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.75;
+  width: 18px;
 }
 
 .main-panel {

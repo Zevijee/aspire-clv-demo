@@ -6,10 +6,10 @@ Table/column info holds documentation without changing database DDL.
 """
 from sqlalchemy import (
     Boolean, CheckConstraint, Column, Date, DateTime, ForeignKey, Index, Integer,
-    JSON, MetaData, PrimaryKeyConstraint, SmallInteger, String, Table, UniqueConstraint, Uuid,
+    JSON, MetaData, Numeric, PrimaryKeyConstraint, SmallInteger, String, Table, UniqueConstraint, Uuid,
     false, func, text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import DATERANGE, JSONB
 
 metadata = MetaData()
 migration_history = Table('sandbox_schema_migrations', metadata,
@@ -84,6 +84,22 @@ referring_hospitals = Table('referring_hospitals', metadata,
     CheckConstraint('length(trim(hospital)) > 0'),
 )
 
+facility_payer_rates = Table('facility_payer_rates', metadata,
+    # What each payer plan pays a facility per resident per day. Reference data,
+    # like payers: generated from rules by `manage.py payer_rates` in seconds, and
+    # never read back by the simulation, so changing a rate needs no reseed.
+    #
+    # Keyed by plan rather than payer type because that is where a real contract
+    # rate lives -- two Medicaid managed care plans in one state pay differently --
+    # and the report's average rate per payer type is then a true resident-weighted
+    # average: every resident's rate summed and divided once by the residents.
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('payer_id', Uuid, ForeignKey('payers.payer_id'), nullable=False),
+    Column('daily_rate', Numeric(8, 2), nullable=False),
+    PrimaryKeyConstraint('facility_id', 'payer_id'),
+    CheckConstraint('daily_rate > 0'),
+)
+
 users = Table('users', metadata,
     # Who may read this demo. There is exactly one row today, seeded by
     # `manage.py admin_user`, but a table rather than a setting because a
@@ -103,6 +119,31 @@ users = Table('users', metadata,
 # Declared after the table so it references the real column. Case-insensitive,
 # so Admin and admin cannot become two accounts.
 Index('ix_users_username', func.lower(users.c.username), unique=True)
+
+refresh_tokens = Table('refresh_tokens', metadata,
+    # Long-lived sign-in, so a reader is not sent back to the password form every
+    # time the short access cookie expires. The token itself lives only in the
+    # browser's HttpOnly cookie; this table holds its SHA-256, so a copy of the
+    # database cannot be replayed as a login. A random 256-bit token needs no
+    # salt or slow hash -- there is nothing to guess.
+    #
+    # Every use replaces the token with a new one in the same family. Presenting a
+    # token that has already been replaced means two parties hold it, so the whole
+    # family is revoked and both must sign in again.
+    Column('token_hash', String(64), primary_key=True),
+    # One family per sign-in. Sign-out and reuse detection revoke by family.
+    Column('family_id', Uuid, nullable=False, index=True),
+    # Cascade, so removing a user cannot be blocked by their old sessions.
+    Column('user_id', Uuid, ForeignKey('users.user_id', ondelete='CASCADE'), nullable=False),
+    Column('issued_at', DateTime(timezone=True), nullable=False),
+    Column('expires_at', DateTime(timezone=True), nullable=False),
+    # Set when rotated. A second use shortly after is two tabs refreshing at once;
+    # a later one is a stolen token.
+    Column('replaced_at', DateTime(timezone=True)),
+    Column('revoked_at', DateTime(timezone=True)),
+    CheckConstraint("token_hash ~ '^[0-9a-f]{64}$'"),
+    CheckConstraint('expires_at > issued_at'),
+)
 
 res_stays = Table('res_stays', metadata,
     Column('stay_id', Uuid, primary_key=True),
@@ -181,6 +222,77 @@ payer_change_logs = Table('payer_change_logs', metadata,
     CheckConstraint('new_end_date IS NULL OR new_end_date > change_date'),
     CheckConstraint('previous_payer_id <> new_payer_id'),
     Index('ix_payer_change_logs_facility', 'facility_id', 'change_date'),
+)
+
+census_logs = Table('census_logs', metadata,
+    # Who was in a bed, and at what care level and base daily rate, for every day
+    # of history -- one row per stretch in a bed at one payer and one care level,
+    # not one row per resident per day. Measured: 36.9M rows and ~5.1 GB as a
+    # daily table, against under a million here, with the same answers. "In a bed
+    # on d" is in_bed @> d; "during a range" is in_bed && range; resident-days
+    # are the overlap length, summed.
+    #
+    # A new row starts when the payer period changes (a payer change, or
+    # admission and discharge) or when the care level does. Care level is
+    # reassessed every 92 days from admission, as the MDS quarterly assessment
+    # is, so a long-stay Medicaid resident's rate can step up mid-stay with no
+    # payer change.
+    #
+    # Skilled payers' day-by-day PDPM rate is deliberately not split in here: it
+    # lives in pdpm_rate_logs, keyed by the same payer period, so a stay is not
+    # chopped into a new row every week. Rows stop at the latest simulated day.
+    #
+    # Derived entirely from res_payer_stays and facility_payer_rates, and rebuilt
+    # whole on each update, because payer periods are edited after the fact: a
+    # discharge closes an open period and a Medicaid approval rewrites the payer.
+    Column('payer_stay_id', Uuid, nullable=False),
+    # Position within the payer period, from 1, in date order.
+    Column('segment', SmallInteger, nullable=False),
+    Column('stay_id', Uuid, nullable=False),
+    Column('resident_id', Uuid, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('payer_id', Uuid, ForeignKey('payers.payer_id'), nullable=False),
+    Column('admission_date', Date, nullable=False),
+    Column('is_readmission', Boolean, nullable=False),
+    # Acuity from the latest assessment. Multiplies the facility and plan rate.
+    Column('care_level', String, nullable=False),
+    # Half-open [first day in a bed, first day gone). Open-ended while the
+    # resident is still here.
+    Column('in_bed', DATERANGE, nullable=False),
+    # Facility and plan rate times the care level multiplier. For a skilled
+    # payer this is the rate before PDPM; the day's rate is in pdpm_rate_logs.
+    Column('daily_rate', Numeric(8, 2), nullable=False),
+    PrimaryKeyConstraint('payer_stay_id', 'segment'),
+    CheckConstraint('NOT isempty(in_bed) AND NOT lower_inf(in_bed)'),
+    CheckConstraint('daily_rate > 0'),
+    CheckConstraint("care_level IN ('Low', 'Moderate', 'High', 'Complex')"),
+    Index('ix_census_logs_in_bed', 'in_bed', postgresql_using='gist'),
+)
+
+pdpm_rate_logs = Table('pdpm_rate_logs', metadata,
+    # The day-by-day rate of every skilled payer period, under Medicare's PDPM
+    # variable per diem: days 1-3 pay more (non-therapy ancillaries at 300%), and
+    # from day 21 the therapy share falls 2% every 7 days. One row per rate
+    # period -- days 1-3, 4-20, then each week -- so the rate on any day is the
+    # row whose in_effect contains it.
+    #
+    # Kept apart from census_logs, which it refines: a skilled resident's census
+    # row stays whole while the rate beneath it steps. For a skilled resident on
+    # day d the rate is this table's daily_rate; for everyone else it is the
+    # census row's. Rebuilt with census_logs, from it.
+    Column('payer_stay_id', Uuid, nullable=False),
+    Column('step', SmallInteger, nullable=False),
+    # Day of skilled coverage the step starts on, counted from the payer period.
+    Column('skilled_day', SmallInteger, nullable=False),
+    Column('in_effect', DATERANGE, nullable=False),
+    # Multiplies the census row's rate for the step's first day.
+    Column('pdpm_factor', Numeric(5, 4), nullable=False),
+    Column('daily_rate', Numeric(8, 2), nullable=False),
+    PrimaryKeyConstraint('payer_stay_id', 'step'),
+    CheckConstraint('NOT isempty(in_effect) AND NOT lower_inf(in_effect)'),
+    CheckConstraint('skilled_day >= 1'),
+    CheckConstraint('pdpm_factor > 0 AND daily_rate > 0'),
+    Index('ix_pdpm_rate_logs_in_effect', 'in_effect', postgresql_using='gist'),
 )
 
 medicaid_applications = Table('medicaid_applications', metadata,

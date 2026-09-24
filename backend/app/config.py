@@ -22,7 +22,13 @@ class Settings(BaseSettings):
     session_secret: SecretStr = Field(default_factory=lambda: SecretStr(token_urlsafe(32)))
     # Refuses to send the cookie over plain HTTP. Off locally, on in production.
     session_https_only: bool = False
-    session_hours: int = Field(default=12, ge=1, le=720)
+    # The access cookie every report checks. Short, because it cannot be revoked:
+    # it is signed rather than stored, so it stays valid until it expires.
+    session_minutes: int = Field(default=15, ge=1, le=1440)
+    # The refresh token that renews it, sent only to the auth routes. Stored, so
+    # sign-out and reuse detection can revoke it. Each use starts a new period,
+    # so a reader is signed out only after this long without opening the site.
+    refresh_days: int = Field(default=7, ge=1, le=90)
     cors_origins: tuple[str, ...] = (
         'http://localhost:5173', 'http://127.0.0.1:5173',
     )

@@ -81,8 +81,11 @@ Breaking one of these is a design change, not a refactor. Each was measured; see
   roll-up above facility level is silently wrong.
 - **Services never call another endpoint over HTTP.** They take a connection and
   explicit selections.
-- **Location selection is not authorisation.** It narrows data. There is no
-  authentication in this demo.
+- **Location selection is not authorisation.** It narrows data. Sign-in gates the
+  whole API; there is no per-facility access control.
+- **The auth routes are the API's only writers.** Every report request runs in a
+  read-only transaction. Sign-in, refresh and sign-out use `DbWriteConnection` to
+  store and rotate refresh tokens; keep reports on `DbConnection`.
 
 ## What a change actually costs
 
@@ -93,6 +96,8 @@ Check this before editing a generator. Full detail in
 | --- | --- |
 | Metric derivable from existing fact dimensions | **Nothing** |
 | Referral sources, hospital scores, discharge destinations | `admission_logs --regenerate`, seconds |
+| Payer daily rates | `payer_rates --regenerate`, ~3 s, then `census_logs --regenerate` |
+| Care levels, PDPM steps, who was in a bed when | `census_logs --regenerate`, ~1 min |
 | New additive measure on a fact table | Column, backfill, `admissions_summary --regenerate` |
 | Payer change reporting, from saved periods | `payer_change_logs --regenerate`, ~4 s |
 | Referring hospital months, from the daily facts | `referrals_summary --regenerate`, ~1 s |
@@ -119,6 +124,8 @@ python manage.py net_change_summary --regenerate      # ~8 min; rebuilds 2.5M ro
 python manage.py monthly_adt_summary --regenerate     # ~6 s, independent of the above
 python manage.py referrals_summary --regenerate       # ~1 s; rolls the daily facts up by month
 python manage.py referring_hospitals --regenerate     # the 384-hospital catalogue
+python manage.py payer_rates --regenerate             # daily rate per facility and payer plan
+python manage.py census_logs --regenerate             # who was in a bed, care level, PDPM rates; ~1 min
 python manage.py admission_logs --regenerate    # rebuild one table from saved stays
 python manage.py discharge_logs --regenerate
 python manage.py payer_change_logs --regenerate
@@ -174,10 +181,9 @@ generation job. See [docs/deploying.md](docs/deploying.md).
 
 ## Do not "fix" these
 
-- **Live Census calls an endpoint that does not exist.** It is awaiting rebuild, not
-  broken. Admissions, Discharges, Payer Changes, Net Change, Monthly ADT Trending and
-  Referring Hospital all work end to end.
-  [docs/roadmap.md](docs/roadmap.md#dead-frontend-reports) lists what is left.
+- **The other Census reports are placeholders.** Census Overview, Residents, Bed
+  Board and the two Census Trending reports are listed in the navigation with no
+  content yet. Live Census and every ADT report work end to end.
 - **`HospitalPerformanceLocations.tsx` and `ReferringHospitalsModal.tsx` are
   orphans.** Nothing imports them and they call removed endpoints. They were left in
   place rather than deleted alongside the Referring Hospital rebuild; see

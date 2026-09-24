@@ -50,6 +50,8 @@ From `sandbox-data`:
 | `python manage.py discharge_logs --regenerate` | Rebuild discharge logs from saved stays. |
 | `python manage.py payer_change_logs --regenerate` | Flatten payer changes from saved periods. |
 | `python manage.py referring_hospitals --regenerate` | Rebuild the 384-hospital catalogue from hospitals.json. |
+| `python manage.py payer_rates --regenerate` | Rebuild the daily rate per facility and payer plan. ~3 s. |
+| `python manage.py census_logs --regenerate` | Rebuild who was in a bed, at what care level and rate, for all history. ~1 min. |
 | `python manage.py referrals_summary --regenerate` | Roll the daily facts up into referral months. ~1 s. |
 
 `res_stays` as a standalone command deliberately fails: fixed-window stay generation
@@ -239,3 +241,22 @@ conversions will exist in real data and do not exist here.
 deterministically from the facility ID and its region. `facilities.json` carries only
 state, portfolio, market, facility and beds. Add a real field there if the
 distinction should be editable rather than implicit.
+
+**Payer rates are rules, not observations.** `aspire-payer-rates.py` gives each
+facility and payer plan a daily rate: Medicare varies by facility case mix, Medicare
+Advantage and VA by contract, Medicaid by state with managed care plans close to it,
+and hospice pays 95% of the facility's Medicaid rate. Nothing reads a rate back, so
+changing a rule costs a three-second rebuild. Live Census averages them per resident
+on the census day.
+
+**Census logs record who was in a bed, for every day, without a row per day.**
+`aspire-census-logs.py` builds two tables from saved payer periods and rates.
+`census_logs` has one row per stretch in a bed at one payer and care level: 730,027
+rows and 166 MB for all history, where a row per resident per day would be 36.9M
+rows and ~5.1 GB. `pdpm_rate_logs` holds each skilled payer period's PDPM rate
+steps (days 1–3, 4–20, then weekly), 1.12M rows and 202 MB, so a skilled stay is not
+split in `census_logs` every week. Care level is reassessed every 92 days from
+admission and only rises, so a Medicaid rate can change mid-stay with no payer
+change. Both tables are rebuilt whole by every `update`, about a minute, because
+payer periods are edited after the fact. Verified: residents in a bed on 2026-09-24
+and resident-days in August 2026 both match the census facts exactly.

@@ -1,6 +1,7 @@
 import type { LocationLevel } from '../utils/admissionsOverviewFilters'
 import type { DrilldownScope } from '../utils/admissionsDrilldown'
 import { payerCode, readJson, type References } from './admissionsOverview'
+import { authorizedFetch } from '../../auth/api'
 
 const base = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').replace(/\/$/, '')
 export const payerChangesBase = `${base}/api/v1/adt/payer-changes`
@@ -114,8 +115,7 @@ export function getPayerChangeLogs(start: string, end: string, offset: number,
 }
 
 export async function downloadPayerChangeLogs(start: string, end: string, query: PayerChangeLogsQuery) {
-  const response = await fetch(`${payerChangesBase}/logs/export?${payerChangeLogParameters(start, end, query)}`,
-    { credentials: 'include' })
+  const response = await authorizedFetch(`${payerChangesBase}/logs/export?${payerChangeLogParameters(start, end, query)}`)
   if (!response.ok) throw new Error('Payer change export could not complete.')
   const url = URL.createObjectURL(await response.blob())
   const anchor = document.createElement('a')

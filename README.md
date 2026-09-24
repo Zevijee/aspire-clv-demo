@@ -114,8 +114,9 @@ first five has an overview built on a fact table, a logs tab reading source rows
 filter options and CSV export. Referring Hospital is the exception in shape: one
 table over a fixed 36-month window, with a per-hospital detail view.
 
-**Live Census** still calls an endpoint that does not exist.
-[docs/roadmap.md](docs/roadmap.md) lists what it needs.
+**Live Census** also works: each facility's current census and skilled census
+against last month's average daily census, drilled down from state to facility.
+The other Census reports are placeholders.
 
 Measured response times on the full dataset, 30-day and 1-year ranges:
 

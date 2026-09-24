@@ -35,6 +35,7 @@ backend/
     reference/                 Shared location and payer catalogues
     adt/admissions/            Overview, logs, filter options, CSV export
     adt/referring_hospital/    Referral performance per hospital, fixed 36-month window
+    census/                    Live census against last month's daily average
     system/                    Health, readiness, generator coverage
 ```
 
@@ -61,6 +62,10 @@ All under `/api/v1`.
 | Endpoint | Behaviour |
 | --- | --- |
 | `GET /health` | Process liveness after startup, no database query |
+| `POST /auth/login` | Checks the password; sets the access cookie and a new refresh token |
+| `POST /auth/refresh` | Renews the access cookie and rotates the refresh token; 401 means sign in again |
+| `POST /auth/logout` | Revokes the refresh token's whole sign-in and clears both cookies |
+| `GET /auth/session` | Who the access cookie belongs to, or null |
 | `GET /ready` | Connectivity, schema and backfill readiness; 503 when unavailable |
 | `GET /data-status` | Completion dates, counts and continuity per generator |
 | `GET /reference/locations` | Paginated facilities with saved IDs and full hierarchy |
@@ -78,6 +83,8 @@ All under `/api/v1`.
 | `GET /adt/net-change/monthly-locations` | Per-facility monthly totals |
 | `GET /adt/net-change/logs` + `/filter-options` + `/export` | Admissions, discharges and payer changes as one list |
 | `GET /adt/referring-hospital/performance` | Referral volume per hospital over 36 complete months |
+| `GET /census/residents` + `/filter-options` + `/export` | Everyone in a bed on the census day, from census_logs, with care level and the day's rate |
+| `GET /census/live` | Per-facility census, skilled census, payer mix and summed daily rates, with last month's average daily census and a history lookback from yesterday to a year ago. ~200 ms |
 
 Every overview reads a fact table and nothing else. Every logs endpoint reads source
 rows, because a log lists named residents and a fact table has no resident in it.
@@ -127,8 +134,8 @@ explicitly.
 Grouping is a separate choice from selection: `group_by` may be `state`,
 `portfolio`, `region` or `facility` regardless of what was selected.
 
-Selections narrow data. They are **not** an access-control boundary — there is no
-authentication or authorisation in this demo.
+Selections narrow data. They are **not** an access-control boundary — sign-in
+gates the whole API, and there is no per-facility authorisation.
 
 ## The admissions overview
 
@@ -254,6 +261,10 @@ silently ignored, and the defaults apply.
 | `API_POOL_TIMEOUT_SECONDS` | 15 |
 | `API_CONNECT_TIMEOUT_SECONDS` | 10 |
 | `API_STATEMENT_TIMEOUT_MS` | 30000 |
+| `API_SESSION_SECRET` | Generated per process; set it on a server, or every restart signs everyone out |
+| `API_SESSION_HTTPS_ONLY` | `false`; `true` behind HTTPS |
+| `API_SESSION_MINUTES` | 15, the access cookie. Signed, not stored, so it cannot be revoked |
+| `API_REFRESH_DAYS` | 7, the refresh token. Rotated on every use, so this is idle time |
 
 `API_CORS_ORIGINS` is parsed as JSON, so it needs a JSON array, not a comma-separated
 list. CORS currently permits GET only; add methods and an authentication policy

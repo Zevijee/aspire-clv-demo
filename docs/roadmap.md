@@ -6,18 +6,15 @@ against work already done; it is the list of things consciously left.
 ## Where things stand
 
 The backend was rebuilt from per-report SQL into feature packages over fact tables.
-Six of seven reports are complete end to end: Admissions, Discharges, Payer Changes,
-Net Change, Monthly ADT Trending and Referring Hospital. Live Census is the one that
-still has a frontend component and no backend.
+Seven reports are complete end to end: Admissions, Discharges, Payer Changes,
+Net Change, Monthly ADT Trending, Referring Hospital and Live Census. The remaining
+Census reports are navigation placeholders with no component yet.
 
 ## Dead frontend reports
 
-One report renders but does not load. Its component is written; it calls an endpoint
-that no longer exists.
-
-| Report | Path | Calls |
-| --- | --- | --- |
-| Live Census | `/census/daily-census` | `/census/live` |
+None remain. Live Census was the last: it reads `/census/live`, built on
+`daily_payer_census_facts` with no new table, because that table's payer-type split
+already answers skilled census.
 
 Referring Hospital was rebuilt on `monthly_referral_facts` and a `referring_hospitals`
 catalogue, and reads a single endpoint, `/adt/referring-hospital/performance`. It is

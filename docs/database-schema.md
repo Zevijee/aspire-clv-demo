@@ -19,6 +19,10 @@ erDiagram
     payers {
         Uuid payer_id PK
     }
+    pdpm_rate_logs {
+        Uuid payer_stay_id PK
+        SmallInteger step PK
+    }
     sandbox_daily_runs {
         String generator PK
         Date simulation_date PK
@@ -39,6 +43,10 @@ erDiagram
         Uuid portfolio_id PK
     }
     states ||--o{ portfolios : "state"
+    refresh_tokens {
+        String token_hash PK
+    }
+    users ||--o{ refresh_tokens : "user_id"
     regions {
         Uuid region_id PK
     }
@@ -56,6 +64,12 @@ erDiagram
         Date census_date PK
     }
     facilities ||--o{ adt_daily_census : "facility_id"
+    census_logs {
+        Uuid payer_stay_id PK
+        SmallInteger segment PK
+    }
+    facilities ||--o{ census_logs : "facility_id"
+    payers ||--o{ census_logs : "payer_id"
     daily_admission_facts {
         Date summary_date PK
         Uuid facility_id PK
@@ -87,6 +101,12 @@ erDiagram
         String new_payer_type PK
     }
     facilities ||--o{ daily_payer_change_facts : "facility_id"
+    facility_payer_rates {
+        Uuid facility_id PK
+        Uuid payer_id PK
+    }
+    facilities ||--o{ facility_payer_rates : "facility_id"
+    payers ||--o{ facility_payer_rates : "payer_id"
     monthly_admission_facts {
         Date month_start PK
         Uuid facility_id PK
@@ -157,8 +177,8 @@ erDiagram
         Uuid payer_stay_id PK
     }
     facilities ||--o{ payer_change_logs : "facility_id"
-    payers ||--o{ payer_change_logs : "new_payer_id"
     payers ||--o{ payer_change_logs : "previous_payer_id"
+    payers ||--o{ payer_change_logs : "new_payer_id"
     res_payer_stays ||--o| payer_change_logs : "payer_stay_id"
     res_stays ||--o{ payer_change_logs : "stay_id"
     residents ||--o{ payer_change_logs : "resident_id"
@@ -204,6 +224,24 @@ Payer catalog. Skilled classification applies to Medicare categories and VA.
 
 - INDEX `ix_payers_payer_type`: payer_type
 - UNIQUE: `payer_type, payer_name`
+
+## pdpm_rate_logs
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| payer_stay_id | UUID | no | PK |  |  |
+| step | SMALLINT | no | PK |  |  |
+| skilled_day | SMALLINT | no |  |  |  |
+| in_effect | DATERANGE | no |  |  |  |
+| pdpm_factor | NUMERIC(5, 4) | no |  |  |  |
+| daily_rate | NUMERIC(8, 2) | no |  |  |  |
+
+- CHECK: `NOT isempty(in_effect) AND NOT lower_inf(in_effect)`
+- CHECK: `pdpm_factor > 0 AND daily_rate > 0`
+- CHECK: `skilled_day >= 1`
+- INDEX `ix_pdpm_rate_logs_in_effect`: in_effect
 
 ## sandbox_daily_runs
 
@@ -275,6 +313,24 @@ Portfolios within states. Stored reference counts describe the source facility c
 - CHECK: `region_count >= 0 AND facility_count >= 0 AND total_beds >= 0`
 - UNIQUE: `state, portfolio`
 
+## refresh_tokens
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| token_hash | VARCHAR(64) | no | PK |  |  |
+| family_id | UUID | no |  |  |  |
+| user_id | UUID | no | FK → users.user_id |  |  |
+| issued_at | TIMESTAMP WITH TIME ZONE | no |  |  |  |
+| expires_at | TIMESTAMP WITH TIME ZONE | no |  |  |  |
+| replaced_at | TIMESTAMP WITH TIME ZONE | yes |  |  |  |
+| revoked_at | TIMESTAMP WITH TIME ZONE | yes |  |  |  |
+
+- CHECK: `expires_at > issued_at`
+- CHECK: `token_hash ~ '^[0-9a-f]{64}$'`
+- INDEX `ix_refresh_tokens_family_id`: family_id
+
 ## regions
 
 Regions within portfolios; facility groups used by hospital referral weighting.
@@ -333,6 +389,29 @@ Daily facility census: opening + admissions - discharges = closing.
 - CHECK: `beds >= 0 AND opening_census >= 0 AND admissions >= 0 AND discharges >= 0`
 - CHECK: `closing_census = opening_census + admissions - discharges`
 - CHECK: `closing_census BETWEEN 0 AND beds`
+
+## census_logs
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| payer_stay_id | UUID | no | PK |  |  |
+| segment | SMALLINT | no | PK |  |  |
+| stay_id | UUID | no |  |  |  |
+| resident_id | UUID | no |  |  |  |
+| facility_id | UUID | no | FK → facilities.facility_id |  |  |
+| payer_id | UUID | no | FK → payers.payer_id |  |  |
+| admission_date | DATE | no |  |  |  |
+| is_readmission | BOOLEAN | no |  |  |  |
+| care_level | VARCHAR | no |  |  |  |
+| in_bed | DATERANGE | no |  |  |  |
+| daily_rate | NUMERIC(8, 2) | no |  |  |  |
+
+- CHECK: `NOT isempty(in_bed) AND NOT lower_inf(in_bed)`
+- CHECK: `care_level IN ('Low', 'Moderate', 'High', 'Complex')`
+- CHECK: `daily_rate > 0`
+- INDEX `ix_census_logs_in_bed`: in_bed
 
 ## daily_admission_facts
 
@@ -414,6 +493,18 @@ Additive daily payer-change counts at facility/from-type/to-type grain. Resident
 
 - CHECK: `changes > 0`
 - INDEX `ix_daily_payer_change_facts_facility`: facility_id, summary_date
+
+## facility_payer_rates
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| payer_id | UUID | no | PK, FK → payers.payer_id |  |  |
+| daily_rate | NUMERIC(8, 2) | no |  |  |  |
+
+- CHECK: `daily_rate > 0`
 
 ## monthly_admission_facts
 

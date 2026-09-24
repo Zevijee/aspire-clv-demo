@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { LiveCensus } from '../features/census/components/LiveCensus'
+import { CensusResidents } from '../features/census/components/CensusResidents'
 import { Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
 import { AdmissionsLogs } from '../features/adt/components/AdmissionsLogs'
 import { DischargesLogs } from '../features/adt/components/DischargesLogs'
@@ -16,6 +17,8 @@ import { monthlyFilter } from '../features/adt/api/monthlyAdt'
 import { PayerFilter } from '../features/adt/components/PayerFilter'
 import { AdmissionsTesting } from '../features/adt/components/AdmissionsTesting'
 import { analyticsModules, reports, reportsByModule } from '../features/navigation/reportCatalog'
+import { useAccount } from '../features/auth/context'
+import { UserSettings } from '../features/auth/UserSettings'
 import { ReportDateRangeFilter } from '../shared/components/filters/ReportDateRangeFilter'
 import { ReportMonthRangeFilter, getReportMonthRange } from '../shared/components/filters/ReportMonthRangeFilter'
 import { AdmissionsOverviewFilters } from '../features/adt/components/AdmissionsOverviewFilters'
@@ -39,6 +42,11 @@ const admissionsTabs = [
 const dischargesTabs = [
   { id: 'overview', label: 'Overview' },
   { id: 'logs', label: 'Logs', noScroll: true },
+]
+const liveCensusTabs = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'facilities', label: 'Facilities', noScroll: true },
+  { id: 'residents', label: 'Residents', noScroll: true },
 ]
 const monthlyTabs = [
   { id: 'admissions', label: 'Admissions' },
@@ -80,6 +88,7 @@ function ModuleIcon({ module }: { module: AnalyticsModule }) {
 
 function App() {
   const { pathname } = useLocation()
+  const account = useAccount()
   const [dischargeSelection, setDischargeSelection] = useState<DischargeSelection>({ scope: null, payers: [], destinations: [] })
   const [overviewSelection, setOverviewSelection] = useState<OverviewSelection>({ scope: null, payers: [], sources: [] })
   const [expandedModules, setExpandedModules] = useState<Set<AnalyticsModule>>(
@@ -106,6 +115,8 @@ function App() {
   const admissionsView = searchParams.get('view')
   const activeAdmissionsTab = admissionsTabs.find((tab) => tab.id === admissionsView)?.id ?? 'testing'
   const activeDischargesTab = dischargesTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
+  const activeLiveCensusTab = admissionsView === 'facilities' || admissionsView === 'residents'
+    ? admissionsView : 'overview'
   const defaultRange = getDefaultReportDateRange()
   const startDate = searchParams.get('start_date') ?? defaultRange.startDate
   const endDate = searchParams.get('end_date') ?? defaultRange.endDate
@@ -203,9 +214,46 @@ function App() {
             )
           })}
         </nav>
+
+        <div className="sidebar-account">
+          <NavLink to="/settings" onClick={() => setIsMobileMenuOpen(false)}
+            className={({ isActive }) => `sidebar-account__settings ${isActive ? 'sidebar-account__settings--active' : ''}`}>
+            <span className="sidebar-account__avatar" aria-hidden="true">{account.username.slice(0, 1)}</span>
+            <span className="sidebar-account__copy">
+              <strong>{account.username}</strong>
+              <small>User settings</small>
+            </span>
+          </NavLink>
+          <button type="button" className="sidebar-account__sign-out" aria-label="Sign out" title="Sign out"
+            onClick={account.signOut}>
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <path d="m16 17 5-5-5-5" />
+              <path d="M21 12H9" />
+            </svg>
+          </button>
+        </div>
       </aside>
 
-      {!isReportPage ? (
+      {pathname === '/settings' ? (
+        <ReportLayout
+          title="User settings"
+          leadingControl={
+            <button
+              className="mobile-menu-button"
+              type="button"
+              aria-label="Open navigation"
+              aria-expanded={isMobileMenuOpen}
+              aria-controls="primary-navigation"
+              onClick={() => setIsMobileMenuOpen((isOpen) => !isOpen)}
+            >
+              <span /><span /><span />
+            </button>
+          }
+        >
+          <UserSettings />
+        </ReportLayout>
+      ) : !isReportPage ? (
         <ReportLayout
           title="Clearview"
           titleDetail="Select a report from the navigation to get started."
@@ -330,6 +378,15 @@ function App() {
                 activeTabId: activeDischargesTab,
                 onTabChange: handleAdmissionsTabChange,
                 tabs: dischargesTabs,
+              } : currentReport.path === '/census/daily-census' ? {
+                activeTabId: activeLiveCensusTab,
+                tabs: liveCensusTabs,
+                onTabChange: (id: string) => {
+                  const next = new URLSearchParams(searchParams)
+                  if (id === 'overview') next.delete('view')
+                  else next.set('view', id)
+                  setSearchParams(next)
+                },
               } : isMonthlyAdtReport ? {
                 activeTabId: monthlyTab,
                 tabs: monthlyTabs,
@@ -371,7 +428,9 @@ function App() {
           {reports.map((report) => (
             <Route
               element={
-                report.path === '/census/daily-census' ? <LiveCensus /> : report.path === '/adt/admissions' ? (
+                report.path === '/census/daily-census' ? (
+                  activeLiveCensusTab === 'residents' ? <CensusResidents /> : <LiveCensus view={activeLiveCensusTab} />
+                ) : report.path === '/adt/admissions' ? (
                   activeAdmissionsTab === 'logs' ? (
                     <AdmissionsLogs />
 

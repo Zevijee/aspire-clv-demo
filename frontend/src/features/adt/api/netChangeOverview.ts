@@ -1,6 +1,7 @@
 import type { LocationLevel } from '../utils/admissionsOverviewFilters'
 import type { DrilldownScope } from '../utils/admissionsDrilldown'
 import { payerCode, readJson, type References } from './admissionsOverview'
+import { authorizedFetch } from '../../auth/api'
 
 const base = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').replace(/\/$/, '')
 export const netChangeBase = `${base}/api/v1/adt/net-change`
@@ -109,8 +110,7 @@ export function getMovementLogs(start: string, end: string, offset: number,
 }
 
 export async function downloadMovementLogs(start: string, end: string, query: MovementLogsQuery) {
-  const response = await fetch(`${netChangeBase}/logs/export?${movementLogParameters(start, end, query)}`,
-    { credentials: 'include' })
+  const response = await authorizedFetch(`${netChangeBase}/logs/export?${movementLogParameters(start, end, query)}`)
   if (!response.ok) throw new Error('Movement export could not complete.')
   const url = URL.createObjectURL(await response.blob())
   const anchor = document.createElement('a')

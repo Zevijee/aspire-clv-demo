@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
-import { getSession, login, logout, type Session } from './api'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { SIGNED_OUT_EVENT, getSession, login, logout, refreshSession, type Session } from './api'
+import { AccountContext } from './context'
 
 type State = { status: 'checking' } | { status: 'out'; reason?: string } | { status: 'in'; username: string }
 
@@ -22,26 +23,39 @@ export function SignInGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const controller = new AbortController()
-    void getSession(controller.signal).then(apply, () => {
-      if (!controller.signal.aborted) {
-        // A failure here is the API being unreachable, not a rejected password.
-        setState({ status: 'out', reason: 'The reporting service could not be reached.' })
-      }
-    })
+    // No access cookie is not the same as signed out: it lapses after minutes,
+    // and a refresh token from an earlier visit may still renew it.
+    void getSession(controller.signal)
+      .then(async session => session.username ? session : (await refreshSession()) ?? session)
+      .then(session => { if (!controller.signal.aborted) apply(session) }, () => {
+        if (!controller.signal.aborted) {
+          // A failure here is the API being unreachable, not a rejected password.
+          setState({ status: 'out', reason: 'The reporting service could not be reached.' })
+        }
+      })
     return () => controller.abort()
   }, [apply])
+
+  // A report request failed and refreshing could not renew the session.
+  useEffect(() => {
+    const signedOut = () => setState({ status: 'out', reason: 'Your session has ended. Sign in again.' })
+    window.addEventListener(SIGNED_OUT_EVENT, signedOut)
+    return () => window.removeEventListener(SIGNED_OUT_EVENT, signedOut)
+  }, [])
+
+  const signedInAs = state.status === 'in' ? state.username : null
+  // Handed to the navigation, which owns where sign-out is shown.
+  const account = useMemo(() => signedInAs === null ? null : {
+    username: signedInAs,
+    signOut: () => { void logout().then(apply, () => setState({ status: 'out' })) },
+  }, [signedInAs, apply])
 
   if (state.status === 'checking') {
     return <div className="sign-in" aria-busy="true"><p className="sign-in__checking">Checking your session…</p></div>
   }
 
-  if (state.status === 'in') {
-    return <>
-      {children}
-      <button type="button" className="sign-in__out" onClick={() => {
-        void logout().then(apply, () => setState({ status: 'out' }))
-      }}>Sign out {state.username}</button>
-    </>
+  if (account) {
+    return <AccountContext.Provider value={account}>{children}</AccountContext.Provider>
   }
 
   return (
@@ -79,7 +93,7 @@ export function SignInGate({ children }: { children: React.ReactNode }) {
           </span>
         </label>
         {/* Announced, so the failure is not visible only to people who can see it. */}
-        {state.reason && <p className="sign-in__error" role="alert">{state.reason}</p>}
+        {state.status === 'out' && state.reason && <p className="sign-in__error" role="alert">{state.reason}</p>}
         <button type="submit" className="sign-in__submit" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>

@@ -187,11 +187,6 @@ body {
 
 .sign-in__field input:focus-visible,
 .sign-in__submit:focus-visible,
-.sign-in__out:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
 .sign-in__error {
   margin: 0;
   padding: var(--space-3);
@@ -215,24 +210,6 @@ body {
 
 .sign-in__submit:hover:not(:disabled) { background: var(--color-primary-hover); }
 .sign-in__submit:disabled { opacity: 0.7; cursor: default; }
-
-.sign-in__out {
-  position: fixed;
-  right: var(--space-4);
-  bottom: var(--space-4);
-  z-index: 20;
-  padding: var(--space-2) var(--space-3);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.sign-in__out:hover { color: var(--color-text); border-color: var(--color-border-strong); }
 
 .sign-in__password { position: relative; display: block; }
 
