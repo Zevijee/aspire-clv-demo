@@ -1,13 +1,10 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-const apiProxyTarget = process.env.API_PROXY_TARGET
-
-// Every API client falls back to http://localhost:8000, which is correct for local
-// development and for the container, where the browser reaches the published API
-// port directly. On a hosted build that fallback points at the *viewer's* machine,
-// so the whole app fails with nothing in the logs to say why. Vercel sets VERCEL=1
-// on its own builds, which keeps this check off the local and Docker builds.
+// Every API client falls back to http://localhost:8000, which is correct for a
+// bare local run. On a hosted build that fallback points at the *viewer's*
+// machine, so the whole app fails with nothing in the logs to say why. Vercel
+// sets VERCEL=1 on its own builds, which keeps this check off local builds.
 if (process.env.VERCEL && !process.env.VITE_API_BASE_URL) {
   throw new Error(
     'Set VITE_API_BASE_URL to the public origin of the reporting API before deploying. '
@@ -16,14 +13,25 @@ if (process.env.VERCEL && !process.env.VITE_API_BASE_URL) {
   )
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react()],
+  // The dev server serves the app and proxies /api, so development runs on one
+  // origin exactly as a deployment does.
+  //
+  // This is not only tidiness. The session cookie is SameSite=Lax, and a page on
+  // 127.0.0.1:5173 calling an API on localhost:8000 counts as a different site,
+  // so the browser drops the cookie and every report returns 401 while the login
+  // appears to succeed. One origin removes the whole class of problem, and CORS
+  // stops mattering locally as well.
+  define: command === 'serve' && !process.env.VITE_API_BASE_URL
+    ? { 'import.meta.env.VITE_API_BASE_URL': JSON.stringify('') }
+    : undefined,
   server: {
-    // Set API_PROXY_TARGET to serve the app and the API on one origin, which is
-    // what a hosted deployment does. Without it the API clients call
-    // http://localhost:8000 directly, which is the local default.
-    proxy: apiProxyTarget
-      ? { '/api': { target: apiProxyTarget, changeOrigin: true } }
-      : undefined,
+    proxy: {
+      '/api': {
+        target: process.env.API_PROXY_TARGET ?? 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+    },
   },
-})
+}))

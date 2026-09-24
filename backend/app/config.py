@@ -1,5 +1,6 @@
 """Environment configuration. Reading settings does not open a database connection."""
 from pathlib import Path
+from secrets import token_urlsafe
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, SecretStr, field_validator
@@ -14,6 +15,14 @@ class Settings(BaseSettings):
     )
 
     database_url: SecretStr = Field(validation_alias='DATABASE_URL')
+    # Signs the session cookie. Generated per process when unset, which is fine
+    # for one developer -- restarting signs everyone out -- and wrong for a
+    # server, where two workers would sign with different keys and each reject
+    # the other's cookie. Set API_SESSION_SECRET there.
+    session_secret: SecretStr = Field(default_factory=lambda: SecretStr(token_urlsafe(32)))
+    # Refuses to send the cookie over plain HTTP. Off locally, on in production.
+    session_https_only: bool = False
+    session_hours: int = Field(default=12, ge=1, le=720)
     cors_origins: tuple[str, ...] = (
         'http://localhost:5173', 'http://127.0.0.1:5173',
     )

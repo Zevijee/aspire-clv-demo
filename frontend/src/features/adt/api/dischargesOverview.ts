@@ -117,7 +117,8 @@ export function getDischargeLogs(start: string, end: string, offset: number,
 }
 
 export async function downloadDischargeLogs(start: string, end: string, query: DischargeLogsQuery) {
-  const response = await fetch(`${dischargesBase}/logs/export?${dischargeLogParameters(start, end, query)}`)
+  const response = await fetch(`${dischargesBase}/logs/export?${dischargeLogParameters(start, end, query)}`,
+    { credentials: 'include' })
   if (!response.ok) throw new Error('Discharge export could not complete.')
   const url = URL.createObjectURL(await response.blob())
   const anchor = document.createElement('a')

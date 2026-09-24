@@ -2,16 +2,18 @@
 from contextlib import asynccontextmanager
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from .common.errors import ApiError, DatabaseNotReady, ErrorResponse, ValidationErrorResponse
 from .config import Settings
 from .database import Database
+from .auth.routes import require_user, router as auth_router
 from .reference.routes import router as reference_router
 from .system.routes import router as system_router
 from .adt.admissions.routes import router as admissions_router
@@ -47,8 +49,18 @@ def create_app() -> FastAPI:
             503: {'model': ErrorResponse}},
     )
     app.state.settings = settings
+    # Outermost, so the session is decoded before any route or dependency runs.
+    app.add_middleware(SessionMiddleware,
+        secret_key=settings.session_secret.get_secret_value(),
+        session_cookie='clearview_session', https_only=settings.session_https_only,
+        same_site='lax', max_age=settings.session_hours * 3600)
+    # allow_credentials is required for the browser to send the session cookie at
+    # all, and a credentialed request may not use a wildcard origin -- so the
+    # origin list is now load bearing rather than advisory. POST is allowed for
+    # login and logout only; the reports remain GET.
     app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins),
-        allow_credentials=False, allow_methods=['GET'], allow_headers=['Accept', 'Content-Type', 'Authorization'])
+        allow_credentials=True, allow_methods=['GET', 'POST'],
+        allow_headers=['Accept', 'Content-Type'])
 
     @app.exception_handler(ApiError)
     async def api_error(request: Request, error: ApiError):
@@ -69,11 +81,18 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=422, content=dict(code='invalid_request',
             detail='Invalid request parameters.', errors=issues))
 
+    # system stays open: /health and /ready are liveness, not data, and an uptime
+    # monitor should not need a password to watch the site.
     app.include_router(system_router, prefix='/api/v1')
-    app.include_router(reference_router, prefix='/api/v1')
-    app.include_router(admissions_router, prefix='/api/v1')
-    app.include_router(discharges_router, prefix='/api/v1')
-    app.include_router(payer_changes_router, prefix='/api/v1')
-    app.include_router(net_change_router, prefix='/api/v1')
-    app.include_router(referring_hospital_router, prefix='/api/v1')
+    app.include_router(auth_router, prefix='/api/v1')
+    # Everything below reads resident data. The dependency is attached to the
+    # router rather than to each route, so a new endpoint is protected by being
+    # added rather than by someone remembering to guard it.
+    locked = [Depends(require_user)]
+    app.include_router(reference_router, prefix='/api/v1', dependencies=locked)
+    app.include_router(admissions_router, prefix='/api/v1', dependencies=locked)
+    app.include_router(discharges_router, prefix='/api/v1', dependencies=locked)
+    app.include_router(payer_changes_router, prefix='/api/v1', dependencies=locked)
+    app.include_router(net_change_router, prefix='/api/v1', dependencies=locked)
+    app.include_router(referring_hospital_router, prefix='/api/v1', dependencies=locked)
     return app

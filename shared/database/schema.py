@@ -84,6 +84,26 @@ referring_hospitals = Table('referring_hospitals', metadata,
     CheckConstraint('length(trim(hospital)) > 0'),
 )
 
+users = Table('users', metadata,
+    # Who may read this demo. There is exactly one row today, seeded by
+    # `manage.py admin_user`, but a table rather than a setting because a
+    # password that lives in configuration ends up in a repository sooner or
+    # later, and because adding a second reader should not need a deploy.
+    #
+    # The password itself is never stored. `password_hash` holds a bcrypt digest,
+    # which carries its own salt and cost factor, so rotating the cost later
+    # needs no schema change.
+    Column('user_id', Uuid, primary_key=True),
+    Column('username', String, nullable=False),
+    Column('password_hash', String, nullable=False),
+    Column('created_at', DateTime(timezone=True), nullable=False, server_default=func.now()),
+    CheckConstraint('length(trim(username)) > 0'),
+    CheckConstraint("password_hash LIKE '$2%'"),
+)
+# Declared after the table so it references the real column. Case-insensitive,
+# so Admin and admin cannot become two accounts.
+Index('ix_users_username', func.lower(users.c.username), unique=True)
+
 res_stays = Table('res_stays', metadata,
     Column('stay_id', Uuid, primary_key=True),
     Column('resident_id', Uuid, ForeignKey('residents.resident_id'), nullable=False, index=True),
@@ -499,6 +519,7 @@ _descriptions = {
     'facilities': 'Facilities and their licensed/demo bed capacity.',
     'residents': 'Saved resident identities associated with a facility. Stays reference these saved IDs.',
     'payers': 'Payer catalog. Skilled classification applies to Medicare categories and VA.',
+    'users': 'Accounts permitted to read the reports. Passwords are stored only as bcrypt digests; the plaintext exists nowhere in the database or the repository.',
     'referring_hospitals': 'The hospitals that refer residents in, and the region each one refers into. State and portfolio are joins through regions, never stored copies.',
     'res_stays': 'Admission-to-discharge episodes. A null discharge date means currently admitted.',
     'res_payer_stays': 'Payer periods inside an admission episode. The active period has no end date.',
@@ -526,6 +547,7 @@ _descriptions = {
 for _name, _description in _descriptions.items():
     metadata.tables[_name].info['description'] = _description
 
+users.c.password_hash.info['description'] = 'bcrypt digest, salt and cost factor included. Never a plaintext password, and never reversible.'
 discharge_logs.c.los.info['description'] = 'Discharge date minus the final payer period start date, in days; not admission LOS.'
 discharge_logs.c.is_ama.info['description'] = 'Left against medical advice. Deaths and acute transfers are already implied by destination_type, so neither is eligible and the three outcomes stay disjoint.'
 daily_discharge_facts.c.ama_discharges.info['description'] = 'Discharges against medical advice among the grouped rows. Transfers and deaths need no measure: they are destination_type Hospital and Funeral Home.'

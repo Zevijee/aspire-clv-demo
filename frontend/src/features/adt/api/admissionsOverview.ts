@@ -43,7 +43,10 @@ export type AdmissionsOverview = {
 }
 
 export async function readJson<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(url, { signal })
+  // credentials: the session cookie must ride along. Same-origin in a
+  // deployment, but the dev server and the API are different ports, which
+  // the browser treats as cross-origin and so omits cookies by default.
+  const response = await fetch(url, { signal, credentials: 'include' })
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { detail?: string }
     throw new Error(typeof body.detail === 'string' ? body.detail : `Request failed (${response.status}).`)
@@ -109,7 +112,8 @@ export function logParameters(start: string, end: string, query: AdmissionsLogsQ
 }
 
 export async function downloadAdmissionLogs(start: string, end: string, query: AdmissionsLogsQuery) {
-  const response = await fetch(`${admissionsBase}/logs/export?${logParameters(start, end, query)}`)
+  const response = await fetch(`${admissionsBase}/logs/export?${logParameters(start, end, query)}`,
+    { credentials: 'include' })
   if (!response.ok) throw new Error('Admission export could not complete.')
   const url = URL.createObjectURL(await response.blob())
   const anchor = document.createElement('a')

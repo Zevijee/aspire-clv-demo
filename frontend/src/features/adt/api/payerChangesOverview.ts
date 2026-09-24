@@ -114,7 +114,8 @@ export function getPayerChangeLogs(start: string, end: string, offset: number,
 }
 
 export async function downloadPayerChangeLogs(start: string, end: string, query: PayerChangeLogsQuery) {
-  const response = await fetch(`${payerChangesBase}/logs/export?${payerChangeLogParameters(start, end, query)}`)
+  const response = await fetch(`${payerChangesBase}/logs/export?${payerChangeLogParameters(start, end, query)}`,
+    { credentials: 'include' })
   if (!response.ok) throw new Error('Payer change export could not complete.')
   const url = URL.createObjectURL(await response.blob())
   const anchor = document.createElement('a')

@@ -57,6 +57,7 @@ class BaseGenerator(ABC):
         'source_data_generators.aspire-facilities',
         'source_data_generators.aspire-residents',
         'source_data_generators.aspire-payers',
+        'source_data_generators.aspire-admin-user',
         'source_data_generators.aspire-referring-hospitals',
         'source_data_generators.aspire-res-stays',
         'source_data_generators.aspire-admission-logs',
@@ -71,7 +72,7 @@ class BaseGenerator(ABC):
         'summary_generators.aspire-monthly-admissions',
     )
     RUN_ORDER = ('states', 'portfolios', 'regions', 'facilities', 'payers',
-        'referring_hospitals', 'residents',
+        'referring_hospitals', 'admin_user', 'residents',
         'res_stays', 'admission_logs', 'discharge_logs', 'payer_change_logs',
         'admissions_summary',
         'discharges_summary', 'payer_changes_summary', 'net_change_summary',
@@ -85,6 +86,7 @@ class BaseGenerator(ABC):
     facilities = schema.facilities
     residents = schema.residents
     payers = schema.payers
+    users = schema.users
     referring_hospitals = schema.referring_hospitals
     res_stays = schema.res_stays
     res_payer_stays = schema.res_payer_stays

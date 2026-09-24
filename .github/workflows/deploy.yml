@@ -93,13 +93,22 @@ jobs:
           base="https://$DEPLOY_HOST"
           end=$(date -u +%F)
           start=$(date -u -d '-29 days' +%F)
-          check() {
-            code=$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 60 "$1") \
-              || { echo "FAILED $1"; exit 1; }
-            echo "  $code  $2"
+          expect() {
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 "$2")
+            if [ "$code" != "$1" ]; then
+              echo "Expected $1 from $2, got $code" >&2
+              exit 1
+            fi
+            echo "  $code  $3"
           }
-          check "$base/" "index"
-          check "$base/adt/admissions" "client-side route"
-          check "$base/api/v1/ready" "readiness"
-          check "$base/api/v1/adt/admissions/overview?start_date=$start&end_date=$end&group_by=state" "admissions overview"
-          check "$base/api/v1/adt/referring-hospital/performance" "referring hospital"
+          # Served to anyone: the shell, its assets and liveness. The page has
+          # to load before it can ask for a sign-in.
+          expect 200 "$base/" "index"
+          expect 200 "$base/adt/admissions" "client-side route"
+          expect 200 "$base/api/v1/health" "liveness"
+          expect 200 "$base/api/v1/ready" "readiness"
+          expect 200 "$base/api/v1/auth/session" "session probe"
+          # Resident data, which must refuse an unauthenticated caller.
+          expect 401 "$base/api/v1/adt/admissions/overview?start_date=$start&end_date=$end&group_by=state" "admissions overview refused"
+          expect 401 "$base/api/v1/adt/referring-hospital/performance" "referring hospital refused"
+          expect 401 "$base/api/v1/reference/locations?limit=1" "reference data refused"

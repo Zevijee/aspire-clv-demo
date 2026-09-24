@@ -39,7 +39,7 @@ export function LiveCensus() {
     const controller = new AbortController()
     setError(null)
     const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
-    void fetch(`${base}/api/v1/census/live`, { signal: controller.signal }).then(async response => {
+    void fetch(`${base}/api/v1/census/live`, { signal: controller.signal, credentials: 'include' }).then(async response => {
       const body = await response.json()
       if (!response.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Live census could not load.')
       if (!controller.signal.aborted) setData(body as Report)

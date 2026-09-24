@@ -109,7 +109,8 @@ export function getMovementLogs(start: string, end: string, offset: number,
 }
 
 export async function downloadMovementLogs(start: string, end: string, query: MovementLogsQuery) {
-  const response = await fetch(`${netChangeBase}/logs/export?${movementLogParameters(start, end, query)}`)
+  const response = await fetch(`${netChangeBase}/logs/export?${movementLogParameters(start, end, query)}`,
+    { credentials: 'include' })
   if (!response.ok) throw new Error('Movement export could not complete.')
   const url = URL.createObjectURL(await response.blob())
   const anchor = document.createElement('a')

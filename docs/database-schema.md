@@ -32,6 +32,9 @@ erDiagram
     states {
         String state PK
     }
+    users {
+        Uuid user_id PK
+    }
     portfolios {
         Uuid portfolio_id PK
     }
@@ -154,8 +157,8 @@ erDiagram
         Uuid payer_stay_id PK
     }
     facilities ||--o{ payer_change_logs : "facility_id"
-    payers ||--o{ payer_change_logs : "previous_payer_id"
     payers ||--o{ payer_change_logs : "new_payer_id"
+    payers ||--o{ payer_change_logs : "previous_payer_id"
     res_payer_stays ||--o| payer_change_logs : "payer_stay_id"
     res_stays ||--o{ payer_change_logs : "stay_id"
     residents ||--o{ payer_change_logs : "resident_id"
@@ -240,6 +243,21 @@ Top-level state codes; counts are derived from child records.
 | Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
 | --- | --- | --- | --- | --- | --- |
 | state | VARCHAR(2) | no | PK |  |  |
+
+## users
+
+Accounts permitted to read the reports. Passwords are stored only as bcrypt digests; the plaintext exists nowhere in the database or the repository.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| user_id | UUID | no | PK |  |  |
+| username | VARCHAR | no |  |  |  |
+| password_hash | VARCHAR | no |  |  | bcrypt digest, salt and cost factor included. Never a plaintext password, and never reversible. |
+| created_at | TIMESTAMP WITH TIME ZONE | no |  | now() |  |
+
+- CHECK: `length(trim(username)) > 0`
+- CHECK: `password_hash LIKE '$2%'`
+- INDEX `ix_users_username`: username
 
 ## portfolios
 
