@@ -1,6 +1,6 @@
 export type TableFilterSource = {
   endpoint?: string
-  id: 'admissions' | 'discharges' | 'payer-changes' | 'net-change-logs' | 'census-residents'
+  id: 'admissions' | 'discharges' | 'payer-changes' | 'net-change-logs' | 'census-residents' | 'resident-summaries'
   startDate: string
   endDate: string
 }

@@ -144,6 +144,11 @@ erDiagram
     }
     facilities ||--o{ res_stays : "facility_id"
     residents ||--o{ res_stays : "resident_id"
+    resident_summaries {
+        Uuid resident_id PK
+    }
+    facilities ||--o{ resident_summaries : "facility_id"
+    residents ||--o| resident_summaries : "resident_id"
     sandbox_adt_residents {
         Uuid resident_id PK
     }
@@ -625,6 +630,36 @@ Admission-to-discharge episodes. A null discharge date means currently admitted.
 - INDEX `ix_res_stays_facility_id`: facility_id
 - INDEX `ix_res_stays_resident_id`: resident_id
 - UNIQUE: `resident_id, admission_number`
+
+## resident_summaries
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| resident_id | UUID | no | PK, FK → residents.resident_id |  |  |
+| facility_id | UUID | no | FK → facilities.facility_id |  |  |
+| resident_name | VARCHAR | no |  |  |  |
+| facility_name | VARCHAR | no |  |  |  |
+| state | VARCHAR(2) | no |  |  |  |
+| portfolio | VARCHAR | no |  |  |  |
+| region | VARCHAR | no |  |  |  |
+| stays | SMALLINT | no |  |  |  |
+| admissions | SMALLINT | no |  |  |  |
+| discharges | SMALLINT | no |  |  |  |
+| is_current | BOOLEAN | no |  |  |  |
+| days_in_facility | INTEGER | no |  |  |  |
+| payers | SMALLINT | no |  |  |  |
+| payer_types | SMALLINT | no |  |  |  |
+| first_admission | DATE | no |  |  |  |
+| last_admission | DATE | no |  |  |  |
+| last_discharge | DATE | yes |  |  |  |
+| as_of | DATE | no |  |  |  |
+
+- CHECK: `days_in_facility >= 0 AND payers >= 1 AND payer_types BETWEEN 1 AND payers`
+- CHECK: `is_current = (discharges < stays)`
+- CHECK: `stays >= 1 AND admissions = stays AND discharges BETWEEN 0 AND stays`
+- INDEX `ix_resident_summaries_facility`: facility_id
 
 ## sandbox_adt_residents
 

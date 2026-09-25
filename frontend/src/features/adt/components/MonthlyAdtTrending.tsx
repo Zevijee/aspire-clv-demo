@@ -1,6 +1,6 @@
 import dayjs from 'dayjs'
 import { useState } from 'react'
-import { Modal } from 'antd'
+import { FullScreenModal } from '../../../shared/components/FullScreenModal'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { useSearchParams } from 'react-router-dom'
 import { getReportMonthRange } from '../../../shared/components/filters/ReportMonthRangeFilter'
@@ -86,10 +86,8 @@ export function MonthlyAdtTrending({ activeTab }: { activeTab: string }) {
     items={rows.map(row => ({ date: row.date, end_date: row.end_date, value: row[metric.key] }))}
     variant="bar" interval="month" height={400} signed={metric.signed} barColor={metric.color} showDailyAverage
     valueLabel={metric.label} loading={daily.loading} error={daily.error} onRetry={daily.onRetry} />)}
-    <Modal open={showTable} onCancel={() => setShowTable(false)} footer={null}
-      title={`Monthly ${tableLabel.toLowerCase()}: ${start.format('MMM YYYY')} to ${end.format('MMM YYYY')}`}
-      width="calc(100vw - 48px)" className="net-change-daily-modal"
-      style={{ top: 24, paddingBottom: 0, maxWidth: 'calc(100vw - 48px)' }} destroyOnHidden>
+    <FullScreenModal open={showTable} onClose={() => setShowTable(false)} destroyOnHidden
+      title={`Monthly ${tableLabel.toLowerCase()}: ${start.format('MMM YYYY')} to ${end.format('MMM YYYY')}`}>
       <div className="net-change-daily-modal__table">
         <Table key={activeTab} title={`Monthly ${tableLabel.toLowerCase()}`}
           subtitle={`Monthly totals for the selected locations and payers.${filterValues.length ? ` ${filter.label} ${filterValues.join(', ')}.` : ''}`}
@@ -99,6 +97,6 @@ export function MonthlyAdtTrending({ activeTab }: { activeTab: string }) {
           emptyMessage="No months match the selected range."
           csvFileName={`monthly-${activeTab}-${start.format('YYYY-MM')}-to-${end.format('YYYY-MM')}.csv`} />
       </div>
-    </Modal>
+    </FullScreenModal>
   </>
 }

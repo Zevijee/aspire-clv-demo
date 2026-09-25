@@ -2999,11 +2999,15 @@ h1 {
   line-height: inherit;
   white-space: nowrap;
 }
+/* Yes is green and No red in every Yes/No column. */
 .boolean-badge--yes {
-  color: var(--color-info);
-  background: var(--color-info-subtle);
+  color: var(--color-success);
+  background: var(--color-success-subtle);
 }
-.boolean-badge--no,
+.boolean-badge--no {
+  color: var(--color-danger);
+  background: var(--color-danger-subtle);
+}
 .boolean-badge--unknown {
   color: var(--color-text-muted);
   background: var(--color-surface-subtle);
@@ -3141,6 +3145,31 @@ h1 {
 
 .admissions-overview-modal__content > * {
   flex-shrink: 0;
+}
+
+.resident-modal__title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.resident-modal__title small {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.resident-modal__placeholder {
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+}
+
+.resident-modal__placeholder p {
+  margin: 0;
 }
 
 .stacked-ranking-chart__header {

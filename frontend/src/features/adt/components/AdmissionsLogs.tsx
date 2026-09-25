@@ -87,7 +87,6 @@ const columns: TableColumn<Admission>[] = [
     filterable: true,
     header: 'Readmission',
     dataType: 'boolean',
-    negativeWhenTrue: true,
     id: 'readmission',
     value: (admission) => admission.is_readmission === true ? 'Yes' : admission.is_readmission === false ? 'No' : 'Unavailable',
   },

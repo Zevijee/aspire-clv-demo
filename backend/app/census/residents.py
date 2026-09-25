@@ -26,6 +26,7 @@ from sqlalchemy import Date, String, and_, case, cast, func, literal, or_, selec
 from shared.database.schema import (
     census_logs as logs, daily_runs, facilities, payers, pdpm_rate_logs as pdpm, portfolios,
     regions, res_payer_stays as periods, residents)
+from ..common.dates import OptionalDate
 from ..common.errors import ApiError
 from ..common.tables import Page, PageQuery
 from .service import GENERATOR
@@ -56,8 +57,8 @@ class ResidentsQuery(PageQuery):
     # The shared filter-options client always sends a date range. Here the list
     # is one day, so end_date is that day and start_date is accepted and ignored.
     # Omitted, the day is the latest completed census day, as on the overview.
-    start_date: date | None = None
-    end_date: date | None = None
+    start_date: OptionalDate = None
+    end_date: OptionalDate = None
     filters: str = Field(default='{}', max_length=100000)
     search: str = Field(default='', max_length=200)
 

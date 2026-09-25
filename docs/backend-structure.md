@@ -83,6 +83,7 @@ All under `/api/v1`.
 | `GET /adt/net-change/monthly-locations` | Per-facility monthly totals |
 | `GET /adt/net-change/logs` + `/filter-options` + `/export` | Admissions, discharges and payer changes as one list |
 | `GET /adt/referring-hospital/performance` | Referral volume per hospital over 36 complete months |
+| `GET /census/resident-summaries` + `/filter-options` + `/export` | Every resident ever admitted: days, stays, admissions, discharges, current, payers. 35-175 ms |
 | `GET /census/residents` + `/filter-options` + `/export` | Everyone in a bed on the census day, from census_logs, with care level and the day's rate |
 | `GET /census/live` | Per-facility census, skilled census, payer mix and summed daily rates, with last month's average daily census and a history lookback from yesterday to a year ago. ~200 ms |
 

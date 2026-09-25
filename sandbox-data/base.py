@@ -65,6 +65,7 @@ class BaseGenerator(ABC):
         'source_data_generators.aspire-discharge-logs',
         'source_data_generators.aspire-payer-change-logs',
         'source_data_generators.aspire-census-logs',
+        'source_data_generators.aspire-resident-summaries',
         'summary_generators.aspire-admissions',
         'summary_generators.aspire-discharges',
         'summary_generators.aspire-payer-changes',
@@ -75,7 +76,7 @@ class BaseGenerator(ABC):
     )
     RUN_ORDER = ('states', 'portfolios', 'regions', 'facilities', 'payers',
         'payer_rates', 'referring_hospitals', 'admin_user', 'residents',
-        'res_stays', 'admission_logs', 'discharge_logs', 'payer_change_logs', 'census_logs',
+        'res_stays', 'admission_logs', 'discharge_logs', 'payer_change_logs', 'census_logs', 'resident_summaries',
         'admissions_summary',
         'discharges_summary', 'payer_changes_summary', 'net_change_summary',
         'monthly_adt_summary', 'referrals_summary', 'monthly_adt_facts')

@@ -98,6 +98,7 @@ Check this before editing a generator. Full detail in
 | Referral sources, hospital scores, discharge destinations | `admission_logs --regenerate`, seconds |
 | Payer daily rates | `payer_rates --regenerate`, ~3 s, then `census_logs --regenerate` |
 | Care levels, PDPM steps, who was in a bed when | `census_logs --regenerate`, ~1 min |
+| Per-resident totals for the Residents report | `resident_summaries --regenerate`, ~3 s |
 | New additive measure on a fact table | Column, backfill, `admissions_summary --regenerate` |
 | Payer change reporting, from saved periods | `payer_change_logs --regenerate`, ~4 s |
 | Referring hospital months, from the daily facts | `referrals_summary --regenerate`, ~1 s |
@@ -126,6 +127,7 @@ python manage.py referrals_summary --regenerate       # ~1 s; rolls the daily fa
 python manage.py referring_hospitals --regenerate     # the 384-hospital catalogue
 python manage.py payer_rates --regenerate             # daily rate per facility and payer plan
 python manage.py census_logs --regenerate             # who was in a bed, care level, PDPM rates; ~1 min
+python manage.py resident_summaries --regenerate      # every resident's totals across stays; ~3 s
 python manage.py admission_logs --regenerate    # rebuild one table from saved stays
 python manage.py discharge_logs --regenerate
 python manage.py payer_change_logs --regenerate
@@ -181,9 +183,9 @@ generation job. See [docs/deploying.md](docs/deploying.md).
 
 ## Do not "fix" these
 
-- **The other Census reports are placeholders.** Census Overview, Residents, Bed
-  Board and the two Census Trending reports are listed in the navigation with no
-  content yet. Live Census and every ADT report work end to end.
+- **The other Census reports are placeholders.** Census Trending, Bed Board and
+  Monthly Census Trending are listed in the navigation with no content yet.
+  Residents, Live Census and every ADT report work end to end.
 - **`HospitalPerformanceLocations.tsx` and `ReferringHospitalsModal.tsx` are
   orphans.** Nothing imports them and they call removed endpoints. They were left in
   place rather than deleted alongside the Referring Hospital rebuild; see

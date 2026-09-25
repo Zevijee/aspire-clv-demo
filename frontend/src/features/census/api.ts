@@ -99,3 +99,50 @@ export async function downloadCensusResidents(query: CensusResidentsQuery, censu
   anchor.remove()
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
+
+export type ResidentSummary = {
+  resident_id: string
+  facility_id: string
+  resident_name: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  // Days in a bed across every stay, through `as_of`.
+  days_in_facility: number
+  stays: number
+  admissions: number
+  discharges: number
+  is_current: boolean
+  // Distinct payer plans across every stay.
+  payers: number
+}
+
+export type ResidentSummariesPage = {
+  items: ResidentSummary[]; total: number; limit: number; offset: number; as_of: string | null
+}
+
+export function residentSummaryParameters(query: CensusResidentsQuery, offset = 0) {
+  return new URLSearchParams({ limit: '50', offset: String(offset),
+    filters: JSON.stringify(query.filters), search: query.search?.trim() ?? '',
+    sort: query.sort?.columnId ?? 'resident',
+    direction: query.sort?.direction === 'descending' ? 'desc' : 'asc' })
+}
+
+export function getResidentSummaries(offset: number, query: CensusResidentsQuery, signal?: AbortSignal) {
+  return readJson<ResidentSummariesPage>(
+    `${censusBase}/resident-summaries?${residentSummaryParameters(query, offset)}`, signal)
+}
+
+export async function downloadResidentSummaries(query: CensusResidentsQuery) {
+  const response = await authorizedFetch(`${censusBase}/resident-summaries/export?${residentSummaryParameters(query)}`)
+  if (!response.ok) throw new Error('Resident export could not complete.')
+  const url = URL.createObjectURL(await response.blob())
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = 'residents.csv'
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}

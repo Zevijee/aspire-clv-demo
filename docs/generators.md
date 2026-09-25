@@ -52,6 +52,7 @@ From `sandbox-data`:
 | `python manage.py referring_hospitals --regenerate` | Rebuild the 384-hospital catalogue from hospitals.json. |
 | `python manage.py payer_rates --regenerate` | Rebuild the daily rate per facility and payer plan. ~3 s. |
 | `python manage.py census_logs --regenerate` | Rebuild who was in a bed, at what care level and rate, for all history. ~1 min. |
+| `python manage.py resident_summaries --regenerate` | Rebuild every resident's totals across their stays. ~3 s. |
 | `python manage.py referrals_summary --regenerate` | Roll the daily facts up into referral months. ~1 s. |
 
 `res_stays` as a standalone command deliberately fails: fixed-window stay generation

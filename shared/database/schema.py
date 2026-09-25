@@ -295,6 +295,47 @@ pdpm_rate_logs = Table('pdpm_rate_logs', metadata,
     Index('ix_pdpm_rate_logs_in_effect', 'in_effect', postgresql_using='gist'),
 )
 
+resident_summaries = Table('resident_summaries', metadata,
+    # One row per resident ever admitted, totalled across every stay, for the
+    # Residents report. Computing these live from res_stays and res_payer_stays
+    # measured 2.1s per request -- too slow to sort, filter and page on -- so they
+    # are rolled up once per update instead, from saved stays, in seconds.
+    #
+    # A resident only ever stays at one facility (verified: no exceptions), so
+    # facility_id is a fact about the resident rather than a summary of stays.
+    # Open stays count their days through the latest simulated day.
+    #
+    # Names and places are copied in, deliberately. Joining them onto 187,000
+    # rows before every sort cost 0.5-1.9s a page; from this table alone it
+    # measured 30-150ms. They cannot drift: the table is rebuilt every update.
+    Column('resident_id', Uuid, ForeignKey('residents.resident_id'), primary_key=True),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('resident_name', String, nullable=False),
+    Column('facility_name', String, nullable=False),
+    Column('state', String(2), nullable=False),
+    Column('portfolio', String, nullable=False),
+    Column('region', String, nullable=False),
+    Column('stays', SmallInteger, nullable=False),
+    # Every stay begins with an admission, so this equals stays; kept because
+    # the report shows admissions and discharges side by side.
+    Column('admissions', SmallInteger, nullable=False),
+    Column('discharges', SmallInteger, nullable=False),
+    Column('is_current', Boolean, nullable=False),
+    Column('days_in_facility', Integer, nullable=False),
+    # Distinct payer plans across every stay, and distinct payer types.
+    Column('payers', SmallInteger, nullable=False),
+    Column('payer_types', SmallInteger, nullable=False),
+    Column('first_admission', Date, nullable=False),
+    Column('last_admission', Date, nullable=False),
+    Column('last_discharge', Date),
+    # The latest simulated day these totals run through.
+    Column('as_of', Date, nullable=False),
+    CheckConstraint('stays >= 1 AND admissions = stays AND discharges BETWEEN 0 AND stays'),
+    CheckConstraint('is_current = (discharges < stays)'),
+    CheckConstraint('days_in_facility >= 0 AND payers >= 1 AND payer_types BETWEEN 1 AND payers'),
+    Index('ix_resident_summaries_facility', 'facility_id'),
+)
+
 medicaid_applications = Table('medicaid_applications', metadata,
     Column('stay_id', Uuid, ForeignKey('res_stays.stay_id'), primary_key=True),
     Column('payer_stay_id', Uuid, ForeignKey('res_payer_stays.payer_stay_id'), nullable=False, unique=True),

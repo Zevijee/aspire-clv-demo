@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { LiveCensus } from '../features/census/components/LiveCensus'
 import { CensusResidents } from '../features/census/components/CensusResidents'
+import { ResidentsReport } from '../features/census/components/ResidentsReport'
 import { Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
 import { AdmissionsLogs } from '../features/adt/components/AdmissionsLogs'
 import { DischargesLogs } from '../features/adt/components/DischargesLogs'
@@ -274,7 +275,7 @@ function App() {
         </ReportLayout>
       ) : (
       <ReportLayout
-        internalScroll={currentReport.path === '/adt/referring-hospital'}
+        internalScroll={currentReport.path === '/adt/referring-hospital' || currentReport.path === '/census/residents'}
         filters={
           <ReportFilters>
             {isAdmissionsReport && <AdmissionsPayerFilter
@@ -357,7 +358,8 @@ function App() {
                   setSearchParams(next)
                 }} />
             })()}
-            {isMonthlyAdtReport ? <ReportMonthRangeFilter /> : currentReport.path !== '/adt/referring-hospital' && currentReport.path !== '/census/daily-census' ? <ReportDateRangeFilter /> : null}
+            {isMonthlyAdtReport ? <ReportMonthRangeFilter /> : currentReport.path !== '/adt/referring-hospital' && currentReport.path !== '/census/daily-census'
+              && currentReport.path !== '/census/residents' ? <ReportDateRangeFilter /> : null}
           </ReportFilters>
         }
         tabFilters={
@@ -406,7 +408,7 @@ function App() {
               } : undefined
         }
         title={currentReport.title}
-        titleDetail={currentReport.path === '/census/daily-census' ? 'Current census' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyAdtReport
+        titleDetail={currentReport.path === '/census/daily-census' ? 'Current census' : currentReport.path === '/census/residents' ? 'Every resident ever admitted' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyAdtReport
           ? `${monthRange.start.format('MMMM YYYY')} to ${monthRange.end.format('MMMM YYYY')} (${monthRange.end.diff(monthRange.start, 'month') + 1} months)`
           : formatReportDateRange(startDate, endDate)}
         leadingControl={
@@ -428,7 +430,7 @@ function App() {
           {reports.map((report) => (
             <Route
               element={
-                report.path === '/census/daily-census' ? (
+                report.path === '/census/residents' ? <ResidentsReport /> : report.path === '/census/daily-census' ? (
                   activeLiveCensusTab === 'residents' ? <CensusResidents /> : <LiveCensus view={activeLiveCensusTab} />
                 ) : report.path === '/adt/admissions' ? (
                   activeAdmissionsTab === 'logs' ? (

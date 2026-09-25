@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Checkbox, Modal } from 'antd'
+import { Checkbox } from 'antd'
+import { FullScreenModal } from '../../../shared/components/FullScreenModal'
 import dayjs from 'dayjs'
 import { LineChart } from '../../../shared/components/charts/LineChart'
 import { useSearchParams } from 'react-router-dom'
@@ -71,7 +72,14 @@ export function ReferringHospitalOverview() {
     return `${amount} ${row.difference > 0 ? 'more' : 'fewer'}/month${percentage}`
   }
   const columns: TableColumn<HospitalPerformance>[] = [
-    { id: 'hospital', header: 'Hospital', isRowHeader: true, value: row => row.hospital },
+    { id: 'hospital', header: 'Hospital', isRowHeader: true, value: row => row.hospital,
+      // The name opens the detail, as a resident's name does on Residents; the
+      // rest of the row is plain, so selecting text in it does not open anything.
+      format: (_, row) => <button type="button" className="drilldown-table__link" onClick={() => {
+        setSelectedFacilities([])
+        setModalPayers(payers)
+        setSelected(row)
+      }}>{row.hospital}</button> },
     { id: 'state', header: 'State', filterable: true, value: row => row.state ?? 'Unassigned' },
     { id: 'portfolio', header: 'Portfolio', filterable: true, value: row => row.portfolio ?? 'Unassigned' },
     { id: 'region', header: 'Region', filterable: true, value: row => row.region ?? 'Unassigned' },
@@ -93,17 +101,12 @@ export function ReferringHospitalOverview() {
       subtitle={`Last ${RECENT_MONTHS} complete months compared with the preceding ${BASELINE_MONTHS} months. Monthly averages include zero-referral months.`}
       columns={columns} rows={report.data?.items ?? []} getRowKey={row => row.hospital}
       searchable internalScroll stickyFirstColumn
-      onRowClick={hospital => {
-        setSelectedFacilities([])
-        setModalPayers(payers)
-        setSelected(hospital)
-      }}
       initialSort={{ columnId: 'hospital', direction: 'ascending' }}
       loading={report.loading} error={report.error} onRetry={report.onRetry}
       emptyMessage="No hospitals match the selected filters."
       csvFileName="hospital-referral-performance.csv" />
   </div>
-    <Modal open={selected !== null} onCancel={() => setSelected(null)} footer={null} destroyOnHidden
+    <FullScreenModal open={selected !== null} onClose={() => setSelected(null)} destroyOnHidden
       title={selected ? <div className="hospital-detail-header">
         <div>
         <div>{selected.hospital} — Monthly admissions</div>
@@ -112,9 +115,7 @@ export function ReferringHospitalOverview() {
         </div>
         </div>
         <AdmissionsPayerFilter values={modalPayers} onChange={setModalPayers} />
-      </div> : 'Monthly admissions'}
-      width="calc(100vw - 48px)" className="net-change-daily-modal"
-      style={{ top: 24, paddingBottom: 0, maxWidth: 'calc(100vw - 48px)' }}>
+      </div> : 'Monthly admissions'}>
       {detail.loading || detail.error ? <DataState loading={detail.loading} error={detail.error}
         label="hospital details" onRetry={detail.onRetry} /> : selected && modalHospital && <div className="hospital-detail">
         <Kpis items={[
@@ -187,6 +188,6 @@ export function ReferringHospitalOverview() {
         </div>
         </div>
       </div>}
-    </Modal>
+    </FullScreenModal>
   </>
 }

@@ -37,6 +37,7 @@ Inspect these owners before adding another implementation. Paths and component n
 | Loading, empty and retry presentation | `src/shared/components/DataState.tsx` |
 | Charts | `src/shared/components/charts/` including `LineChart` with bar variant, `DailyChangeChart`, `DonutChart`, rankings and diverging charts |
 | Equal-day trend grouping | `src/shared/utils/trendPeriods.ts` |
+| Full-screen detail modal | `src/shared/components/FullScreenModal.tsx` |
 | Isolated report state inside modals | `src/shared/components/ReportSearchContext.tsx` |
 | Visual tokens / shared CSS | `src/index.css` / `src/App.css` |
 

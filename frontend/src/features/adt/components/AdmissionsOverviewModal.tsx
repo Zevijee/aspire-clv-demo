@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Modal } from 'antd'
+import { FullScreenModal } from '../../../shared/components/FullScreenModal'
 import { AdmissionsTesting } from './AdmissionsTesting'
 import { AdmissionsLogs } from './AdmissionsLogs'
 import { DischargesOverview, type DischargeSelection } from './DischargesOverview'
@@ -38,12 +38,10 @@ export function AdmissionsOverviewModal({ month, onClose }: { month: AdmissionsM
     month.path.forEach(part => initialParams.append('net_scope', part))
     month.payers.forEach(payer => initialParams.append('net_payer', payer))
   }
-  return <Modal open={month !== null} onCancel={onClose} footer={null} destroyOnHidden
-    title={month ? `${title} Overview: ${month.start} to ${month.end}` : `${title} Overview`}
-    width="calc(100vw - 48px)" className="net-change-daily-modal"
-    style={{ top: 24, paddingBottom: 0, maxWidth: 'calc(100vw - 48px)' }}>
+  return <FullScreenModal open={month !== null} onClose={onClose} destroyOnHidden
+    title={month ? `${title} Overview: ${month.start} to ${month.end}` : `${title} Overview`}>
     {month && <ReportSearchProvider key={JSON.stringify(month)} initialParams={initialParams}>
       <div className="admissions-overview-modal__content"><Content month={month} /></div>
     </ReportSearchProvider>}
-  </Modal>
+  </FullScreenModal>
 }

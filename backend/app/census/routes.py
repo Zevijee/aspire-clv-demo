@@ -8,7 +8,7 @@ from ..common.errors import ApiError, ErrorResponse
 from ..database import DbConnection
 from .schemas import LiveCensus
 from .service import live
-from . import residents
+from . import residents, resident_summaries
 
 router = APIRouter(prefix='/census', tags=['Census'])
 
@@ -52,3 +52,28 @@ def census_resident_export(request: Request, query: Annotated[residents.Resident
     report_today = today(request.app.state.settings.timezone)
     return StreamingResponse(residents.csv_chunks(request.app.state.database, query, report_today),
         media_type='text/csv', headers={'Content-Disposition': 'attachment; filename="census-residents.csv"'})
+
+
+@router.get('/resident-summaries', response_model=resident_summaries.SummariesPage)
+def census_resident_summaries(connection: DbConnection,
+        query: Annotated[resident_summaries.SummariesQuery, Query()]):
+    """Every resident ever admitted, with days, stays, admissions, discharges,
+    whether they are in a bed now, and how many payer plans they have had."""
+    return resident_summaries.page(connection, query)
+
+
+@router.get('/resident-summaries/filter-options')
+def census_resident_summary_options(connection: DbConnection,
+        query: Annotated[resident_summaries.FilterQuery, Query()]):
+    return resident_summaries.options(connection, query)
+
+
+@router.get('/resident-summaries/export')
+def census_resident_summary_export(request: Request,
+        query: Annotated[resident_summaries.SummariesQuery, Query()]):
+    # Validate the sort before response headers are sent; the stream owns its DB
+    # connection so dependency cleanup cannot close it mid-download.
+    if not resident_summaries.valid_sort(query):
+        raise ApiError('invalid_sort', 'Unsupported sort column.')
+    return StreamingResponse(resident_summaries.csv_chunks(request.app.state.database, query),
+        media_type='text/csv', headers={'Content-Disposition': 'attachment; filename="residents.csv"'})
