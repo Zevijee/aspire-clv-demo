@@ -40,6 +40,9 @@ export type TableColumn<Row> = {
   isRowHeader?: boolean
   numeric?: boolean
   sortable?: boolean
+  /** False keeps the whole text on one line, never cut to an ellipsis, for a
+   * column whose full text is the point, such as a name to click. */
+  truncate?: boolean
   value: (row: Row) => SortValue
   sortValue?: (row: Row) => SortValue
 }
@@ -73,6 +76,7 @@ function TruncatedCell({ children, fullText }: { children: ReactNode; fullText: 
 }
 
 const truncates = <Row,>(column: TableColumn<Row>) => column.numeric !== true && column.dataType !== 'boolean'
+  && column.truncate !== false
 
 export type TableProps<Row> = DataStateProps & {
   retainRowsWhileLoading?: boolean
@@ -985,7 +989,8 @@ export function Table<Row>({
                     const className = [column.numeric ? 'report-table__numeric' : '', highlightColumnOnHover && column.highlightOnHover !== false && hoveredColumn === column.id ? 'report-table__cell--column-hover' : ''].filter(Boolean).join(' ')
                     const rendered = renderTableCell(column, row)
                     const formattedValue = truncates(column)
-                      ? <TruncatedCell fullText={String(column.value(row))}>{rendered}</TruncatedCell> : rendered
+                      ? <TruncatedCell fullText={String(column.value(row))}>{rendered}</TruncatedCell>
+                      : column.truncate === false ? <span className="report-table__cell-whole">{rendered}</span> : rendered
 
                     return column.isRowHeader ? (
                       <th onMouseEnter={highlightColumnOnHover ? (event) => column.highlightOnHover === false ? setHoveredColumn(null) : highlightColumn(event.currentTarget, column.id) : undefined} className={className} key={column.id} scope="row">

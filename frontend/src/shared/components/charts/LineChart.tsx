@@ -34,16 +34,23 @@ type LineChartProps = DataStateProps & {
   showDailyAverage?: boolean
   headerActions?: ReactNode
   onSelect?: (item: LineChartItem) => void
+  /** Bars normally start at zero. `fit` starts them just below the lowest
+   * value, for a level such as census that moves a few points on a large
+   * base, where zero would flatten every bar to the same height. */
+  baseline?: 'zero' | 'fit'
 }
 
-export function LineChart({ items, title, subtitle, loading, error, onRetry, signed = false, valueLabel = 'Admissions', variant = 'line', height, barColor = 'var(--color-table-change-favorable)', interval = 'day', showDailyAverage = false, headerActions, onSelect }: LineChartProps) {
+export function LineChart({ items, title, subtitle, loading, error, onRetry, signed = false, valueLabel = 'Admissions', variant = 'line', height, barColor = 'var(--color-table-change-favorable)', interval = 'day', showDailyAverage = false, headerActions, onSelect, baseline = 'zero' }: LineChartProps) {
   const Chart = variant === 'bar' ? BarChart : RechartsLineChart
   const values = items.map((item) => item.value)
   const minimumValue = Math.min(...(values.length ? values : [0]))
   const maximumValue = Math.max(...(values.length ? values : [0]))
   const axisPadding = Math.max(1, Math.ceil((maximumValue - minimumValue) * 0.1))
   const yAxisDomain: [number, number] = [
-    signed ? Math.min(0, minimumValue - axisPadding) : variant === 'bar' ? 0 : Math.max(0, minimumValue - axisPadding),
+    signed ? Math.min(0, minimumValue - axisPadding)
+      // A fitted baseline leaves the lowest bar about a third of the range tall.
+      : variant === 'bar' && baseline === 'fit' ? Math.max(0, Math.floor(minimumValue - Math.max(1, (maximumValue - minimumValue) / 2)))
+      : variant === 'bar' ? 0 : Math.max(0, minimumValue - axisPadding),
     signed ? Math.max(0, maximumValue + axisPadding) : maximumValue + axisPadding,
   ]
 

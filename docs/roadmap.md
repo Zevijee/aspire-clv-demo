@@ -6,9 +6,9 @@ against work already done; it is the list of things consciously left.
 ## Where things stand
 
 The backend was rebuilt from per-report SQL into feature packages over fact tables.
-Seven reports are complete end to end: Admissions, Discharges, Payer Changes,
-Net Change, Monthly ADT Trending, Referring Hospital and Live Census. The remaining
-Census reports are navigation placeholders with no component yet.
+Every report in the navigation is complete end to end: Admissions, Discharges,
+Payer Changes, Net Change, Monthly ADT Trending, Referring Hospital, Live Census,
+Census Trending, Bed Board, Monthly Census Trending and Residents.
 
 ## Dead frontend reports
 

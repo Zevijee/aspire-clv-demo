@@ -41,6 +41,15 @@
   --color-chart-axis: #9ca3af;
   --color-chart-label: #374151;
   --color-chart-hover: #f3f4f6;
+  --color-bed-male: #0ea5e9;
+  --color-bed-male-subtle: #eff8fe;
+  --color-bed-male-border: #c4e6fa;
+  --color-bed-female: #ec4899;
+  --color-bed-female-subtle: #fdf1f6;
+  --color-bed-female-border: #f8cde0;
+  --color-bed-open: #22c55e;
+  --color-bed-open-text: #16a34a;
+  --color-bed-open-subtle: #f3fcf6;
   --color-overlay-scrim: rgb(29 44 61 / 35%);
   --color-shadow-drawer: rgb(29 44 61 / 18%);
   --color-shadow-subtle: rgb(0 0 0 / 8%);

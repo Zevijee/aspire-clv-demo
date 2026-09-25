@@ -1,4 +1,5 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
@@ -8,7 +9,7 @@ from ..common.errors import ApiError, ErrorResponse
 from ..database import DbConnection
 from .schemas import LiveCensus
 from .service import live
-from . import residents, resident_summaries, trending
+from . import bed_board, monthly, residents, resident_summaries, trending
 
 router = APIRouter(prefix='/census', tags=['Census'])
 
@@ -25,6 +26,18 @@ def live_census(request: Request, connection: DbConnection,
     the days that happen to exist.
     """
     return live(connection, today(request.app.state.settings.timezone), payer_types)
+
+
+@router.get('/bed-board', response_model=bed_board.BedBoard, responses={409: {'model': ErrorResponse}})
+def census_bed_board(request: Request, connection: DbConnection, facility_id: UUID | None = None):
+    """One facility's beds on the latest census day, by wing and room, with who
+    is in each. Without `facility_id`, the first facility by name."""
+    return bed_board.board(connection, today(request.app.state.settings.timezone), facility_id)
+
+
+@router.get('/bed-board/facilities', response_model=list[bed_board.FacilityOption])
+def census_bed_board_facilities(connection: DbConnection):
+    return bed_board.facility_options(connection)
 
 
 @router.get('/residents', response_model=residents.ResidentsPage, responses={409: {'model': ErrorResponse}})
@@ -93,3 +106,10 @@ def census_trending_daily(connection: DbConnection, query: Annotated[trending.Da
     """Closing census each day of the range, over the given facilities or all
     of them. Census is a level, so days are listed, never summed together."""
     return trending.daily(connection, query)
+
+
+@router.get('/monthly-trending', response_model=monthly.MonthlyTrend, responses={409: {'model': ErrorResponse}})
+def census_monthly_trending(connection: DbConnection, query: Annotated[monthly.MonthlyQuery, Query()]):
+    """Census days per facility by calendar month. The page sums them for any
+    scope, and picks the highest and lowest month after summing."""
+    return monthly.monthly(connection, query)

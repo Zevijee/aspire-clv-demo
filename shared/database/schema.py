@@ -336,6 +336,49 @@ resident_summaries = Table('resident_summaries', metadata,
     Index('ix_resident_summaries_facility', 'facility_id'),
 )
 
+facility_beds = Table('facility_beds', metadata,
+    # Every licensed bed, laid out in wings and rooms, for the Bed Board. Reference
+    # data like facility_payer_rates: generated from each facility's bed count by
+    # `manage.py facility_beds`, deterministic, and rebuilt in seconds. The count
+    # of rows per facility always equals facilities.beds.
+    Column('bed_id', Uuid, primary_key=True),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    # Wing letter; rooms in wing n are numbered from n * 100 + 1.
+    Column('wing', String(1), nullable=False),
+    Column('room', String, nullable=False),
+    # A for the first bed in a room, B for the second. A private room has only A.
+    Column('bed', String(1), nullable=False),
+    UniqueConstraint('facility_id', 'room', 'bed'),
+    CheckConstraint("bed IN ('A', 'B')"),
+    Index('ix_facility_beds_facility', 'facility_id'),
+)
+
+bed_assignments = Table('bed_assignments', metadata,
+    # Which bed each stay occupied, and when: one row per stretch in one bed, so a
+    # stay normally has one row. Invented here, like care levels -- nothing in the
+    # simulation reads it back -- and rebuilt whole from res_stays on every update,
+    # replaying each facility's admissions and discharges in date order.
+    #
+    # Semi-private rooms are kept to one gender when any bed allows it; measured,
+    # 0.5% of occupied rooms end up mixed. Census has never exceeded licensed
+    # beds (measured), but if it did the extra resident would wait with a null
+    # bed_id and move into the first bed that frees, starting a new row.
+    Column('stay_id', Uuid, nullable=False),
+    # Position within the stay, from 1, in date order.
+    Column('move', SmallInteger, nullable=False),
+    Column('resident_id', Uuid, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    # Null while the facility has no free bed.
+    Column('bed_id', Uuid, ForeignKey('facility_beds.bed_id')),
+    # Half-open, open-ended while the resident is still here, like census_logs.
+    Column('in_bed', DATERANGE, nullable=False),
+    PrimaryKeyConstraint('stay_id', 'move'),
+    CheckConstraint('NOT isempty(in_bed) AND NOT lower_inf(in_bed)'),
+    # A facility has a few thousand rows across all of history, so the board
+    # filters them by date after this index rather than needing btree_gist.
+    Index('ix_bed_assignments_facility', 'facility_id'),
+)
+
 medicaid_applications = Table('medicaid_applications', metadata,
     Column('stay_id', Uuid, ForeignKey('res_stays.stay_id'), primary_key=True),
     Column('payer_stay_id', Uuid, ForeignKey('res_payer_stays.payer_stay_id'), nullable=False, unique=True),
@@ -487,6 +530,10 @@ monthly_payer_census_facts = Table('monthly_payer_census_facts', metadata,
     Column('changes_in', SmallInteger, nullable=False),
     Column('changes_out', SmallInteger, nullable=False),
     Column('closing_census', SmallInteger, nullable=False),
+    # Every day's closing census summed over the month -- an additive measure, so
+    # months and facilities sum, and the average daily census divides it once by
+    # the days. The month in progress counts only the days generated so far.
+    Column('census_days', Integer, nullable=False),
     PrimaryKeyConstraint('month_start', 'facility_id', 'payer_type'),
     CheckConstraint('closing_census = opening_census + admissions + changes_in '
         '- discharges - changes_out'),

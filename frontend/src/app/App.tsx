@@ -3,6 +3,8 @@ import { LiveCensus } from '../features/census/components/LiveCensus'
 import { CensusResidents } from '../features/census/components/CensusResidents'
 import { ResidentsReport } from '../features/census/components/ResidentsReport'
 import { CensusTrending } from '../features/census/components/CensusTrending'
+import { BedBoard, BedBoardFacilityFilter } from '../features/census/components/BedBoard'
+import { MonthlyCensusTrending } from '../features/census/components/MonthlyCensusTrending'
 import { Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
 import { AdmissionsLogs } from '../features/adt/components/AdmissionsLogs'
 import { DischargesLogs } from '../features/adt/components/DischargesLogs'
@@ -115,6 +117,7 @@ function App() {
     } catch { return 'admissions' }
   })
   const monthRange = getReportMonthRange(searchParams)
+  const isMonthlyCensusReport = currentReport.path === '/census/monthly-trending'
   const admissionsView = searchParams.get('view')
   const activeAdmissionsTab = admissionsTabs.find((tab) => tab.id === admissionsView)?.id ?? 'testing'
   const activeDischargesTab = dischargesTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
@@ -331,6 +334,8 @@ function App() {
             {/* Overview only: the Residents tab filters payers in its own table. */}
             {currentReport.path === '/census/daily-census' && activeLiveCensusTab === 'overview' && <CensusPayerFilter param="live_payer" />}
             {currentReport.path === '/census/trending' && <CensusPayerFilter param="trending_payer" />}
+            {currentReport.path === '/census/bed-board' && <BedBoardFacilityFilter />}
+            {isMonthlyCensusReport && <CensusPayerFilter param="monthly_census_payer" />}
             {currentReport.path === '/adt/referring-hospital' && <AdmissionsPayerFilter values={searchParams.getAll('referring_payer')}
               onChange={payers => {
                 const next = new URLSearchParams(searchParams)
@@ -339,8 +344,8 @@ function App() {
                 setSearchParams(next)
               }} />}
             {isMonthlyAdtReport && <MonthlyAdtFilters activeTab={monthlyTab} />}
-            {isMonthlyAdtReport ? <ReportMonthRangeFilter /> : currentReport.path !== '/adt/referring-hospital' && currentReport.path !== '/census/daily-census'
-              && currentReport.path !== '/census/residents' ? <ReportDateRangeFilter /> : null}
+            {isMonthlyAdtReport || isMonthlyCensusReport ? <ReportMonthRangeFilter /> : currentReport.path !== '/adt/referring-hospital' && currentReport.path !== '/census/daily-census'
+              && currentReport.path !== '/census/residents' && currentReport.path !== '/census/bed-board' ? <ReportDateRangeFilter /> : null}
           </ReportFilters>
         }
         tabFilters={
@@ -389,7 +394,7 @@ function App() {
               } : undefined
         }
         title={currentReport.title}
-        titleDetail={currentReport.path === '/census/daily-census' ? 'Current census' : currentReport.path === '/census/residents' ? 'Every resident ever admitted' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyAdtReport
+        titleDetail={currentReport.path === '/census/daily-census' ? 'Current census' : currentReport.path === '/census/bed-board' ? 'Current beds, one facility at a time' : currentReport.path === '/census/residents' ? 'Every resident ever admitted' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyAdtReport || isMonthlyCensusReport
           ? `${monthRange.start.format('MMMM YYYY')} to ${monthRange.end.format('MMMM YYYY')} (${monthRange.end.diff(monthRange.start, 'month') + 1} months)`
           : formatReportDateRange(startDate, endDate)}
         leadingControl={
@@ -411,7 +416,7 @@ function App() {
           {reports.map((report) => (
             <Route
               element={
-                report.path === '/census/residents' ? <ResidentsReport /> : report.path === '/census/trending' ? <CensusTrending /> : report.path === '/census/daily-census' ? (
+                report.path === '/census/residents' ? <ResidentsReport /> : report.path === '/census/bed-board' ? <BedBoard /> : report.path === '/census/monthly-trending' ? <MonthlyCensusTrending /> : report.path === '/census/trending' ? <CensusTrending /> : report.path === '/census/daily-census' ? (
                   activeLiveCensusTab === 'residents' ? <CensusResidents /> : <LiveCensus />
                 ) : report.path === '/adt/admissions' ? (
                   activeAdmissionsTab === 'logs' ? (

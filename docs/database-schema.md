@@ -101,6 +101,10 @@ erDiagram
         String new_payer_type PK
     }
     facilities ||--o{ daily_payer_change_facts : "facility_id"
+    facility_beds {
+        Uuid bed_id PK
+    }
+    facilities ||--o{ facility_beds : "facility_id"
     facility_payer_rates {
         Uuid facility_id PK
         Uuid payer_id PK
@@ -139,6 +143,12 @@ erDiagram
         Uuid resident_id PK
     }
     facilities ||--o{ residents : "facility_id"
+    bed_assignments {
+        Uuid stay_id PK
+        SmallInteger move PK
+    }
+    facilities ||--o{ bed_assignments : "facility_id"
+    facility_beds ||--o{ bed_assignments : "bed_id"
     res_stays {
         Uuid stay_id PK
     }
@@ -182,8 +192,8 @@ erDiagram
         Uuid payer_stay_id PK
     }
     facilities ||--o{ payer_change_logs : "facility_id"
-    payers ||--o{ payer_change_logs : "previous_payer_id"
     payers ||--o{ payer_change_logs : "new_payer_id"
+    payers ||--o{ payer_change_logs : "previous_payer_id"
     res_payer_stays ||--o| payer_change_logs : "payer_stay_id"
     res_stays ||--o{ payer_change_logs : "stay_id"
     residents ||--o{ payer_change_logs : "resident_id"
@@ -499,6 +509,22 @@ Additive daily payer-change counts at facility/from-type/to-type grain. Resident
 - CHECK: `changes > 0`
 - INDEX `ix_daily_payer_change_facts_facility`: facility_id, summary_date
 
+## facility_beds
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| bed_id | UUID | no | PK |  |  |
+| facility_id | UUID | no | FK → facilities.facility_id |  |  |
+| wing | VARCHAR(1) | no |  |  |  |
+| room | VARCHAR | no |  |  |  |
+| bed | VARCHAR(1) | no |  |  |  |
+
+- CHECK: `bed IN ('A', 'B')`
+- INDEX `ix_facility_beds_facility`: facility_id
+- UNIQUE: `facility_id, room, bed`
+
 ## facility_payer_rates
 
 
@@ -568,6 +594,7 @@ Calendar-month rollup of daily_payer_census_facts for monthly trending. Flows ar
 | changes_in | SMALLINT | no |  |  |  |
 | changes_out | SMALLINT | no |  |  |  |
 | closing_census | SMALLINT | no |  |  |  |
+| census_days | INTEGER | no |  |  |  |
 
 - CHECK: `closing_census = opening_census + admissions + changes_in - discharges - changes_out`
 - CHECK: `date_trunc('month', month_start) = month_start`
@@ -609,6 +636,22 @@ Saved resident identities associated with a facility. Stays reference these save
 - CHECK: `gender IN ('male', 'female')`
 - INDEX `ix_residents_facility_id`: facility_id
 - UNIQUE: `first_name, last_name; DEFERRABLE INITIALLY DEFERRED`
+
+## bed_assignments
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| stay_id | UUID | no | PK |  |  |
+| move | SMALLINT | no | PK |  |  |
+| resident_id | UUID | no |  |  |  |
+| facility_id | UUID | no | FK → facilities.facility_id |  |  |
+| bed_id | UUID | yes | FK → facility_beds.bed_id |  |  |
+| in_bed | DATERANGE | no |  |  |  |
+
+- CHECK: `NOT isempty(in_bed) AND NOT lower_inf(in_bed)`
+- INDEX `ix_bed_assignments_facility`: facility_id
 
 ## res_stays
 

@@ -81,6 +81,7 @@ export function LiveCensus() {
   const [retry, setRetry] = useState(0)
   const [path, setPath] = useState<string[]>([])
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
+  const [showHistoryFacilities, setShowHistoryFacilities] = useSearchParamFlag('all_facilities_history')
   // The header's Payers filter, which the payer mix donut also sets.
   const [params, setParams] = useReportSearchParams()
   const payers = params.getAll('live_payer')
@@ -185,6 +186,10 @@ export function LiveCensus() {
     + "Variance is current census minus last month's average daily census. "
     + `Skilled covers Medicare, managed Medicare and VA.${stale}${incomplete}` : ''
 
+  const historySubtitle = data ? 'Census at the close of each day, with current census minus that value beside it. '
+    + `Current: ${shortDate(data.census_date)}; `
+    + data.lookback.map(entry => `${entry.label.toLowerCase()}: ${shortDate(entry.date)}`).join('; ')
+    + `. Last year avg. is the average daily census from ${shortDate(data.year_start)} to ${shortDate(data.year_end)}.` : ''
   const facilitiesModal = <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
     filters={<CensusPayerFilter param="live_payer" />}
     title={data ? `All facilities · census as of ${data.census_date}` : 'All facilities'} subtitle={subtitle}
@@ -233,11 +238,17 @@ export function LiveCensus() {
       loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}
       getFooterRow={rows => ({ key: 'total', name: 'Total', path: [], isTotal: true,
         facilities: rows.flatMap(row => row.facilities) })}
-      subtitle={data ? 'Census at the close of each day, with current census minus that value beside it. '
-        + `Current: ${shortDate(data.census_date)}; `
-        + data.lookback.map(entry => `${entry.label.toLowerCase()}: ${shortDate(entry.date)}`).join('; ')
-        + `. Last year avg. is the average daily census from ${shortDate(data.year_start)} to ${shortDate(data.year_end)}.` : ''}
+      subtitle={historySubtitle}
+      headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowHistoryFacilities(true)} />}
       emptyMessage="No facilities match this view."
       csvFileName={`census-history-${data?.census_date ?? 'today'}.csv`} />
+    <AllFacilitiesModal<Row> open={showHistoryFacilities} onClose={() => setShowHistoryFacilities(false)}
+      filters={<CensusPayerFilter param="live_payer" />}
+      title={data ? `All facilities · census history as of ${data.census_date}` : 'All facilities · census history'}
+      subtitle={historySubtitle}
+      rows={facilityRows} columns={historyColumns.slice(1)} getRowKey={row => row.key} getName={row => row.name}
+      getPath={row => [row.path[0], row.path[1], row.path[2]]}
+      loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}
+      csvFileName={`census-history-facilities-${data?.census_date ?? 'today'}.csv`} />
   </>
 }

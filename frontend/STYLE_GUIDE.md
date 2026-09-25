@@ -31,6 +31,7 @@ Inspect these owners before adding another implementation. Paths and component n
 | Breadcrumbs and custom location-view context | `src/shared/components/DrilldownNavigation.tsx` |
 | Header filter placement | `src/shared/components/filters/ReportFilters.tsx` |
 | Standard multi-select dropdown | `FilterDropdown.tsx`, composing `MultiSelectFilterOptions.tsx` or `FilterValuePicker.tsx` in the shared filters directory |
+| Single-choice dropdown with search, same trigger and panel | `src/shared/components/filters/FilterSelect.tsx` |
 | Date/month selection | `ReportDateRangeFilter.tsx`, `ReportMonthRangeFilter.tsx` in the shared filters directory |
 | Side-filter drawer, when enabled | `src/shared/components/filters/TabFilterBar.tsx` |
 | KPI cards and explanations | `src/shared/components/Kpis.tsx`, `InfoDisclosure.tsx` |

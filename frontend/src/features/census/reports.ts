@@ -2,12 +2,6 @@ import type { ReportDefinition } from '../../shared/types/report'
 
 export const censusReports: ReportDefinition[] = [
   {
-    description: 'Every resident ever admitted, with their stays, days and payers.',
-    module: 'Census',
-    path: '/census/residents',
-    title: 'Residents',
-  },
-  {
     description: 'Review current facility census by day.',
     module: 'Census',
     path: '/census/daily-census',
@@ -30,5 +24,11 @@ export const censusReports: ReportDefinition[] = [
     module: 'Census',
     path: '/census/monthly-trending',
     title: 'Monthly Census Trending',
+  },
+  {
+    description: 'Every resident ever admitted, with their stays, days and payers.',
+    module: 'Census',
+    path: '/census/residents',
+    title: 'Residents',
   },
 ]

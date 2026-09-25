@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Checkbox } from 'antd'
 import { FullScreenModal } from '../../../shared/components/FullScreenModal'
-import { LocationName } from '../../../shared/components/LocationName'
 import dayjs from 'dayjs'
 import { LineChart } from '../../../shared/components/charts/LineChart'
 import { useSearchParams } from 'react-router-dom'
@@ -73,15 +72,14 @@ export function ReferringHospitalOverview() {
     return `${amount} ${row.difference > 0 ? 'more' : 'fewer'}/month${percentage}`
   }
   const columns: TableColumn<HospitalPerformance>[] = [
-    { id: 'hospital', header: 'Hospital', isRowHeader: true, value: row => row.hospital,
+    { id: 'hospital', header: 'Hospital', isRowHeader: true, truncate: false, value: row => row.hospital,
       // The name opens the detail, as a resident's name does on Residents; the
       // rest of the row is plain, so selecting text in it does not open anything.
-      format: (_, row) => <LocationName region={row.region} portfolio={row.portfolio}
-        state={row.state}><button type="button" className="drilldown-table__link" onClick={() => {
+      format: (_, row) => <button type="button" className="drilldown-table__link" onClick={() => {
           setSelectedFacilities([])
           setModalPayers(payers)
           setSelected(row)
-        }}>{row.hospital}</button></LocationName> },
+        }}>{row.hospital}</button> },
     { id: 'state', header: 'State', filterable: true, hidden: true, value: row => row.state ?? 'Unassigned' },
     { id: 'portfolio', header: 'Portfolio', filterable: true, hidden: true, value: row => row.portfolio ?? 'Unassigned' },
     { id: 'region', header: 'Region', filterable: true, hidden: true, value: row => row.region ?? 'Unassigned' },

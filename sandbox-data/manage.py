@@ -47,7 +47,7 @@ def main():
     # widened into a full daily catch-up.
     daily = args.generator in ('seed', 'update', 'all', 'admissions_summary', 'discharges_summary',
         'payer_changes_summary', 'net_change_summary', 'monthly_adt_summary', 'referrals_summary',
-        'monthly_adt_facts', 'census_logs', 'resident_summaries')
+        'monthly_adt_facts', 'census_logs', 'resident_summaries', 'bed_assignments')
     standalone = args.generator in ('res_stays', 'admission_logs', 'discharge_logs',
         'payer_change_logs')
     if args.date and (args.start or args.through):
@@ -70,7 +70,7 @@ def main():
         summaries = ('admissions_summary', 'discharges_summary', 'payer_changes_summary',
             'net_change_summary',
             'monthly_adt_summary', 'referrals_summary', 'monthly_adt_facts', 'census_logs',
-            'resident_summaries')
+            'resident_summaries', 'bed_assignments')
         daily_target = args.only or (args.generator if args.generator in summaries else 'all')
         daily_plan = BaseGenerator.daily_plan(daily_target) if daily else ()
         start = args.date or args.start
@@ -86,7 +86,7 @@ def main():
             parser.error('History reset starts on 2023-01-01 and runs all daily handlers without --regenerate.')
         # A reset drops every table, so the resident pool has to be rebuilt before ADT
         # runs; otherwise the simulation invents residents on demand under different IDs.
-        reference = ('states', 'portfolios', 'regions', 'facilities', 'payers', 'payer_rates',
+        reference = ('states', 'portfolios', 'regions', 'facilities', 'payers', 'payer_rates', 'facility_beds',
             'referring_hospitals')
         if args.reset_history:
             reference += ('residents',)

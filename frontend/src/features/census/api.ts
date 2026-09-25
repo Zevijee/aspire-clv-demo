@@ -192,3 +192,78 @@ export function getCensusTrendingDaily(startDate: string, endDate: string, payer
   facilityIds.forEach(id => params.append('facility_ids', id))
   return readJson<CensusDailyTrend>(`${censusBase}/trending/daily?${params}`, signal)
 }
+
+export type BedOccupant = {
+  resident_id: string
+  first_name: string
+  last_name: string
+  gender: 'male' | 'female'
+  admission_date: string
+  // First day in this bed; later than admission only after a move.
+  in_bed_since: string
+  payer_type: string
+  payer_name: string
+  is_skilled: boolean
+  care_level: string
+  // Day of skilled coverage; null for other payers.
+  skilled_day: number | null
+  daily_rate: number
+}
+
+export type BedBoardReport = {
+  as_of: string
+  census_date: string
+  facility_id: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  // Every licensed bed, ordered by wing, room and bed.
+  beds: { wing: string; room: string; bed: string; occupant: BedOccupant | null }[]
+  // In the building with no free bed; empty unless census exceeds beds.
+  waiting: BedOccupant[]
+}
+
+export type BedBoardFacility = { facility_id: string; facility_name: string; state: string }
+
+/** Without a facility, the API picks the first by name. */
+export function getBedBoard(facilityId: string | null, signal?: AbortSignal) {
+  const params = new URLSearchParams()
+  if (facilityId) params.set('facility_id', facilityId)
+  return readJson<BedBoardReport>(`${base}/api/v1/census/bed-board?${params}`, signal)
+}
+
+export function getBedBoardFacilities(signal?: AbortSignal) {
+  return readJson<BedBoardFacility[]>(`${base}/api/v1/census/bed-board/facilities`, signal)
+}
+
+export type MonthlyCensusFacility = {
+  facility_id: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  capacity: number
+  // Census days by YYYY-MM; months with none are omitted.
+  census_days: Record<string, number>
+  // Census at the start of each month and at the close of its last day in the
+  // range, by YYYY-MM; zeros are omitted.
+  opening_census: Record<string, number>
+  closing_census: Record<string, number>
+}
+
+export type MonthlyCensusReport = {
+  start: string
+  // The end of the last month, or the latest generated day if sooner.
+  end: string
+  // `days` is how many of the month's days are in the range: all of them,
+  // except in the month in progress.
+  months: { month: string; days: number; month_days: number }[]
+  items: MonthlyCensusFacility[]
+}
+
+export function getMonthlyCensus(startMonth: string, endMonth: string, payers: string[], signal?: AbortSignal) {
+  const params = new URLSearchParams({ start_month: startMonth, end_month: endMonth })
+  payers.forEach(payer => params.append('payer_types', payer))
+  return readJson<MonthlyCensusReport>(`${censusBase}/monthly-trending?${params}`, signal)
+}

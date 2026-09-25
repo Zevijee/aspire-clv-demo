@@ -99,10 +99,12 @@ Check this before editing a generator. Full detail in
 | Payer daily rates | `payer_rates --regenerate`, ~3 s, then `census_logs --regenerate` |
 | Care levels, PDPM steps, who was in a bed when | `census_logs --regenerate`, ~1 min |
 | Per-resident totals for the Residents report | `resident_summaries --regenerate`, ~3 s |
+| Room layout (wings, rooms, private share) | `facility_beds --regenerate`, ~2 s, then `bed_assignments --regenerate` |
+| Who sleeps in which bed | `bed_assignments --regenerate`, ~36 s |
 | New additive measure on a fact table | Column, backfill, `admissions_summary --regenerate` |
 | Payer change reporting, from saved periods | `payer_change_logs --regenerate`, ~4 s |
 | Referring hospital months, from the daily facts | `referrals_summary --regenerate`, ~1 s |
-| Monthly trending, from saved periods | `monthly_adt_summary --regenerate`, ~6 s |
+| Monthly trending and monthly census days, from saved periods | `monthly_adt_summary --regenerate`, ~13 s |
 | Net change / payer census | `net_change_summary --regenerate`, ~8 min |
 | **Any payer rule, stay length or census target** | **Full `seed --reset-history`, ~9.5 min** |
 
@@ -122,12 +124,14 @@ python manage.py admissions_summary --regenerate
 python manage.py discharges_summary --regenerate
 python manage.py payer_changes_summary --regenerate
 python manage.py net_change_summary --regenerate      # ~8 min; rebuilds 2.5M rows
-python manage.py monthly_adt_summary --regenerate     # ~6 s, independent of the above
+python manage.py monthly_adt_summary --regenerate     # ~13 s, independent of the above
 python manage.py referrals_summary --regenerate       # ~1 s; rolls the daily facts up by month
 python manage.py referring_hospitals --regenerate     # the 384-hospital catalogue
 python manage.py payer_rates --regenerate             # daily rate per facility and payer plan
 python manage.py census_logs --regenerate             # who was in a bed, care level, PDPM rates; ~1 min
 python manage.py resident_summaries --regenerate      # every resident's totals across stays; ~3 s
+python manage.py facility_beds --regenerate           # wings, rooms and beds per facility; ~2 s
+python manage.py bed_assignments --regenerate         # which stay was in which bed; ~36 s
 python manage.py admission_logs --regenerate    # rebuild one table from saved stays
 python manage.py discharge_logs --regenerate
 python manage.py payer_change_logs --regenerate
@@ -183,9 +187,6 @@ generation job. See [docs/deploying.md](docs/deploying.md).
 
 ## Do not "fix" these
 
-- **The other Census reports are placeholders.** Bed Board and Monthly Census
-  Trending are listed in the navigation with no content yet. Residents, Live
-  Census, Census Trending and every ADT report work end to end.
 - **`HospitalPerformanceLocations.tsx` and `ReferringHospitalsModal.tsx` are
   orphans.** Nothing imports them and they call removed endpoints. They were left in
   place rather than deleted alongside the Referring Hospital rebuild; see

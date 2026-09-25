@@ -27,12 +27,24 @@ from summary_generators.payer_movements import MOVEMENTS_CTE
 
 MONTHLY_SQL = """
 INSERT INTO __TABLE__ (month_start, facility_id, payer_type, opening_census,
-    admissions, discharges, changes_in, changes_out, closing_census)
+    admissions, discharges, changes_in, changes_out, closing_census, census_days)
 WITH """ + MOVEMENTS_CTE.strip() + """, monthly AS (
     SELECT date_trunc('month', day)::date AS month_start, facility_id, payer_type,
            sum(adm)::int AS admissions, sum(dis)::int AS discharges,
            sum(cin)::int AS changes_in, sum(cout)::int AS changes_out
     FROM moved GROUP BY 1, 2, 3
+), resident_days AS (
+    -- A resident is in the closing census of day d when start <= d < end, so a
+    -- month's census days are each period's overlap with the month, cut off
+    -- after the last generated day.
+    SELECT m::date AS month_start, facility_id, payer_type,
+           sum(least(coalesce(end_date, 'infinity'::date), (m + interval '1 month')::date,
+               %(last_day)s::date + 1) - greatest(start_date, m::date))::int AS census_days
+    FROM period
+    CROSS JOIN LATERAL generate_series(date_trunc('month', start_date),
+        date_trunc('month', least(end_date - 1, %(last_day)s::date)), interval '1 month') m
+    WHERE start_date <= %(last_day)s::date
+    GROUP BY 1, 2, 3
 ), pairs AS (
     -- Each pair starts on its own first month, so a payer a facility never used
     -- contributes no rows at all.
@@ -52,14 +64,17 @@ WITH """ + MOVEMENTS_CTE.strip() + """, monthly AS (
            coalesce(m.changes_out, 0) AS changes_out,
            sum(coalesce(m.admissions, 0) + coalesce(m.changes_in, 0)
              - coalesce(m.discharges, 0) - coalesce(m.changes_out, 0))
-             OVER (PARTITION BY g.facility_id, g.payer_type ORDER BY g.month_start) AS closing
+             OVER (PARTITION BY g.facility_id, g.payer_type ORDER BY g.month_start) AS closing,
+           coalesce(r.census_days, 0) AS census_days
     FROM grid g
     LEFT JOIN monthly m ON m.facility_id = g.facility_id
         AND m.payer_type = g.payer_type AND m.month_start = g.month_start
+    LEFT JOIN resident_days r ON r.facility_id = g.facility_id
+        AND r.payer_type = g.payer_type AND r.month_start = g.month_start
 )
 SELECT month_start, facility_id, payer_type,
        closing - admissions - changes_in + discharges + changes_out,
-       admissions, discharges, changes_in, changes_out, closing
+       admissions, discharges, changes_in, changes_out, closing, census_days
 FROM balanced
 """
 

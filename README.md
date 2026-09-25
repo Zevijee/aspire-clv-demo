@@ -116,7 +116,10 @@ table over a fixed 36-month window, with a per-hospital detail view.
 
 **Live Census** also works: each facility's current census and skilled census
 against last month's average daily census, drilled down from state to facility.
-The other Census reports are placeholders.
+**Bed Board** shows one facility's wings, rooms and beds today, with who is in
+each bed, from `facility_beds` and `bed_assignments`. **Monthly Census Trending**
+shows census days by calendar month, with the highest and lowest month, from
+`census_days` on `monthly_payer_census_facts`.
 
 Measured response times on the full dataset, 30-day and 1-year ranges:
 

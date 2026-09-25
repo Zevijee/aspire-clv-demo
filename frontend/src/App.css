@@ -1469,10 +1469,13 @@ h1 {
 
 /* Text cells stop at a fixed width with an ellipsis; the whole value shows on
    hover. Buttons inside, such as drill-down names, are cut the same way. */
+/* Clipped sideways only: clipping all round also cut off the hover underline
+   on drill-down links, which sits just below the text. */
 .report-table__cell-text {
   display: inline-block;
   max-width: 10rem;
-  overflow: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
   text-overflow: ellipsis;
   vertical-align: bottom;
   white-space: nowrap;
@@ -1480,8 +1483,14 @@ h1 {
 
 .report-table__cell-text > button {
   max-width: 100%;
-  overflow: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A column that opts out of truncation keeps its whole text on one line. */
+.report-table__cell-whole {
   white-space: nowrap;
 }
 
@@ -3389,4 +3398,341 @@ h1 {
   gap: var(--space-4);
   padding-right: var(--space-8);
   flex-wrap: wrap;
+}
+
+/* Bed Board: one facility, wing by wing. Each room is its number tile and up
+   to two bed cards; rooms flow three to a row on wide screens. */
+.bed-board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-report-section-gap);
+}
+
+.bed-board__summary {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+}
+
+.bed-board__totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  margin: 0;
+}
+
+.bed-board__totals > div {
+  align-items: baseline;
+  display: flex;
+  flex-direction: row-reverse;
+  gap: var(--space-1);
+}
+
+.bed-board__totals dt {
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+}
+
+.bed-board__totals dd {
+  color: var(--color-text);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.bed-board__total--open dd {
+  color: var(--color-bed-open-text);
+}
+
+.bed-board__as-of {
+  color: var(--color-text-subtle);
+  font-size: 0.875rem;
+}
+
+.bed-board__legend {
+  color: var(--color-text-muted);
+  display: flex;
+  font-size: 0.8125rem;
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0 0 0 auto;
+  padding: 0;
+}
+
+.bed-board__legend li {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+.bed-board__swatch {
+  border-radius: 50%;
+  display: inline-block;
+  height: 10px;
+  width: 10px;
+}
+
+.bed-board__swatch--male { background: var(--color-bed-male); }
+.bed-board__swatch--female { background: var(--color-bed-female); }
+.bed-board__swatch--open {
+  border: 1.5px dashed var(--color-bed-open);
+  border-radius: 2px;
+}
+
+.bed-board__waiting {
+  background: var(--color-warning-subtle);
+  border-radius: 6px;
+  color: var(--color-warning);
+  font-size: 0.8125rem;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+}
+
+.bed-board__wing {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-report-card);
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.bed-board__wing-header {
+  align-items: center;
+  border-bottom: 1px solid var(--color-border-subtle);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+  padding: var(--space-4) 0 var(--space-3);
+}
+
+.bed-board__wing-header h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.bed-board__wing-header > span {
+  align-items: center;
+  color: var(--color-text-subtle);
+  display: flex;
+  font-size: 0.8125rem;
+  gap: 6px;
+}
+
+.bed-board__open-count {
+  background: var(--color-bed-open-subtle);
+  border-radius: 999px;
+  color: var(--color-bed-open-text);
+  font-weight: 600;
+  padding: 1px var(--space-2);
+}
+
+.bed-board__rooms {
+  display: grid;
+  gap: var(--space-2) 0;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+  /* Pulled out by the rooms' padding so the first column lines up with the
+     wing title; clipping hides that column's rule. */
+  margin-inline: calc(-1 * var(--space-3));
+  overflow: hidden;
+}
+
+/* Columns are divided by a rule down their left edge, as on a printed board.
+   Shifted 1px left so the first column's rule falls outside the grid and is
+   clipped. */
+.bed-board__room {
+  border-left: 1px solid var(--color-border-subtle);
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1fr);
+  margin-left: -1px;
+  padding: 0 var(--space-3);
+}
+
+.bed-board__room-number {
+  align-items: center;
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 44px;
+}
+
+.bed-board__room-number strong {
+  font-size: 0.875rem;
+  line-height: 1.2;
+}
+
+.bed-board__room-number span {
+  color: var(--color-text-subtle);
+  font-size: 0.625rem;
+}
+
+.bed-card {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--color-text);
+  display: flex;
+  font: inherit;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 0;
+  padding: 4px var(--space-2);
+  text-align: left;
+}
+
+button.bed-card {
+  cursor: pointer;
+}
+
+button.bed-card:hover {
+  border-color: var(--color-border-strong);
+}
+
+button.bed-card:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.bed-card--male {
+  background: var(--color-bed-male-subtle);
+  border-color: var(--color-bed-male-border);
+}
+
+.bed-card--female {
+  background: var(--color-bed-female-subtle);
+  border-color: var(--color-bed-female-border);
+}
+
+.bed-card--open {
+  background: var(--color-bed-open-subtle);
+  border: 1.5px dashed var(--color-bed-open);
+  color: var(--color-bed-open-text);
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+}
+
+.bed-card--open strong {
+  font-size: 0.75rem;
+}
+
+.bed-card__bed {
+  align-self: flex-start;
+  color: var(--color-text-subtle);
+  font-size: 0.625rem;
+  font-weight: 600;
+}
+
+.bed-card--open .bed-card__bed {
+  align-self: center;
+}
+
+.bed-card__who {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bed-card__who strong,
+.bed-card__who span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bed-card__who strong {
+  font-size: 0.75rem;
+}
+
+.bed-card__who span {
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+}
+
+.bed-card__marks {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.bed-card__gender {
+  align-items: center;
+  border-radius: 50%;
+  color: var(--color-surface);
+  display: flex;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  height: 16px;
+  justify-content: center;
+  width: 16px;
+}
+
+.bed-card--male .bed-card__gender { background: var(--color-bed-male); }
+.bed-card--female .bed-card__gender { background: var(--color-bed-female); }
+
+.bed-card__tag {
+  color: var(--color-text-muted);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* A single choice names the thing shown, so it is never cut short. */
+.filter-select .filter-dropdown__trigger {
+  max-width: none;
+}
+
+.filter-select .filter-dropdown__trigger > span {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.filter-select__option {
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--color-text);
+  cursor: pointer;
+  display: block;
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 6px var(--space-2);
+  text-align: left;
+  width: 100%;
+}
+
+.filter-select__option:hover {
+  background: var(--color-surface-hover);
+}
+
+.filter-select__option--selected {
+  background: var(--color-primary-subtle);
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .bed-board__legend {
+    margin-left: 0;
+  }
+
+  .bed-board__rooms {
+    margin-inline: 0;
+  }
+
+  .bed-board__room {
+    border-left: 0;
+    grid-template-columns: 48px minmax(0, 1fr) minmax(0, 1fr);
+    margin-left: 0;
+    padding: 0;
+  }
 }

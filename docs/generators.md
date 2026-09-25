@@ -45,7 +45,7 @@ From `sandbox-data`:
 | `python manage.py discharges_summary --regenerate` | Rebuild discharge facts. |
 | `python manage.py payer_changes_summary --regenerate` | Rebuild payer change facts. |
 | `python manage.py net_change_summary --regenerate` | Rebuild the daily payer census. ~8 min. |
-| `python manage.py monthly_adt_summary --regenerate` | Rebuild the monthly rollup. ~6 s. |
+| `python manage.py monthly_adt_summary --regenerate` | Rebuild the monthly rollup, census days included. ~13 s. |
 | `python manage.py admission_logs --regenerate` | Rebuild admission logs from saved stays. |
 | `python manage.py discharge_logs --regenerate` | Rebuild discharge logs from saved stays. |
 | `python manage.py payer_change_logs --regenerate` | Flatten payer changes from saved periods. |
@@ -53,6 +53,8 @@ From `sandbox-data`:
 | `python manage.py payer_rates --regenerate` | Rebuild the daily rate per facility and payer plan. ~3 s. |
 | `python manage.py census_logs --regenerate` | Rebuild who was in a bed, at what care level and rate, for all history. ~1 min. |
 | `python manage.py resident_summaries --regenerate` | Rebuild every resident's totals across their stays. ~3 s. |
+| `python manage.py facility_beds --regenerate` | Rebuild each facility's wings, rooms and beds from its bed count. ~2 s. Follow with `bed_assignments`. |
+| `python manage.py bed_assignments --regenerate` | Replay every stay into a bed, keeping semi-private rooms single-gender where possible. ~36 s. |
 | `python manage.py referrals_summary --regenerate` | Roll the daily facts up into referral months. ~1 s. |
 
 `res_stays` as a standalone command deliberately fails: fixed-window stay generation
