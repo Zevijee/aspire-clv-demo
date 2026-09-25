@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { NetChangePayerFilter } from './NetChangePayerFilter'
 import { FullScreenModal } from '../../../shared/components/FullScreenModal'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { trendBlockSize, groupTrendPeriods } from '../../../shared/utils/trendPeriods'
@@ -39,7 +40,7 @@ export function NetChangeDailyTrend({ daily, startDate, endDate, hasPayers,
     <FullScreenModal open={showTable} onClose={() => setShowTable(false)} destroyOnHidden
       title={`Net change by day: ${startDate} to ${endDate}`}>
       <div className="net-change-daily-modal__table">
-        <NetChangeDayOverDay rows={rows} hasPayers={hasPayers} startDate={startDate}
+        <NetChangeDayOverDay filters={<NetChangePayerFilter />} rows={rows} hasPayers={hasPayers} startDate={startDate}
           endDate={endDate} loading={loading} error={error} onRetry={onRetry} />
       </div>
     </FullScreenModal>

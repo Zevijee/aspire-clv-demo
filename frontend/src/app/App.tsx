@@ -28,7 +28,9 @@ import type { OverviewSelection } from '../features/adt/utils/admissionsOverview
 import { DischargesFilters } from '../features/adt/components/DischargesFilters'
 import type { DischargeSelection } from '../features/adt/components/DischargesOverview'
 import { ReportFilters } from '../shared/components/filters/ReportFilters'
-import { FilterDropdown } from '../shared/components/filters/FilterDropdown'
+import { CensusPayerFilter } from '../features/census/components/CensusPayerFilter'
+import { MonthlyAdtFilters } from '../features/adt/components/MonthlyAdtFilters'
+import { AdmissionSourceFilter, DischargeDestinationFilter } from '../features/adt/components/SourceDestinationFilters'
 import { ReportLayout } from '../shared/components/layout/ReportLayout'
 import type { AnalyticsModule } from '../shared/types/report'
 import {
@@ -301,8 +303,7 @@ function App() {
                 payers.forEach(payer => next.append('logs_payer_type', payer))
                 setSearchParams(next)
               }} />}
-            {isAdmissionsReport && <FilterDropdown label="Source type" placeholder="All sources"
-              options={['Hospital', 'Skilled Nursing', 'Home', 'Rehab Facility', 'Assisted Living', 'Community'].map(value => ({ value, label: value }))}
+            {isAdmissionsReport && <AdmissionSourceFilter
               values={activeAdmissionsTab === 'logs' ? searchParams.getAll('logs_source-type') : overviewSelection.sources}
               onChange={sources => {
                 if (activeAdmissionsTab !== 'logs') {
@@ -314,8 +315,7 @@ function App() {
                 sources.forEach(source => next.append('logs_source-type', source))
                 setSearchParams(next)
               }} />}
-            {isDischargesReport && <FilterDropdown label="Destination type" placeholder="All destinations"
-              options={['Hospital', 'Skilled Nursing', 'Home', 'Rehab Facility', 'Assisted Living', 'Hospice', 'Funeral Home'].map(value => ({ value, label: value }))}
+            {isDischargesReport && <DischargeDestinationFilter
               values={activeDischargesTab === 'logs' ? searchParams.getAll('logs_destination_type') : dischargeSelection.destinations}
               onChange={destinations => {
                 if (activeDischargesTab !== 'logs') {
@@ -329,21 +329,8 @@ function App() {
               }} />}
             {currentReport.path === '/adt/net-change' && <NetChangePayerFilter />}
             {/* Overview only: the Residents tab filters payers in its own table. */}
-            {currentReport.path === '/census/daily-census' && activeLiveCensusTab === 'overview' && <AdmissionsPayerFilter
-              values={searchParams.getAll('live_payer')}
-              onChange={payers => {
-                const next = new URLSearchParams(searchParams)
-                next.delete('live_payer')
-                payers.forEach(payer => next.append('live_payer', payer))
-                setSearchParams(next)
-              }} />}
-            {currentReport.path === '/census/trending' && <AdmissionsPayerFilter values={searchParams.getAll('trending_payer')}
-              onChange={payers => {
-                const next = new URLSearchParams(searchParams)
-                next.delete('trending_payer')
-                payers.forEach(payer => next.append('trending_payer', payer))
-                setSearchParams(next)
-              }} />}
+            {currentReport.path === '/census/daily-census' && activeLiveCensusTab === 'overview' && <CensusPayerFilter param="live_payer" />}
+            {currentReport.path === '/census/trending' && <CensusPayerFilter param="trending_payer" />}
             {currentReport.path === '/adt/referring-hospital' && <AdmissionsPayerFilter values={searchParams.getAll('referring_payer')}
               onChange={payers => {
                 const next = new URLSearchParams(searchParams)
@@ -351,28 +338,7 @@ function App() {
                 payers.forEach(payer => next.append('referring_payer', payer))
                 setSearchParams(next)
               }} />}
-            {isMonthlyAdtReport && <PayerFilter values={searchParams.getAll('monthly_payer')}
-              onChange={payers => {
-                const next = new URLSearchParams(searchParams)
-                next.delete('monthly_payer')
-                payers.forEach(payer => next.append('monthly_payer', payer))
-                setSearchParams(next)
-              }} />}
-            {/* Only the admissions and discharges views have a source or destination.
-                Net change reads census, which is a level and does not divide by
-                where a resident came from or went to. */}
-            {isMonthlyAdtReport && monthlyTab in monthlyFilter && (() => {
-              const filter = monthlyFilter[monthlyTab as keyof typeof monthlyFilter]
-              return <FilterDropdown label={filter.label} placeholder={filter.placeholder}
-                options={filter.options.map(value => ({ value, label: value }))}
-                values={searchParams.getAll(filter.search)}
-                onChange={values => {
-                  const next = new URLSearchParams(searchParams)
-                  next.delete(filter.search)
-                  values.forEach(value => next.append(filter.search, value))
-                  setSearchParams(next)
-                }} />
-            })()}
+            {isMonthlyAdtReport && <MonthlyAdtFilters activeTab={monthlyTab} />}
             {isMonthlyAdtReport ? <ReportMonthRangeFilter /> : currentReport.path !== '/adt/referring-hospital' && currentReport.path !== '/census/daily-census'
               && currentReport.path !== '/census/residents' ? <ReportDateRangeFilter /> : null}
           </ReportFilters>

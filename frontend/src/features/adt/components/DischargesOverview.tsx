@@ -1,4 +1,6 @@
 import dayjs from 'dayjs'
+import { DischargeDestinationFilter } from './SourceDestinationFilters'
+import { PayerFilter } from './PayerFilter'
 import { useReportSearchParams as useSearchParams } from '../../../shared/components/ReportSearchContext'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { DataState } from '../../../shared/components/DataState'
@@ -159,6 +161,8 @@ export function DischargesOverview({ selection, onChange }: {
       csvFileName={`discharges-${level}-${startDate}-to-${endDate}.csv`}
       emptyMessage="No locations match this view." />
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      filters={<><PayerFilter displayValues values={selection.payers} onChange={setPayers} />
+        <DischargeDestinationFilter values={destinations} onChange={setDestinations} /></>}
       title={`All facilities · discharges, ${startDate} to ${endDate}`}
       subtitle="Every facility in the selection, with the same filters, compared with the preceding period of equal length."
       rows={facilityRows} columns={columns.slice(1)} getRowKey={row => row.id} getName={row => row.name}

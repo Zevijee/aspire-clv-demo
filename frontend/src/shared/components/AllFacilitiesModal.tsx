@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { FullScreenModal } from './FullScreenModal'
 import { Table, type TableColumn } from './Table'
 import { LocationName } from './LocationName'
@@ -18,13 +19,15 @@ type AllFacilitiesModalProps<Row> = {
   error?: string | null
   onRetry?: () => void
   csvFileName: string
+  /** The report's own filters, repeated here because the modal covers them. */
+  filters?: ReactNode
 }
 
 /** Every facility at once, whatever level a drilldown is showing: one row per
  * facility, with the hierarchy as header filters and no total row. Every
  * drilldown opens this from its Show all facilities button. */
 export function AllFacilitiesModal<Row>({ open, onClose, title, subtitle, rows, columns, getRowKey,
-  getName, getPath, loading, error, onRetry, csvFileName }: AllFacilitiesModalProps<Row>) {
+  getName, getPath, loading, error, onRetry, csvFileName, filters }: AllFacilitiesModalProps<Row>) {
   const tableColumns: TableColumn<Row>[] = [
     { id: 'facility', header: 'Facility', isRowHeader: true, value: getName,
       format: (_, row) => { const [state, portfolio, region] = getPath(row)
@@ -38,7 +41,7 @@ export function AllFacilitiesModal<Row>({ open, onClose, title, subtitle, rows, 
     <div className="net-change-daily-modal__table">
       <Table<Row> title="Facilities" subtitle={subtitle} columns={tableColumns} rows={rows}
         getRowKey={getRowKey} initialSort={{ columnId: 'facility', direction: 'ascending' }}
-        internalScroll searchable stickyFirstColumn
+        internalScroll searchable stickyFirstColumn filters={filters}
         loading={loading} error={error} onRetry={onRetry}
         emptyMessage="No facilities match these filters." csvFileName={csvFileName} />
     </div>

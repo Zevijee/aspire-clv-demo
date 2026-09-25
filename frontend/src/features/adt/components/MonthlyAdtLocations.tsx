@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { MonthlyAdtFilters } from './MonthlyAdtFilters'
 import dayjs from 'dayjs'
 import { useSearchParams } from 'react-router-dom'
 import type { TableColumn } from '../../../shared/components/Table'
@@ -117,6 +118,7 @@ export function MonthlyAdtLocations({ activeTab, startDate, endDate, path, setPa
       emptyMessage="No locations match the selected range and payers."
       csvFileName={`monthly-${activeTab}-locations-${startDate}-to-${endDate}.csv`} />
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      filters={<MonthlyAdtFilters activeTab={activeTab} />}
       title={`All facilities · ${label.toLowerCase()} by month, ${dayjs(startDate).format('MMM YYYY')} to ${dayjs(endDate).format('MMM YYYY')}`}
       subtitle="Monthly averages and highest and lowest months, per facility."
       rows={[...facilityRows.values()]} columns={columns.slice(1)} getRowKey={row => row.key}

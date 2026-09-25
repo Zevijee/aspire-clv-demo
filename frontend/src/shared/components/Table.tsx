@@ -84,6 +84,10 @@ export type TableProps<Row> = DataStateProps & {
   initialFilters?: Record<string, string[]>
   clearableFilters?: boolean
   headerActions?: ReactNode
+  /** The report's own filters -- Payers, Source type -- repeated in a table that
+   * covers the report, such as one in a full-screen modal. Before the location
+   * dropdowns and the search box. */
+  filters?: ReactNode
   onClearFilters?: () => void
   csvFileName?: string
   showExport?: boolean
@@ -346,6 +350,7 @@ export function Table<Row>({
   initialFilters,
   clearableFilters = false,
   headerActions,
+  filters,
   onClearFilters,
   csvFileName,
   showExport = true,
@@ -720,7 +725,7 @@ export function Table<Row>({
             </span>
           </p>}
         </div>
-        {searchable || canClearFilters || headerActions || headerFilters.length ? (
+        {searchable || canClearFilters || headerActions || filters || headerFilters.length ? (
           <div className="report-table__header-actions">
             {/* Leftmost, ahead of the dropdown filters it clears. */}
             {canClearFilters && (
@@ -735,6 +740,7 @@ export function Table<Row>({
                 onClearFilters?.()
               }}>Clear filters</button>
             )}
+            {filters}
             {headerFilters}
             {searchable && <label className="report-table__search">
 

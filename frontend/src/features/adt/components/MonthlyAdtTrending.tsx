@@ -1,4 +1,5 @@
 import dayjs from 'dayjs'
+import { MonthlyAdtFilters } from './MonthlyAdtFilters'
 import { useState } from 'react'
 import { FullScreenModal } from '../../../shared/components/FullScreenModal'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
@@ -90,7 +91,7 @@ export function MonthlyAdtTrending({ activeTab }: { activeTab: string }) {
     <FullScreenModal open={showTable} onClose={() => setShowTable(false)} destroyOnHidden
       title={`Monthly ${tableLabel.toLowerCase()}: ${start.format('MMM YYYY')} to ${end.format('MMM YYYY')}`}>
       <div className="net-change-daily-modal__table">
-        <Table key={activeTab} title={`Monthly ${tableLabel.toLowerCase()}`}
+        <Table key={activeTab} filters={<MonthlyAdtFilters activeTab={activeTab} />} title={`Monthly ${tableLabel.toLowerCase()}`}
           subtitle={`Monthly totals for the selected locations and payers.${filterValues.length ? ` ${filter.label} ${filterValues.join(', ')}.` : ''}`}
           columns={tableColumns} rows={rows} getRowKey={row => row.date}
           loading={daily.loading} error={daily.error} onRetry={daily.onRetry}

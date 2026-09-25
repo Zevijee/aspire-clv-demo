@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import type { DailyChangeItem } from '../../../shared/components/charts/DailyChangeChart'
 
@@ -11,7 +12,9 @@ const dateFormat = new Intl.DateTimeFormat('en-US', {
 })
 
 export function NetChangeDayOverDay({ rows, hasPayers, startDate, endDate,
-    loading, error, onRetry }: {
+    loading, error, onRetry, filters }: {
+  /** The report's payer filter, shown here because this table opens in a modal. */
+  filters?: ReactNode
   rows: DailyMovement[]
   hasPayers: boolean
   startDate: string
@@ -40,7 +43,7 @@ export function NetChangeDayOverDay({ rows, hasPayers, startDate, endDate,
       format: value => typeof value === 'number' ? value.toLocaleString() : value,
     })),
   ]
-  return <Table title="Day over day"
+  return <Table filters={filters} title="Day over day"
     subtitle="Daily census and resident movement for the selected locations and payers."
     columns={columns} rows={rows} getRowKey={row => row.date}
     loading={loading} error={error} onRetry={onRetry}

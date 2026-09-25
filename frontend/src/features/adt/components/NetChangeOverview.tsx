@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { NetChangePayerFilter } from './NetChangePayerFilter'
 import { useReportSearchParams as useSearchParams } from '../../../shared/components/ReportSearchContext'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { DrilldownNavigation, type DrilldownBreadcrumb } from '../../../shared/components/DrilldownNavigation'
@@ -147,6 +148,7 @@ export function NetChangeOverview() {
       csvFileName={`net-change-${level}-${startDate}-to-${endDate}.csv`}
       emptyMessage="No locations match this view." />
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      filters={<NetChangePayerFilter />}
       title={`All facilities · net change, ${startDate} to ${endDate}`}
       subtitle="Every facility in the selection, with the same payer filter. Net change is close census minus open census."
       rows={allCurrent.data?.locations ?? []} columns={columns.slice(1)} getRowKey={row => row.id}

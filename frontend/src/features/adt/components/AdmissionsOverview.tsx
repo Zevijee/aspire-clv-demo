@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { AdmissionSourceFilter } from './SourceDestinationFilters'
+import { AdmissionsPayerFilter } from './AdmissionsPayerFilter'
 import dayjs from 'dayjs'
 import { Modal } from 'antd'
 import { useReportSearchParams as useSearchParams } from '../../../shared/components/ReportSearchContext'
@@ -174,6 +176,8 @@ export function AdmissionsOverview({ selection, onChangeSelection }: {
       headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} />}
       csvFileName={`admissions-${level}-${startDate}-to-${endDate}.csv`} emptyMessage="No locations match this view." />
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      filters={<><AdmissionsPayerFilter values={selection.payers} onChange={setPayers} />
+        <AdmissionSourceFilter values={sources} onChange={setSources} /></>}
       title={`All facilities · admissions, ${startDate} to ${endDate}`}
       subtitle="Every facility in the selection, with the same filters. Counts open the matching admissions in Logs."
       rows={facilityRows} columns={columns.slice(1)} getRowKey={row => row.id} getName={row => row.name}

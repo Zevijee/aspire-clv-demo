@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { CensusPayerFilter } from './CensusPayerFilter'
 import { DrilldownTable } from '../../../shared/components/DrilldownTable'
 import { DrilldownNavigation } from '../../../shared/components/DrilldownNavigation'
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
@@ -165,7 +166,7 @@ export function CensusTrending() {
     <FullScreenModal open={showTrendTable} onClose={() => setShowTrendTable(false)} destroyOnHidden
       title={`Daily Census Trending · ${scopeName}, ${startDate} to ${endDate}`}>
       <div className="net-change-daily-modal__table">
-        <Table<TrendRow> title="Daily Census Trending" subtitle="Each day's census, occupancy, and net change from its open to its close."
+        <Table<TrendRow> filters={<CensusPayerFilter param="trending_payer" />} title="Daily Census Trending" subtitle="Each day's census, occupancy, and net change from its open to its close."
           columns={trendColumns} rows={trendRows} getRowKey={row => row.date}
           initialSort={{ columnId: 'date', direction: 'ascending' }} internalScroll stickyFirstColumn
           loading={!error && (!data || currentTrend === null)} error={error ?? currentTrend?.error}
@@ -174,6 +175,7 @@ export function CensusTrending() {
       </div>
     </FullScreenModal>
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      filters={<CensusPayerFilter param="trending_payer" />}
       title={`All facilities · ${startDate} to ${endDate}`} subtitle={subtitle}
       rows={facilityRows} columns={columns.slice(1)} getRowKey={row => row.key} getName={row => row.name}
       getPath={row => [row.path[0], row.path[1], row.path[2]]}

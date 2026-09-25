@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { CensusPayerFilter } from './CensusPayerFilter'
 import { DrilldownTable } from '../../../shared/components/DrilldownTable'
 import { DrilldownNavigation } from '../../../shared/components/DrilldownNavigation'
 import type { TableColumn } from '../../../shared/components/Table'
@@ -185,6 +186,7 @@ export function LiveCensus() {
     + `Skilled covers Medicare, managed Medicare and VA.${stale}${incomplete}` : ''
 
   const facilitiesModal = <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+    filters={<CensusPayerFilter param="live_payer" />}
     title={data ? `All facilities · census as of ${data.census_date}` : 'All facilities'} subtitle={subtitle}
     rows={facilityRows} columns={columns.slice(1)} getRowKey={row => row.key} getName={row => row.name}
     getPath={row => [row.path[0], row.path[1], row.path[2]]}
