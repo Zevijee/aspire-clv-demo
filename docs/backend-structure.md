@@ -83,9 +83,11 @@ All under `/api/v1`.
 | `GET /adt/net-change/monthly-locations` | Per-facility monthly totals |
 | `GET /adt/net-change/logs` + `/filter-options` + `/export` | Admissions, discharges and payer changes as one list |
 | `GET /adt/referring-hospital/performance` | Referral volume per hospital over 36 complete months |
+| `GET /census/trending/daily` | Closing census each day of a range, over given `facility_ids` or all, optionally narrowed by `payer_types`. 16 ms for 30 days, 60 ms for a year |
+| `GET /census/trending` | Per-facility census days, open and close census over a date range, optionally narrowed by `payer_types`. 19 ms for 30 days, 67 ms for a year |
 | `GET /census/resident-summaries` + `/filter-options` + `/export` | Every resident ever admitted: days, stays, admissions, discharges, current, payers. 35-175 ms |
 | `GET /census/residents` + `/filter-options` + `/export` | Everyone in a bed on the census day, from census_logs, with care level and the day's rate |
-| `GET /census/live` | Per-facility census, skilled census, payer mix and summed daily rates, with last month's average daily census and a history lookback from yesterday to a year ago. ~200 ms |
+| `GET /census/live` | Per-facility census, skilled census, payer mix and summed daily rates; `payer_types` narrows census and its averages, not the payer mix, rates or empty beds; with last month's average daily census and a history lookback from yesterday to a year ago. ~200 ms |
 
 Every overview reads a fact table and nothing else. Every logs endpoint reads source
 rows, because a log lists named residents and a fact table has no resident in it.

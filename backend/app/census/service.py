@@ -13,7 +13,7 @@ average exactly. Parent scopes are never stored.
 from calendar import monthrange
 from datetime import date, timedelta
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, true
 from sqlalchemy.engine import Connection
 
 from shared.database.schema import (
@@ -50,7 +50,11 @@ def _previous_month(day):
     return end.replace(day=1), end
 
 
-def live(connection: Connection, today: date):
+def live(connection: Connection, today: date, payer_types: list[str] | None = None):
+    """payer_types narrows census, skilled census, averages and history to those
+    payers. The payer mix and rates are that filter's own facets, so they keep
+    every payer; all_census stays unfiltered, because a bed held by another
+    payer's resident is not empty."""
     first, last, generated_at = connection.execute(select(
         func.min(daily_runs.c.simulation_date), func.max(daily_runs.c.simulation_date),
         func.max(daily_runs.c.completed_at)).where(daily_runs.c.generator == GENERATOR)).one()
@@ -91,14 +95,16 @@ def live(connection: Connection, today: date):
     # One scan of the trailing year answers everything: last month and every
     # lookback day fall inside it. Measured: 205ms as three separate reads.
     year_rows = facts.c.summary_date.between(year_start, year_end)
+    chosen = facts.c.payer_type.in_(payer_types) if payer_types else true()
     totals = {row['facility_id']: row for row in connection.execute(select(
         facts.c.facility_id,
-        func.coalesce(func.sum(closing).filter(today_rows), 0).label('census'),
-        func.coalesce(func.sum(closing).filter(and_(today_rows, skilled)), 0).label('skilled_census'),
-        func.coalesce(func.sum(closing).filter(month_rows), 0).label('month_census_days'),
-        func.coalesce(func.sum(closing).filter(and_(month_rows, skilled)), 0).label('month_skilled_days'),
-        func.coalesce(func.sum(closing).filter(year_rows), 0).label('year_census_days'),
-        *(func.coalesce(func.sum(closing).filter(facts.c.summary_date == entry['date']), 0)
+        func.coalesce(func.sum(closing).filter(today_rows), 0).label('all_census'),
+        func.coalesce(func.sum(closing).filter(and_(today_rows, chosen)), 0).label('census'),
+        func.coalesce(func.sum(closing).filter(and_(today_rows, skilled, chosen)), 0).label('skilled_census'),
+        func.coalesce(func.sum(closing).filter(and_(month_rows, chosen)), 0).label('month_census_days'),
+        func.coalesce(func.sum(closing).filter(and_(month_rows, skilled, chosen)), 0).label('month_skilled_days'),
+        func.coalesce(func.sum(closing).filter(and_(year_rows, chosen)), 0).label('year_census_days'),
+        *(func.coalesce(func.sum(closing).filter(and_(facts.c.summary_date == entry['date'], chosen)), 0)
             .label(f"history_{entry['key']}") for entry in lookback))
         .where(facts.c.summary_date.between(min(year_start, month_start), census_date))
         .group_by(facts.c.facility_id)).mappings()}
@@ -136,7 +142,8 @@ def live(connection: Connection, today: date):
             facility_id=location['facility_id'], facility_name=location['facility_name'],
             state=location['state'], portfolio=location['portfolio_name'],
             region=location['region_name'], capacity=location['beds'],
-            census=row.get('census', 0), skilled_census=row.get('skilled_census', 0),
+            census=row.get('census', 0), all_census=row.get('all_census', 0),
+            skilled_census=row.get('skilled_census', 0),
             payer_census=payer_census.get(location['facility_id'], {}),
             payer_daily_rates=daily_rates.get(location['facility_id'], {}),
             # A day never generated reads as null rather than zero.

@@ -4,6 +4,10 @@ import { useReportSearchParams as useSearchParams } from '../../../shared/compon
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { DataState } from '../../../shared/components/DataState'
 import { DrilldownNavigation, type DrilldownBreadcrumb } from '../../../shared/components/DrilldownNavigation'
+import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
+import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
+import { OpenViewButton } from '../../../shared/components/OpenViewButton'
+import { locationPlace } from '../utils/locationPlace'
 import { DonutChart } from '../../../shared/components/charts/DonutChart'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import { useAdmissionsReferences } from '../hooks/useAdmissionsOverview'
@@ -43,17 +47,28 @@ export function PayerChangesOverview() {
     ? payerChangeParameters(selection, references.data, level).toString() : null
   const current = usePayerChangesOverview(startDate, endDate, parameters)
   const previous = usePayerChangesOverview(priorStart, priorEnd, parameters)
+  // Show all facilities: the same report at facility grain, fetched only while
+  // open. The drilldown does not apply.
+  const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
+  const allParameters = showFacilities && references.data
+    ? payerChangeParameters({ ...selection, scope: null }, references.data, 'facility').toString() : null
+  const allCurrent = usePayerChangesOverview(startDate, endDate, allParameters)
+  const allPrevious = usePayerChangesOverview(priorStart, priorEnd, allParameters)
   const status = {
     loading: references.loading || current.loading,
     error: references.error ?? current.error,
     onRetry: references.error ? references.onRetry : current.onRetry,
   }
 
-  const priorRows = new Map(previous.data?.locations.map(row => [row.id, row.changes]))
-  const rows: Row[] = (current.data?.locations ?? []).map(row => {
-    const prior = previous.data ? priorRows.get(row.id) ?? 0 : null
-    return { ...row, prior, change: prior === null ? null : row.changes - prior }
-  })
+  const withPrior = (locations: PayerChangeLocation[], priorLocations: PayerChangeLocation[] | undefined): Row[] => {
+    const priorRows = new Map(priorLocations?.map(row => [row.id, row.changes]))
+    return locations.map(row => {
+      const prior = priorLocations ? priorRows.get(row.id) ?? 0 : null
+      return { ...row, prior, change: prior === null ? null : row.changes - prior }
+    })
+  }
+  const rows = withPrior(current.data?.locations ?? [], previous.data?.locations)
+  const facilityRows = withPrior(allCurrent.data?.locations ?? [], allPrevious.data?.locations)
 
   function setPath(next: string[]) {
     const params2 = new URLSearchParams(params)
@@ -117,8 +132,17 @@ export function PayerChangesOverview() {
       getFooterRow={total} initialSort={{ columnId: 'total', direction: 'descending' }}
       title={`${level[0].toUpperCase() + level.slice(1)} payer changes`}
       subtitle="Payer-type changes by effective date; residents counted once per facility. Compared with the preceding period of equal length. Plan-only changes are available in Logs."
+      headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} />}
       csvFileName={`payer-changes-${level}-${startDate}-to-${endDate}.csv`}
       emptyMessage="No locations match this view." />
+    <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      title={`All facilities · payer changes, ${startDate} to ${endDate}`}
+      subtitle="Every facility, compared with the preceding period of equal length. Payer-type changes by effective date."
+      rows={facilityRows} columns={columns.slice(1)} getRowKey={row => row.id} getName={row => row.name}
+      getPath={row => locationPlace(row.path)}
+      loading={references.loading || allCurrent.loading} error={references.error ?? allCurrent.error}
+      onRetry={allCurrent.onRetry}
+      csvFileName={`payer-changes-facilities-${startDate}-to-${endDate}.csv`} />
     <div className="report-chart-grid report-chart-grid--three-columns">
       {/* Grouped by where residents landed, not where they left. Only a few
           payer types are ever a destination, so the other direction leaves most

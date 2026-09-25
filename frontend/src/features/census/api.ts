@@ -11,6 +11,8 @@ export type FacilityCensus = {
   region: string
   capacity: number
   census: number
+  // Every resident, whatever payers are selected: empty beds come from this.
+  all_census: number
   skilled_census: number
   // Census by payer type; types with no residents are omitted.
   payer_census: Record<string, number>
@@ -39,8 +41,11 @@ export type LiveCensusReport = {
   data_status: { available_from: string | null; available_through: string | null; generated_at: string | null }
 }
 
-export function getLiveCensus(signal?: AbortSignal) {
-  return readJson<LiveCensusReport>(`${base}/api/v1/census/live`, signal)
+/** Payer types narrow census and its averages; the payer mix and rates keep every payer. */
+export function getLiveCensus(payers: string[], signal?: AbortSignal) {
+  const params = new URLSearchParams()
+  payers.forEach(payer => params.append('payer_types', payer))
+  return readJson<LiveCensusReport>(`${base}/api/v1/census/live?${params}`, signal)
 }
 
 export const censusBase = `${base}/api/v1/census`
@@ -145,4 +150,45 @@ export async function downloadResidentSummaries(query: CensusResidentsQuery) {
   anchor.click()
   anchor.remove()
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+export type FacilityTrend = {
+  facility_id: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  capacity: number
+  // Every day's closing census, summed over the range.
+  census_days: number
+  opening_census: number
+  closing_census: number
+}
+
+export type CensusTrendingReport = {
+  range: { start: string; end: string; days: number }
+  items: FacilityTrend[]
+}
+
+function trendingParameters(startDate: string, endDate: string, payers: string[]) {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate })
+  payers.forEach(payer => params.append('payer_types', payer))
+  return params
+}
+
+export function getCensusTrending(startDate: string, endDate: string, payers: string[], signal?: AbortSignal) {
+  return readJson<CensusTrendingReport>(`${censusBase}/trending?${trendingParameters(startDate, endDate, payers)}`, signal)
+}
+
+export type CensusDailyTrend = {
+  range: { start: string; end: string; days: number }
+  days: { date: string; census: number; opening_census: number }[]
+}
+
+/** Closing census each day, over the given facilities, or all when none are given. */
+export function getCensusTrendingDaily(startDate: string, endDate: string, payers: string[],
+    facilityIds: string[], signal?: AbortSignal) {
+  const params = trendingParameters(startDate, endDate, payers)
+  facilityIds.forEach(id => params.append('facility_ids', id))
+  return readJson<CensusDailyTrend>(`${censusBase}/trending/daily?${params}`, signal)
 }

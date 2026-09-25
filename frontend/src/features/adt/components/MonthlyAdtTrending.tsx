@@ -1,6 +1,7 @@
 import dayjs from 'dayjs'
 import { useState } from 'react'
 import { FullScreenModal } from '../../../shared/components/FullScreenModal'
+import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { useSearchParams } from 'react-router-dom'
 import { getReportMonthRange } from '../../../shared/components/filters/ReportMonthRangeFilter'
@@ -72,7 +73,7 @@ export function MonthlyAdtTrending({ activeTab }: { activeTab: string }) {
       path={path} setPath={setPath} />
     {activeTab === 'net-change' && <DailyChangeChart title="Monthly net change"
       onSelect={item => setAdmissionsMonth({ start: item.date, end: item.end_date ?? item.date, path, payers: params.getAll('monthly_payer'), report: 'net-change' })}
-      headerActions={<button type="button" className="report-table__export" onClick={() => setShowTable(true)}>See in table view</button>}
+      headerActions={<OpenViewButton kind="table" label="See in table view" onClick={() => setShowTable(true)} />}
       subtitle={`Close census compared with open census each month.${end.isSame(dayjs(), 'month') ? ' Current month is month to date.' : ''}`}
       items={rows} interval="month" height={400}
       loading={daily.loading} error={daily.error} onRetry={daily.onRetry} />}
@@ -81,7 +82,7 @@ export function MonthlyAdtTrending({ activeTab }: { activeTab: string }) {
     { key: 'discharges', title: 'Monthly discharges', label: 'Discharges', signed: false, color: 'var(--color-table-change-adverse)' },
   ] as const).filter(metric => metric.key === activeTab).map(metric => <LineChart key={metric.key} title={metric.title}
     onSelect={item => setAdmissionsMonth({ start: item.date, end: item.end_date ?? item.date, path, payers: params.getAll('monthly_payer'), report: metric.key })}
-    headerActions={<button type="button" className="report-table__export" onClick={() => setShowTable(true)}>See in table view</button>}
+    headerActions={<OpenViewButton kind="table" label="See in table view" onClick={() => setShowTable(true)} />}
     subtitle={`Total ${metric.label.toLowerCase()} per calendar month.${filterValues.length ? ` ${filter.label} ${filterValues.join(', ')}.` : ''}${end.isSame(dayjs(), 'month') ? ' Current month is month to date.' : ''}${metric.key === 'admissions' ? ' Click a month to open Admissions Overview.' : ''}`}
     items={rows.map(row => ({ date: row.date, end_date: row.end_date, value: row[metric.key] }))}
     variant="bar" interval="month" height={400} signed={metric.signed} barColor={metric.color} showDailyAverage

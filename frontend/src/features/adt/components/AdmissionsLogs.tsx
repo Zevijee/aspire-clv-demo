@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useReportSearchParams as useSearchParams } from '../../../shared/components/ReportSearchContext'
 
+import { LocationName } from '../../../shared/components/LocationName'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import { getAdmissionLogsFilters } from '../utils/admissionsLogNavigation'
@@ -47,10 +48,12 @@ const columns: TableColumn<Admission>[] = [
     header: 'Facility',
     id: 'facility',
     value: (admission) => admission.facility_name,
+    format: (_, admission) => <LocationName region={admission.region} portfolio={admission.portfolio}
+      state={admission.state}>{admission.facility_name}</LocationName>,
   },
-  { header: 'State', id: 'state', filterable: true, value: (admission) => admission.state ?? 'Unavailable' },
-  { header: 'Region', id: 'region', filterable: true, value: (admission) => admission.region ?? 'Unavailable' },
-  { header: 'Portfolio', id: 'portfolio', filterable: true, value: (admission) => admission.portfolio ?? 'Unavailable' },
+  { header: 'State', id: 'state', filterable: true, hidden: true, value: (admission) => admission.state ?? 'Unavailable' },
+  { header: 'Portfolio', id: 'portfolio', filterable: true, hidden: true, value: (admission) => admission.portfolio ?? 'Unavailable' },
+  { header: 'Region', id: 'region', filterable: true, hidden: true, value: (admission) => admission.region ?? 'Unavailable' },
   {
     header: 'Admission date',
     id: 'admission-date',

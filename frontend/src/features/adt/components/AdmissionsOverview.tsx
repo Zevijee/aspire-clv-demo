@@ -5,6 +5,10 @@ import { useReportSearchParams as useSearchParams } from '../../../shared/compon
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { DataState } from '../../../shared/components/DataState'
 import { DrilldownNavigation, type DrilldownBreadcrumb } from '../../../shared/components/DrilldownNavigation'
+import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
+import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
+import { OpenViewButton } from '../../../shared/components/OpenViewButton'
+import { locationPlace } from '../utils/locationPlace'
 import { BarChartRanking } from '../../../shared/components/charts/BarChartRanking'
 import { DonutChart } from '../../../shared/components/charts/DonutChart'
 import { LineChart } from '../../../shared/components/charts/LineChart'
@@ -37,6 +41,13 @@ export function AdmissionsOverview({ selection, onChangeSelection }: {
   const parameters = references.data ? selectionParameters(selection, references.data, level).toString() : null
   const current = useAdmissionsOverview(startDate, endDate, parameters)
   const previous = useAdmissionsOverview(priorStart, priorEnd, parameters)
+  // Show all facilities: the same report at facility grain, fetched only while
+  // open. Filters and any custom location selection apply; the drilldown does not.
+  const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
+  const allParameters = showFacilities && references.data
+    ? selectionParameters({ ...selection, scope: null }, references.data, 'facility').toString() : null
+  const allCurrent = useAdmissionsOverview(startDate, endDate, allParameters)
+  const allPrevious = useAdmissionsOverview(priorStart, priorEnd, allParameters)
   const status = {
     loading: references.loading || current.loading,
     error: references.error ?? current.error,
@@ -45,11 +56,15 @@ export function AdmissionsOverview({ selection, onChangeSelection }: {
   const [hospitalSelection, setHospitalSelection] = useState<{ row: Row; key: string } | null>(null)
   const selectionKey = JSON.stringify([startDate, endDate, parameters])
   const hospitalRow = hospitalSelection?.key === selectionKey ? hospitalSelection.row : null
-  const priorRows = new Map(previous.data?.locations.map(row => [row.id, row.admissions]))
-  const rows: Row[] = (current.data?.locations ?? []).map(row => {
-    const prior = previous.data ? priorRows.get(row.id) ?? 0 : null
-    return { ...row, prior, change: prior === null ? null : row.admissions - prior }
-  })
+  const withPrior = (locations: SummaryLocation[], priorLocations: SummaryLocation[] | undefined): Row[] => {
+    const priorRows = new Map(priorLocations?.map(row => [row.id, row.admissions]))
+    return locations.map(row => {
+      const prior = priorLocations ? priorRows.get(row.id) ?? 0 : null
+      return { ...row, prior, change: prior === null ? null : row.admissions - prior }
+    })
+  }
+  const rows = withPrior(current.data?.locations ?? [], previous.data?.locations)
+  const facilityRows = withPrior(allCurrent.data?.locations ?? [], allPrevious.data?.locations)
   const scopeName = scope?.facility ?? scope?.region ?? scope?.portfolio ?? scope?.state ?? 'All selected locations'
   const navigate = (next: DrilldownScope) => onChangeSelection({ ...selection, scope: next })
   const setPayers = (values: string[]) => onChangeSelection({ ...selection, payers: values })
@@ -156,7 +171,16 @@ export function AdmissionsOverview({ selection, onChangeSelection }: {
       getRowKey={row => row.id} getFooterRow={total} initialSort={{ columnId: 'admissions', direction: 'descending' }}
       title={`${level[0].toUpperCase() + level.slice(1)} Admissions Metrics`}
       subtitle={`${scopeName} · ${detail ? 'Metrics and charts for this facility.' : 'Select a location to explore its admissions.'}`}
+      headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} />}
       csvFileName={`admissions-${level}-${startDate}-to-${endDate}.csv`} emptyMessage="No locations match this view." />
+    <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      title={`All facilities · admissions, ${startDate} to ${endDate}`}
+      subtitle="Every facility in the selection, with the same filters. Counts open the matching admissions in Logs."
+      rows={facilityRows} columns={columns.slice(1)} getRowKey={row => row.id} getName={row => row.name}
+      getPath={row => locationPlace(row.path)}
+      loading={references.loading || allCurrent.loading} error={references.error ?? allCurrent.error}
+      onRetry={allCurrent.onRetry}
+      csvFileName={`admissions-facilities-${startDate}-to-${endDate}.csv`} />
     <div className="admissions-dashboard">
       <BarChartRanking {...status} title="Admissions by Source Type" subtitle="Click sources to filter the report"
         categoryLabel="Admission source type" valueLabel="Admissions"

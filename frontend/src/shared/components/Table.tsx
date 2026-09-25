@@ -3,6 +3,7 @@ import { BooleanBadge } from './BooleanBadge'
 import { DataState, type DataStateProps } from './DataState'
 import { useEffect, useLayoutEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { MultiSelectFilterOptions } from './filters/MultiSelectFilterOptions'
+import { FilterDropdown } from './filters/FilterDropdown'
 import { useTableFilterOptions } from '../hooks/useTableFilterOptions'
 import { matchesTableFilters, matchesTableSearch, type TableFilterSource } from '../utils/tableFilters'
 import { tableChange, type FavorableChange } from '../utils/tableChange'
@@ -25,6 +26,11 @@ export type TableColumn<Row> = {
   negativeWhenTrue?: boolean
   highlightOnHover?: boolean
   filterable?: boolean
+  /** Not drawn as a column. Still searched and exported, and when filterable its
+   * filter becomes the shared FilterDropdown in the table header, as the page's
+   * Payers filter is -- how State, Portfolio and Region filter a table without
+   * taking three columns. */
+  hidden?: boolean
   format?: (value: SortValue, row: Row) => ReactNode
   /** Optional CSV text when the displayed value includes meaningful status. */
   exportValue?: (row: Row) => SortValue
@@ -52,6 +58,21 @@ function renderTableCell<Row>(column: TableColumn<Row>, row: Row) {
   }
   return column.format ? column.format(value, row) : value
 }
+
+/** Text cells stop at a fixed width and end in an ellipsis. The full text shows
+ * on hover, and only when something was actually cut off. A facility name has
+ * its own hover, which already carries the full name, so it is left to that. */
+function TruncatedCell({ children, fullText }: { children: ReactNode; fullText: string }) {
+  return <span className="report-table__cell-text" onMouseEnter={(event) => {
+    const cell = event.currentTarget
+    if (cell.querySelector('.location-name')) return
+    const cut = cell.scrollWidth > cell.clientWidth
+      || Array.from(cell.querySelectorAll('button')).some((button) => button.scrollWidth > button.clientWidth)
+    cell.title = cut ? fullText : ''
+  }}>{children}</span>
+}
+
+const truncates = <Row,>(column: TableColumn<Row>) => column.numeric !== true && column.dataType !== 'boolean'
 
 export type TableProps<Row> = DataStateProps & {
   retainRowsWhileLoading?: boolean
@@ -413,7 +434,12 @@ export function Table<Row>({
     }
   }, [horizontalTrack])
   const [lockedColumns, setLockedColumns] = useState<{ ids: string; widths: number[] } | null>(null)
-  const columnIds = JSON.stringify(columns.map((column) => column.id))
+  const visibleColumns = useMemo(() => columns.filter((column) => column.hidden !== true), [columns])
+  const hiddenFilterColumns = useMemo(
+    () => columns.filter((column) => column.hidden === true && column.filterable === true && column.numeric !== true),
+    [columns],
+  )
+  const columnIds = JSON.stringify(visibleColumns.map((column) => column.id))
   const lockedWidths = lockedColumns?.ids === columnIds ? lockedColumns.widths : null
   const queryScrollRef = useRef<{ left: number; rows: Row[]; visibleRows: Row[] } | null>(null)
   const [settledHeight, setSettledHeight] = useState(0)
@@ -531,7 +557,9 @@ export function Table<Row>({
     const scroller = scrollRef.current
     const menu = filterPopupRef.current
     if (!anchor || !scroller || !menu) return
-    const alignLeft = columns.findIndex((column) => column.id === openFilterColumnId) < columns.length / 2
+    // Header dropdowns sit left of the search box, so they open rightward.
+    const alignLeft = hiddenFilterColumns.some((column) => column.id === openFilterColumnId)
+      || visibleColumns.findIndex((column) => column.id === openFilterColumnId) < visibleColumns.length / 2
 
     const positionMenu = () => {
       const anchorBounds = anchor.getBoundingClientRect()
@@ -563,7 +591,7 @@ export function Table<Row>({
       window.removeEventListener('resize', positionMenu)
       window.removeEventListener('scroll', positionMenu, true)
     }
-  }, [columns, openFilterColumnId])
+  }, [visibleColumns, hiddenFilterColumns, openFilterColumnId])
 
   useLayoutEffect(() => {
     const saved = queryScrollRef.current
@@ -601,7 +629,8 @@ export function Table<Row>({
   }, [search, searchable])
 
   useEffect(() => {
-    if (openFilterColumnId === null) {
+    // Column-header menus close on an outside click; header dropdowns close themselves.
+    if (openFilterColumnId === null || hiddenFilterColumns.some((column) => column.id === openFilterColumnId)) {
       return
     }
 
@@ -617,7 +646,25 @@ export function Table<Row>({
     return () => {
       document.removeEventListener('mousedown', closeFilterMenu)
     }
-  }, [openFilterColumnId])
+  }, [openFilterColumnId, hiddenFilterColumns])
+
+  // The same dropdown as the page's Payers filter. It owns its popover; the
+  // table only tracks which one is open, so a server-side table can load that
+  // column's options on demand.
+  const headerFilters = hiddenFilterColumns.map((column) => {
+    const loadingOptions = serverSide && openFilterColumnId === column.id
+    return <FilterDropdown key={column.id} label={column.header} placeholder={`All ${column.header.toLowerCase()}s`}
+      options={(filterOptions.get(column.id) ?? []).map((option) => ({ label: option, value: option }))}
+      values={filterValues[column.id] ?? []}
+      onChange={(nextSelections) => {
+        preserveHorizontalScroll()
+        setFilterValues((currentValues) => ({ ...currentValues, [column.id]: nextSelections }))
+      }}
+      onOpenChange={(open) => setOpenFilterColumnId((openId) => open ? column.id : openId === column.id ? null : openId)}
+      loading={loadingOptions && remoteFilterOptions.loading}
+      error={loadingOptions ? remoteFilterOptions.error : null}
+      onRetry={remoteFilterOptions.onRetry} />
+  })
 
   const matchingRowCount = serverSide ? totalRows ?? sortedRows.length : sortedRows.length
   const canClearFilters = clearableFilters && (
@@ -673,8 +720,9 @@ export function Table<Row>({
             </span>
           </p>}
         </div>
-        {searchable || canClearFilters || headerActions ? (
+        {searchable || canClearFilters || headerActions || headerFilters.length ? (
           <div className="report-table__header-actions">
+            {/* Leftmost, ahead of the dropdown filters it clears. */}
             {canClearFilters && (
               <button type="button" className="report-table__clear-filters" onClick={() => {
                 preserveHorizontalScroll()
@@ -687,6 +735,7 @@ export function Table<Row>({
                 onClearFilters?.()
               }}>Clear filters</button>
             )}
+            {headerFilters}
             {searchable && <label className="report-table__search">
 
               <input
@@ -711,10 +760,10 @@ export function Table<Row>({
         style={!internalScroll && (loading || error) && settledHeight > 0 ? { minHeight: settledHeight } : undefined}>
         <table style={lockedWidths ? { tableLayout: 'fixed', width: lockedWidths.reduce((sum, width) => sum + width, 0), minWidth: lockedWidths.reduce((sum, width) => sum + width, 0) } : undefined} onMouseLeave={highlightColumnOnHover ? () => setHoveredColumn(null) : undefined} className={`report-table__table${stickyFirstColumn && horizontalTrack.content > horizontalTrack.width ? ' report-table__table--sticky-first' : ''}`}>
           <caption className="visually-hidden">{title}</caption>
-          {lockedWidths && <colgroup>{lockedWidths.map((width, index) => <col key={columns[index].id} style={{ width }} />)}</colgroup>}
+          {lockedWidths && <colgroup>{lockedWidths.map((width, index) => <col key={visibleColumns[index].id} style={{ width }} />)}</colgroup>}
           <thead>
             <tr>
-              {columns.map((column) => {
+              {visibleColumns.map((column) => {
                 const isFilterable = column.filterable === true
                 const isSortable = column.sortable !== false
                 const isSorted = sortState?.columnId === column.id
@@ -903,12 +952,12 @@ export function Table<Row>({
           </thead>
           <tbody>
             {(loading && !(retainRowsWhileLoading && rows.length > 0)) || error ? (
-              <tr><td colSpan={columns.length} className="report-table__state">
+              <tr><td colSpan={visibleColumns.length} className="report-table__state">
                 <DataState loading={loading} error={error} onRetry={onRetry} label={title} />
               </td></tr>
             ) : sortedRows.length === 0 ? (
               <tr>
-                <td className="report-table__empty" colSpan={columns.length}>
+                <td className="report-table__empty" colSpan={visibleColumns.length}>
                   {search ? 'No rows match your search and selected filters.' : rows.length === 0 ? emptyMessage : 'No rows match the selected filters.'}
                 </td>
               </tr>
@@ -926,9 +975,11 @@ export function Table<Row>({
                       onRowClick(row)
                     }
                   } : undefined}>
-                  {columns.map((column) => {
+                  {visibleColumns.map((column) => {
                     const className = [column.numeric ? 'report-table__numeric' : '', highlightColumnOnHover && column.highlightOnHover !== false && hoveredColumn === column.id ? 'report-table__cell--column-hover' : ''].filter(Boolean).join(' ')
-                    const formattedValue = renderTableCell(column, row)
+                    const rendered = renderTableCell(column, row)
+                    const formattedValue = truncates(column)
+                      ? <TruncatedCell fullText={String(column.value(row))}>{rendered}</TruncatedCell> : rendered
 
                     return column.isRowHeader ? (
                       <th onMouseEnter={highlightColumnOnHover ? (event) => column.highlightOnHover === false ? setHoveredColumn(null) : highlightColumn(event.currentTarget, column.id) : undefined} className={className} key={column.id} scope="row">
@@ -947,7 +998,7 @@ export function Table<Row>({
           {(!loading || (retainRowsWhileLoading && rows.length > 0)) && !error && footerRow !== null && (
             <tfoot className={stickyFooterRow ? 'report-table__footer--sticky' : undefined}>
               <tr>
-                {columns.map((column) => {
+                {visibleColumns.map((column) => {
                   const className = [column.numeric ? 'report-table__numeric' : '', highlightColumnOnHover && column.highlightOnHover !== false && hoveredColumn === column.id ? 'report-table__cell--column-hover' : ''].filter(Boolean).join(' ')
                   const formattedValue = renderTableCell(column, footerRow)
 

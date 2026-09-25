@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { LocationName } from '../../../shared/components/LocationName'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { ResidentModal } from './ResidentModal'
 import {
@@ -17,10 +18,12 @@ const columns = (onOpen: (row: ResidentSummary) => void): TableColumn<ResidentSu
   { id: 'resident', header: 'Resident', isRowHeader: true, value: row => row.resident_name,
     format: (_, row) => <button type="button" className="drilldown-table__link" onClick={() => onOpen(row)}>
       {row.resident_name}</button> },
-  { id: 'facility', header: 'Facility', filterable: true, value: row => row.facility_name },
-  { id: 'state', header: 'State', filterable: true, value: row => row.state },
-  { id: 'portfolio', header: 'Portfolio', filterable: true, value: row => row.portfolio },
-  { id: 'region', header: 'Region', filterable: true, value: row => row.region },
+  { id: 'facility', header: 'Facility', filterable: true, value: row => row.facility_name,
+    format: (_, row) => <LocationName region={row.region} portfolio={row.portfolio} state={row.state}>
+      {row.facility_name}</LocationName> },
+  { id: 'state', header: 'State', filterable: true, hidden: true, value: row => row.state },
+  { id: 'portfolio', header: 'Portfolio', filterable: true, hidden: true, value: row => row.portfolio },
+  { id: 'region', header: 'Region', filterable: true, hidden: true, value: row => row.region },
   { id: 'days', header: 'Days in facility', numeric: true, value: row => row.days_in_facility },
   { id: 'stays', header: 'Stays', numeric: true, value: row => row.stays },
   { id: 'admissions', header: 'Admissions', numeric: true, value: row => row.admissions },

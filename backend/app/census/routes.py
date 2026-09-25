@@ -8,13 +8,14 @@ from ..common.errors import ApiError, ErrorResponse
 from ..database import DbConnection
 from .schemas import LiveCensus
 from .service import live
-from . import residents, resident_summaries
+from . import residents, resident_summaries, trending
 
 router = APIRouter(prefix='/census', tags=['Census'])
 
 
 @router.get('/live', response_model=LiveCensus, responses={409: {'model': ErrorResponse}})
-def live_census(request: Request, connection: DbConnection):
+def live_census(request: Request, connection: DbConnection,
+        payer_types: Annotated[list[str], Query(max_length=20)] = []):
     """Every facility's current census and skilled census, against the previous
     calendar month's average daily census.
 
@@ -23,7 +24,7 @@ def live_census(request: Request, connection: DbConnection):
     null when that month is not completely generated, rather than an average over
     the days that happen to exist.
     """
-    return live(connection, today(request.app.state.settings.timezone))
+    return live(connection, today(request.app.state.settings.timezone), payer_types)
 
 
 @router.get('/residents', response_model=residents.ResidentsPage, responses={409: {'model': ErrorResponse}})
@@ -77,3 +78,18 @@ def census_resident_summary_export(request: Request,
         raise ApiError('invalid_sort', 'Unsupported sort column.')
     return StreamingResponse(resident_summaries.csv_chunks(request.app.state.database, query),
         media_type='text/csv', headers={'Content-Disposition': 'attachment; filename="residents.csv"'})
+
+
+@router.get('/trending', response_model=trending.Trending, responses={409: {'model': ErrorResponse}})
+def census_trending(connection: DbConnection, query: Annotated[trending.TrendingQuery, Query()]):
+    """Per-facility census over an inclusive date range: census days, and the
+    open and close census. Averages and occupancy divide census days by the
+    days in the range, and by beds, once the page has summed its scope."""
+    return trending.trending(connection, query)
+
+
+@router.get('/trending/daily', response_model=trending.DailyTrend, responses={409: {'model': ErrorResponse}})
+def census_trending_daily(connection: DbConnection, query: Annotated[trending.DailyQuery, Query()]):
+    """Closing census each day of the range, over the given facilities or all
+    of them. Census is a level, so days are listed, never summed together."""
+    return trending.daily(connection, query)

@@ -3,6 +3,10 @@ import { useReportSearchParams as useSearchParams } from '../../../shared/compon
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { DataState } from '../../../shared/components/DataState'
 import { DrilldownNavigation, type DrilldownBreadcrumb } from '../../../shared/components/DrilldownNavigation'
+import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
+import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
+import { OpenViewButton } from '../../../shared/components/OpenViewButton'
+import { locationPlace } from '../utils/locationPlace'
 import { BarChartRanking } from '../../../shared/components/charts/BarChartRanking'
 import { DonutChart } from '../../../shared/components/charts/DonutChart'
 import { LineChart } from '../../../shared/components/charts/LineChart'
@@ -47,16 +51,27 @@ export function DischargesOverview({ selection, onChange }: {
   // failed prior period degrades the comparison columns instead of the report.
   const current = useDischargesOverview(startDate, endDate, parameters)
   const previous = useDischargesOverview(priorStart, priorEnd, parameters)
+  // Show all facilities: the same report at facility grain, fetched only while
+  // open. Filters and any custom location selection apply; the drilldown does not.
+  const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
+  const allParameters = showFacilities && references.data
+    ? dischargeSelectionParameters({ ...selection, scope: null }, references.data, 'facility').toString() : null
+  const allCurrent = useDischargesOverview(startDate, endDate, allParameters)
+  const allPrevious = useDischargesOverview(priorStart, priorEnd, allParameters)
   const status = {
     loading: references.loading || current.loading,
     error: references.error ?? current.error,
     onRetry: references.error ? references.onRetry : current.onRetry,
   }
-  const priorRows = new Map(previous.data?.locations.map(row => [row.id, row.discharges]))
-  const rows: Row[] = (current.data?.locations ?? []).map(row => {
-    const prior = previous.data ? priorRows.get(row.id) ?? 0 : null
-    return { ...row, prior, change: prior === null ? null : row.discharges - prior }
-  })
+  const withPrior = (locations: DischargeLocation[], priorLocations: DischargeLocation[] | undefined): Row[] => {
+    const priorRows = new Map(priorLocations?.map(row => [row.id, row.discharges]))
+    return locations.map(row => {
+      const prior = priorLocations ? priorRows.get(row.id) ?? 0 : null
+      return { ...row, prior, change: prior === null ? null : row.discharges - prior }
+    })
+  }
+  const rows = withPrior(current.data?.locations ?? [], previous.data?.locations)
+  const facilityRows = withPrior(allCurrent.data?.locations ?? [], allPrevious.data?.locations)
   const scopeName = scope?.facility ?? scope?.region ?? scope?.portfolio ?? scope?.state ?? 'All selected locations'
   const navigate = (next: DrilldownScope) => onChange({ ...selection, scope: next })
   const setPayers = (values: string[]) => onChange({ ...selection, payers: values })
@@ -140,8 +155,17 @@ export function DischargesOverview({ selection, onChange }: {
       initialSort={{ columnId: 'total', direction: 'descending' }}
       title={`${heading} Discharge Metrics`}
       subtitle={`${scopeName} · Compared with the immediately preceding period of equal length`}
+      headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} />}
       csvFileName={`discharges-${level}-${startDate}-to-${endDate}.csv`}
       emptyMessage="No locations match this view." />
+    <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      title={`All facilities · discharges, ${startDate} to ${endDate}`}
+      subtitle="Every facility in the selection, with the same filters, compared with the preceding period of equal length."
+      rows={facilityRows} columns={columns.slice(1)} getRowKey={row => row.id} getName={row => row.name}
+      getPath={row => locationPlace(row.path)}
+      loading={references.loading || allCurrent.loading} error={references.error ?? allCurrent.error}
+      onRetry={allCurrent.onRetry}
+      csvFileName={`discharges-facilities-${startDate}-to-${endDate}.csv`} />
     <div className="admissions-dashboard">
       <BarChartRanking {...status} title="Discharges by Destination Type"
         subtitle="Click destinations to filter the report"

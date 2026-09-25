@@ -38,6 +38,9 @@ Inspect these owners before adding another implementation. Paths and component n
 | Charts | `src/shared/components/charts/` including `LineChart` with bar variant, `DailyChangeChart`, `DonutChart`, rankings and diverging charts |
 | Equal-day trend grouping | `src/shared/utils/trendPeriods.ts` |
 | Full-screen detail modal | `src/shared/components/FullScreenModal.tsx` |
+| Show all facilities from a drilldown (every drilldown has one) | `src/shared/components/AllFacilitiesModal.tsx` with `OpenViewButton` |
+| Facility name with its region, portfolio and state on hover | `src/shared/components/LocationName.tsx` |
+| Header button that opens another view (outlined, never the solid Export style) | `src/shared/components/OpenViewButton.tsx` |
 | Isolated report state inside modals | `src/shared/components/ReportSearchContext.tsx` |
 | Visual tokens / shared CSS | `src/index.css` / `src/App.css` |
 
@@ -55,6 +58,7 @@ Reuse the appropriate shared owners across modules. Features supply data, labels
 
 - Keep labels visible, align related header controls, and allow widths to fit their contents. Use the shared filter composition rather than a report-specific clone.
 - Preserve filter meaning consistently across the table, charts, logs and export. In existing shared multi-select controls an empty selection means unfiltered; a different needed semantic must be explicit in its contract.
+- Do not spend columns on State, Portfolio and Region beside a facility (or hospital). Show the name with `LocationName`, which reveals them on hover, and give the table those three as `hidden: true, filterable: true` columns: `Table` draws them as dropdown filters in the header beside search, and still searches and exports them.
 - Use shared drilldown navigation with the hierarchy appropriate to the report. Preserve filters while navigating and provide a path back to ancestors.
 - Use `DrilldownTable` for its default totals when more than one row is visible; a single row does not need a duplicate total. Supply a correct custom aggregator for ratios, distinct counts and extrema. Do not sum non-additive values.
 - Use the shared pinned-column and overflow behavior. Popovers must escape clipping containers without breaking table scrolling.

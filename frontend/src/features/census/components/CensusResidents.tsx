@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { LocationName } from '../../../shared/components/LocationName'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { payerLabel } from '../../adt/api/admissionsOverview'
 import {
@@ -18,10 +19,12 @@ const rate = (value: number) => value.toLocaleString(undefined,
 // the server, so a name that does not match is silently unsortable.
 const columns: TableColumn<CensusResident>[] = [
   { id: 'resident', header: 'Resident', isRowHeader: true, value: row => row.resident_name },
-  { id: 'facility', header: 'Facility', filterable: true, value: row => row.facility_name },
-  { id: 'state', header: 'State', filterable: true, value: row => row.state },
-  { id: 'portfolio', header: 'Portfolio', filterable: true, value: row => row.portfolio },
-  { id: 'region', header: 'Region', filterable: true, value: row => row.region },
+  { id: 'facility', header: 'Facility', filterable: true, value: row => row.facility_name,
+    format: (_, row) => <LocationName region={row.region} portfolio={row.portfolio} state={row.state}>
+      {row.facility_name}</LocationName> },
+  { id: 'state', header: 'State', filterable: true, hidden: true, value: row => row.state },
+  { id: 'portfolio', header: 'Portfolio', filterable: true, hidden: true, value: row => row.portfolio },
+  { id: 'region', header: 'Region', filterable: true, hidden: true, value: row => row.region },
   { id: 'admission-date', header: 'Admission date', value: row => row.admission_date,
     format: (_, row) => day(row.admission_date) },
   { id: 'days', header: 'Days in facility', numeric: true, value: row => row.days_in_facility },

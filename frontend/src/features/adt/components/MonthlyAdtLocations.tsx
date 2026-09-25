@@ -4,6 +4,9 @@ import { useSearchParams } from 'react-router-dom'
 import type { TableColumn } from '../../../shared/components/Table'
 import { DrilldownTable } from '../../../shared/components/DrilldownTable'
 import { DrilldownNavigation } from '../../../shared/components/DrilldownNavigation'
+import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
+import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
+import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { useAdmissionsReferences } from '../hooks/useAdmissionsOverview'
 import {
   getMonthlyLocations, monthlyFilter, monthlyParameters,
@@ -12,7 +15,9 @@ import {
 
 type Metric = 'admissions' | 'discharges' | 'net_change'
 type Result = { locations: MonthlyLocation[]; items: MonthlyLocationItem[] }
-type Row = { key: string; name: string; months: number[]; isTotal?: boolean }
+type Row = { key: string; name: string; months: number[]; isTotal?: boolean
+  // State, portfolio and region, on facility rows only.
+  place?: readonly [string, string, string] }
 const levels = ['state', 'portfolio', 'region', 'facility_name'] as const
 const labels = ['State', 'Portfolio', 'Region', 'Facility']
 
@@ -35,6 +40,7 @@ export function MonthlyAdtLocations({ activeTab, startDate, endDate, path, setPa
     : null
   const key = JSON.stringify([query, tab, startDate, endDate, retry])
   const [response, setResponse] = useState<{ key: string; data?: Result; error?: string } | null>(null)
+  const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
   useEffect(() => {
     if (query === null) return
     const controller = new AbortController()
@@ -60,10 +66,16 @@ export function MonthlyAdtLocations({ activeTab, startDate, endDate, path, setPa
     if (!row) { row = { key: name, name, months: months.map(() => 0) }; groups.set(name, row) }
     facilityGroups.set(location.facility_id, row)
   }
+  // Every facility, whatever the drilldown shows, for Show all facilities.
+  const facilityRows = new Map<string, Row>((result?.data?.locations ?? []).map(location => [location.facility_id, {
+    key: location.facility_id, name: location.facility_name, months: months.map(() => 0),
+    place: [location.state, location.portfolio, location.region] as const }]))
   for (const item of result?.data?.items ?? []) {
     const row = facilityGroups.get(item.facility_id)
     const index = months.indexOf(item.month)
     if (row && index >= 0) row.months[index] += Number(item[metric])
+    const facility = facilityRows.get(item.facility_id)
+    if (facility && index >= 0) facility.months[index] += Number(item[metric])
   }
   const extreme = (row: Row, high: boolean) => (high ? Math.max : Math.min)(...row.months)
   const change = metric === 'net_change' ? { favorable: 'increase' as const } : undefined
@@ -101,7 +113,16 @@ export function MonthlyAdtLocations({ activeTab, startDate, endDate, path, setPa
       loading={references.loading || result === null}
       error={references.error ?? result?.error}
       onRetry={references.error ? references.onRetry : () => setRetry(value => value + 1)}
+      headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} />}
       emptyMessage="No locations match the selected range and payers."
       csvFileName={`monthly-${activeTab}-locations-${startDate}-to-${endDate}.csv`} />
+    <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      title={`All facilities · ${label.toLowerCase()} by month, ${dayjs(startDate).format('MMM YYYY')} to ${dayjs(endDate).format('MMM YYYY')}`}
+      subtitle="Monthly averages and highest and lowest months, per facility."
+      rows={[...facilityRows.values()]} columns={columns.slice(1)} getRowKey={row => row.key}
+      getName={row => row.name} getPath={row => row.place ?? ['', '', '']}
+      loading={references.loading || result === null} error={references.error ?? result?.error}
+      onRetry={references.error ? references.onRetry : () => setRetry(value => value + 1)}
+      csvFileName={`monthly-${activeTab}-facilities-${startDate}-to-${endDate}.csv`} />
   </>
 }

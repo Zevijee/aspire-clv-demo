@@ -11,10 +11,13 @@ type FilterDropdownProps = DataStateProps & {
   onChange: (values: string[]) => void
   placeholder?: string
   variant?: 'compact' | 'detailed'
+  /** Told when the list opens or closes, for options that load on demand. */
+  onOpenChange?: (open: boolean) => void
 }
 
 export function FilterDropdown({ label, options, values, onChange,
-  placeholder = `All ${label.toLowerCase()}`, variant = 'compact', loading, error, onRetry }: FilterDropdownProps) {
+  placeholder = `All ${label.toLowerCase()}`, variant = 'compact', loading, error, onRetry,
+  onOpenChange }: FilterDropdownProps) {
   const [open, setOpen] = useState(false)
   const id = useId()
   const trigger = useRef<HTMLButtonElement>(null)
@@ -22,12 +25,13 @@ export function FilterDropdown({ label, options, values, onChange,
 
   return <div className="filter-dropdown">
     <label className="filter-dropdown__label" htmlFor={`${id}-trigger`}>{label}</label>
-    <Popover open={open} onOpenChange={setOpen} trigger="click" placement="bottomLeft"
+    <Popover open={open} onOpenChange={next => { setOpen(next); onOpenChange?.(next) }} trigger="click" placement="bottomLeft"
     destroyOnHidden content={<div id={id} role="dialog" aria-label={`Filter ${label.toLowerCase()}`}
       className="filter-dropdown__panel" onKeyDown={event => {
         if (event.key === 'Escape') {
           event.stopPropagation()
           setOpen(false)
+          onOpenChange?.(false)
           trigger.current?.focus()
         }
       }}>

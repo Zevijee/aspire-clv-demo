@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react'
 import { DrilldownTable } from '../../../shared/components/DrilldownTable'
 import { DrilldownNavigation } from '../../../shared/components/DrilldownNavigation'
-import { Table, type TableColumn } from '../../../shared/components/Table'
+import type { TableColumn } from '../../../shared/components/Table'
 import { DonutChart } from '../../../shared/components/charts/DonutChart'
 import { BarChartRanking } from '../../../shared/components/charts/BarChartRanking'
-import { payerLabel } from '../../adt/api/admissionsOverview'
+import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
+import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
+import { OpenViewButton } from '../../../shared/components/OpenViewButton'
+import { payerCode, payerLabel } from '../../adt/api/admissionsOverview'
+import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
 import { tableChange } from '../../../shared/utils/tableChange'
 import { getLiveCensus, type FacilityCensus, type LiveCensusReport } from '../api'
 
 type Row = { key: string; name: string; path: string[]; facilities: FacilityCensus[]; isTotal?: boolean }
-type Summed = 'census' | 'capacity' | 'skilled_census' | 'previous_average' | 'previous_skilled_average'
+type Summed = 'census' | 'all_census' | 'capacity' | 'skilled_census' | 'previous_average' | 'previous_skilled_average'
 const levels = ['State', 'Portfolio', 'Region', 'Facility']
 function location(row: FacilityCensus) { return [row.state, row.portfolio, row.region, row.facility_name] }
 
@@ -23,7 +27,8 @@ function metric(row: Row, field: string): number | null {
   const census = sum(row, 'census') ?? 0
   const capacity = sum(row, 'capacity') ?? 0
   if (field === 'occupancy') return capacity > 0 ? census / capacity * 100 : null
-  if (field === 'empty') return capacity - census
+  // Every resident holds a bed, whichever payers are selected.
+  if (field === 'empty') return capacity - (sum(row, 'all_census') ?? 0)
   // A ratio of the two sums at this scope, never an average of facility ratios.
   if (field === 'skill_mix') return census > 0 ? (sum(row, 'skilled_census') ?? 0) / census * 100 : null
   if (field === 'variance') {
@@ -69,11 +74,22 @@ function monthLabel(value: string) {
   return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 }
 
-export function LiveCensus({ view = 'overview' }: { view?: 'overview' | 'facilities' }) {
+export function LiveCensus() {
   const [data, setData] = useState<LiveCensusReport | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
   const [path, setPath] = useState<string[]>([])
+  const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
+  // The header's Payers filter, which the payer mix donut also sets.
+  const [params, setParams] = useReportSearchParams()
+  const payers = params.getAll('live_payer')
+  const payerKey = JSON.stringify(payers)
+  const setPayers = (next: string[]) => {
+    const updated = new URLSearchParams(params)
+    updated.delete('live_payer')
+    next.forEach(payer => updated.append('live_payer', payer))
+    setParams(updated)
+  }
   useEffect(() => {
     const timer = window.setInterval(() => setRetry(value => value + 1), 60_000)
     return () => window.clearInterval(timer)
@@ -81,11 +97,11 @@ export function LiveCensus({ view = 'overview' }: { view?: 'overview' | 'facilit
   useEffect(() => {
     const controller = new AbortController()
     setError(null)
-    getLiveCensus(controller.signal)
+    getLiveCensus(JSON.parse(payerKey) as string[], controller.signal)
       .then(body => { if (!controller.signal.aborted) setData(body) })
       .catch((failure: Error) => { if (!controller.signal.aborted) setError(failure.message) })
     return () => controller.abort()
-  }, [retry])
+  }, [retry, payerKey])
   const depth = Math.min(path.length, 3)
   const groups = new Map<string, Row>()
   for (const facility of data?.items ?? []) {
@@ -160,13 +176,6 @@ export function LiveCensus({ view = 'overview' }: { view?: 'overview' | 'facilit
   // One row per facility, whatever the drilldown above is showing.
   const facilityRows: Row[] = (data?.items ?? []).map(facility => ({
     key: facility.facility_id, name: facility.facility_name, path: location(facility), facilities: [facility] }))
-  // Facility first, then its hierarchy in order, each filterable, so the list
-  // can be narrowed to a state, portfolio or region without leaving the tab.
-  const facilityColumns: TableColumn<Row>[] = [
-    { ...nameColumn, header: 'Facility', format: undefined },
-    ...['State', 'Portfolio', 'Region'].map((header, index): TableColumn<Row> => ({
-      id: header.toLowerCase(), header, filterable: true, value: row => row.path[index] ?? '' })),
-    ...columns.slice(1)]
   const stale = data && data.census_date < data.as_of
     ? ` Census is generated through ${data.census_date}, so that day's counts are shown.` : ''
   const incomplete = data?.items.some(item => item.previous_average === null)
@@ -175,15 +184,12 @@ export function LiveCensus({ view = 'overview' }: { view?: 'overview' | 'facilit
     + "Variance is current census minus last month's average daily census. "
     + `Skilled covers Medicare, managed Medicare and VA.${stale}${incomplete}` : ''
 
-  if (view === 'facilities') {
-    // A plain table, not a drilldown: one row per facility and no total row.
-    return <Table<Row> title="Facilities" columns={facilityColumns} rows={facilityRows}
-      getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
-      internalScroll searchable stickyFirstColumn
-      loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}
-      subtitle={subtitle} emptyMessage="No facilities match this search."
-      csvFileName={`live-census-facilities-${data?.census_date ?? 'today'}.csv`} />
-  }
+  const facilitiesModal = <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+    title={data ? `All facilities · census as of ${data.census_date}` : 'All facilities'} subtitle={subtitle}
+    rows={facilityRows} columns={columns.slice(1)} getRowKey={row => row.key} getName={row => row.name}
+    getPath={row => [row.path[0], row.path[1], row.path[2]]}
+    loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}
+    csvFileName={`live-census-facilities-${data?.census_date ?? 'today'}.csv`} />
 
   return <>
     <DrilldownNavigation locationView={{
@@ -200,14 +206,22 @@ export function LiveCensus({ view = 'overview' }: { view?: 'overview' | 'facilit
       getFooterRow={rows => ({ key: 'total', name: 'Total', path: [], isTotal: true,
         facilities: rows.flatMap(row => row.facilities) })}
       subtitle={subtitle}
+      headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} />}
       emptyMessage="No facilities match this view."
       csvFileName={`live-census-${data?.census_date ?? 'today'}.csv`} />
+    {facilitiesModal}
     <div className="report-chart-grid">
       <DonutChart loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}
         title="Payer mix" valueLabel="Residents" items={payerItems}
-        subtitle={`${scopeName}${data ? `, as of ${data.census_date}` : ''}`} />
+        subtitle={`${scopeName}${data ? `, as of ${data.census_date}` : ''}. Click payers to filter the report`}
+        selectedLabels={payers.map(payerLabel)} onClear={() => setPayers([])}
+        onSelect={label => {
+          const payer = payerCode(label)
+          setPayers(payers.includes(payer) ? payers.filter(value => value !== payer) : [...payers, payer])
+        }} />
       <BarChartRanking loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}
         title="Average daily rate by payer" categoryLabel="Payer" valueLabel="per resident per day"
+        selectedLabels={payers.map(payerLabel)}
         items={rateItems} formatValue={dollars} showShare={false}
         subtitle={`${scopeName}, residents in a bed that day${blendedRate === null ? ''
           : `. All payers: ${dollars(blendedRate)}`}`} />

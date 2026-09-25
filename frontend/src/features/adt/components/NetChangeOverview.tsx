@@ -2,6 +2,10 @@ import { useMemo } from 'react'
 import { useReportSearchParams as useSearchParams } from '../../../shared/components/ReportSearchContext'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { DrilldownNavigation, type DrilldownBreadcrumb } from '../../../shared/components/DrilldownNavigation'
+import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
+import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
+import { OpenViewButton } from '../../../shared/components/OpenViewButton'
+import { locationPlace } from '../utils/locationPlace'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import { useAdmissionsReferences } from '../hooks/useAdmissionsOverview'
 import { useNetChangeOverview } from '../hooks/useNetChangeOverview'
@@ -41,6 +45,12 @@ export function NetChangeOverview() {
   const parameters = references.data
     ? netChangeParameters(selection, references.data, level).toString() : null
   const current = useNetChangeOverview(startDate, endDate, parameters)
+  // Show all facilities: the same report at facility grain, fetched only while
+  // open. Filters and any custom location selection apply; the drilldown does not.
+  const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
+  const allParameters = showFacilities && references.data
+    ? netChangeParameters({ ...selection, scope: null }, references.data, 'facility').toString() : null
+  const allCurrent = useNetChangeOverview(startDate, endDate, allParameters)
   const status = {
     loading: references.loading || current.loading,
     error: references.error ?? current.error,
@@ -133,8 +143,17 @@ export function NetChangeOverview() {
       columns={columns} rows={rows} getRowKey={row => row.id} getFooterRow={total}
       stickyFirstColumn retainRowsWhileLoading
       initialSort={{ columnId: 'net_change', direction: 'descending' }}
+      headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} />}
       csvFileName={`net-change-${level}-${startDate}-to-${endDate}.csv`}
       emptyMessage="No locations match this view." />
+    <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      title={`All facilities · net change, ${startDate} to ${endDate}`}
+      subtitle="Every facility in the selection, with the same payer filter. Net change is close census minus open census."
+      rows={allCurrent.data?.locations ?? []} columns={columns.slice(1)} getRowKey={row => row.id}
+      getName={row => row.name} getPath={row => locationPlace(row.path)}
+      loading={references.loading || allCurrent.loading} error={references.error ?? allCurrent.error}
+      onRetry={allCurrent.onRetry}
+      csvFileName={`net-change-facilities-${startDate}-to-${endDate}.csv`} />
     <NetChangeDailyTrend daily={current.data?.daily ?? []} {...status}
       startDate={startDate} endDate={endDate} hasPayers={selectedPayers.length > 0} />
   </>

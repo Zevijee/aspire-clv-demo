@@ -183,9 +183,9 @@ generation job. See [docs/deploying.md](docs/deploying.md).
 
 ## Do not "fix" these
 
-- **The other Census reports are placeholders.** Census Trending, Bed Board and
-  Monthly Census Trending are listed in the navigation with no content yet.
-  Residents, Live Census and every ADT report work end to end.
+- **The other Census reports are placeholders.** Bed Board and Monthly Census
+  Trending are listed in the navigation with no content yet. Residents, Live
+  Census, Census Trending and every ADT report work end to end.
 - **`HospitalPerformanceLocations.tsx` and `ReferringHospitalsModal.tsx` are
   orphans.** Nothing imports them and they call removed endpoints. They were left in
   place rather than deleted alongside the Referring Hospital rebuild; see

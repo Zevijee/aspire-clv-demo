@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Checkbox } from 'antd'
 import { FullScreenModal } from '../../../shared/components/FullScreenModal'
+import { LocationName } from '../../../shared/components/LocationName'
 import dayjs from 'dayjs'
 import { LineChart } from '../../../shared/components/charts/LineChart'
 import { useSearchParams } from 'react-router-dom'
@@ -75,14 +76,15 @@ export function ReferringHospitalOverview() {
     { id: 'hospital', header: 'Hospital', isRowHeader: true, value: row => row.hospital,
       // The name opens the detail, as a resident's name does on Residents; the
       // rest of the row is plain, so selecting text in it does not open anything.
-      format: (_, row) => <button type="button" className="drilldown-table__link" onClick={() => {
-        setSelectedFacilities([])
-        setModalPayers(payers)
-        setSelected(row)
-      }}>{row.hospital}</button> },
-    { id: 'state', header: 'State', filterable: true, value: row => row.state ?? 'Unassigned' },
-    { id: 'portfolio', header: 'Portfolio', filterable: true, value: row => row.portfolio ?? 'Unassigned' },
-    { id: 'region', header: 'Region', filterable: true, value: row => row.region ?? 'Unassigned' },
+      format: (_, row) => <LocationName region={row.region} portfolio={row.portfolio}
+        state={row.state}><button type="button" className="drilldown-table__link" onClick={() => {
+          setSelectedFacilities([])
+          setModalPayers(payers)
+          setSelected(row)
+        }}>{row.hospital}</button></LocationName> },
+    { id: 'state', header: 'State', filterable: true, hidden: true, value: row => row.state ?? 'Unassigned' },
+    { id: 'portfolio', header: 'Portfolio', filterable: true, hidden: true, value: row => row.portfolio ?? 'Unassigned' },
+    { id: 'region', header: 'Region', filterable: true, hidden: true, value: row => row.region ?? 'Unassigned' },
     { id: 'facilities', header: 'Facilities', numeric: true, value: row => row.receiving_facilities?.length ?? 0 },
     { id: 'performance', header: 'Performance', filterable: true, value: status,
       sortValue: row => performanceRank[status(row)], initialSortDirection: 'descending',

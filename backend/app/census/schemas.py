@@ -11,7 +11,9 @@ class FacilityCensus(BaseModel):
     portfolio: str
     region: str
     capacity: int = Field(description='Licensed beds.')
-    census: int = Field(description='Residents in a bed at the close of `as_of`.')
+    census: int = Field(description='Residents in a bed at the close of `as_of`, on the selected payers.')
+    all_census: int = Field(description='Every resident in a bed, whatever payer filter is applied. '
+        "Empty beds come from this, since a bed held by another payer's resident is not empty.")
     skilled_census: int = Field(description='Of `census`, residents on a skilled payer.')
     payer_census: dict[str, int] = Field(description=
         '`census` by payer type. Types with no residents are omitted.')

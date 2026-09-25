@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { LiveCensus } from '../features/census/components/LiveCensus'
 import { CensusResidents } from '../features/census/components/CensusResidents'
 import { ResidentsReport } from '../features/census/components/ResidentsReport'
+import { CensusTrending } from '../features/census/components/CensusTrending'
 import { Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
 import { AdmissionsLogs } from '../features/adt/components/AdmissionsLogs'
 import { DischargesLogs } from '../features/adt/components/DischargesLogs'
@@ -46,7 +47,6 @@ const dischargesTabs = [
 ]
 const liveCensusTabs = [
   { id: 'overview', label: 'Overview' },
-  { id: 'facilities', label: 'Facilities', noScroll: true },
   { id: 'residents', label: 'Residents', noScroll: true },
 ]
 const monthlyTabs = [
@@ -116,8 +116,7 @@ function App() {
   const admissionsView = searchParams.get('view')
   const activeAdmissionsTab = admissionsTabs.find((tab) => tab.id === admissionsView)?.id ?? 'testing'
   const activeDischargesTab = dischargesTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
-  const activeLiveCensusTab = admissionsView === 'facilities' || admissionsView === 'residents'
-    ? admissionsView : 'overview'
+  const activeLiveCensusTab = admissionsView === 'residents' ? 'residents' : 'overview'
   const defaultRange = getDefaultReportDateRange()
   const startDate = searchParams.get('start_date') ?? defaultRange.startDate
   const endDate = searchParams.get('end_date') ?? defaultRange.endDate
@@ -329,6 +328,22 @@ function App() {
                 setSearchParams(next)
               }} />}
             {currentReport.path === '/adt/net-change' && <NetChangePayerFilter />}
+            {/* Overview only: the Residents tab filters payers in its own table. */}
+            {currentReport.path === '/census/daily-census' && activeLiveCensusTab === 'overview' && <AdmissionsPayerFilter
+              values={searchParams.getAll('live_payer')}
+              onChange={payers => {
+                const next = new URLSearchParams(searchParams)
+                next.delete('live_payer')
+                payers.forEach(payer => next.append('live_payer', payer))
+                setSearchParams(next)
+              }} />}
+            {currentReport.path === '/census/trending' && <AdmissionsPayerFilter values={searchParams.getAll('trending_payer')}
+              onChange={payers => {
+                const next = new URLSearchParams(searchParams)
+                next.delete('trending_payer')
+                payers.forEach(payer => next.append('trending_payer', payer))
+                setSearchParams(next)
+              }} />}
             {currentReport.path === '/adt/referring-hospital' && <AdmissionsPayerFilter values={searchParams.getAll('referring_payer')}
               onChange={payers => {
                 const next = new URLSearchParams(searchParams)
@@ -430,8 +445,8 @@ function App() {
           {reports.map((report) => (
             <Route
               element={
-                report.path === '/census/residents' ? <ResidentsReport /> : report.path === '/census/daily-census' ? (
-                  activeLiveCensusTab === 'residents' ? <CensusResidents /> : <LiveCensus view={activeLiveCensusTab} />
+                report.path === '/census/residents' ? <ResidentsReport /> : report.path === '/census/trending' ? <CensusTrending /> : report.path === '/census/daily-census' ? (
+                  activeLiveCensusTab === 'residents' ? <CensusResidents /> : <LiveCensus />
                 ) : report.path === '/adt/admissions' ? (
                   activeAdmissionsTab === 'logs' ? (
                     <AdmissionsLogs />
