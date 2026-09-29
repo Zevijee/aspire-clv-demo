@@ -2,10 +2,10 @@ import type { ReportDefinition } from '../../shared/types/report'
 
 export const censusReports: ReportDefinition[] = [
   {
-    description: 'Review current facility census by day.',
+    description: 'Review facility census on any day.',
     module: 'Census',
     path: '/census/daily-census',
-    title: 'Live Census',
+    title: 'Daily Census',
   },
   {
     description: 'Review census performance across the portfolio.',

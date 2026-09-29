@@ -1180,6 +1180,10 @@ h1 {
   width: 224px;
 }
 
+.date-range-picker--single .ant-picker {
+  width: 140px;
+}
+
 .date-range-picker .ant-picker:hover {
   border-color: var(--color-primary);
 }

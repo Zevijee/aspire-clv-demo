@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
 
-from ..common.dates import today
+from ..common.dates import OptionalDate, today
 from ..common.errors import ApiError, ErrorResponse
 from ..database import DbConnection
 from .schemas import LiveCensus
@@ -16,16 +16,17 @@ router = APIRouter(prefix='/census', tags=['Census'])
 
 @router.get('/live', response_model=LiveCensus, responses={409: {'model': ErrorResponse}})
 def live_census(request: Request, connection: DbConnection,
-        payer_types: Annotated[list[str], Query(max_length=20)] = []):
-    """Every facility's current census and skilled census, against the previous
-    calendar month's average daily census.
+        payer_types: Annotated[list[str], Query(max_length=20)] = [], date: OptionalDate = None):
+    """Every facility's census and skilled census on one day, against the
+    previous calendar month's average daily census.
 
-    Takes no dates: the period is the report's own. Census is read from the latest
-    completed day on or before the report's today. Previous-month averages are
-    null when that month is not completely generated, rather than an average over
-    the days that happen to exist.
+    The day is `date`, or the report's today when omitted; a later date is read
+    as today. Census is read from the latest completed day on or before it.
+    Previous-month averages are null when that month is not completely
+    generated, rather than an average over the days that happen to exist.
     """
-    return live(connection, today(request.app.state.settings.timezone), payer_types)
+    report_today = today(request.app.state.settings.timezone)
+    return live(connection, min(date, report_today) if date else report_today, payer_types)
 
 
 @router.get('/bed-board', response_model=bed_board.BedBoard, responses={409: {'model': ErrorResponse}})

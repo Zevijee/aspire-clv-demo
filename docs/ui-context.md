@@ -9,7 +9,7 @@ Shared UI engineering and design conventions belong in [STYLE_GUIDE.md](../front
 - The main URL opened a neutral starting page. Direct report links expanded the corresponding module rather than always expanding ADT.
 - Side-filter drawers were hidden by `ReportLayout`, while the shared drawer implementation remained available.
 - Header dropdown summaries used `1 selected` or `N selected`, including when only one item was selected. Standalone report Clear actions appeared only when a relevant filter was applied.
-- Date-range reports used a 30-day default. Monthly ADT used a month picker with 24 selected months including the current month to date. Live Census and Referring Hospitals had no date picker.
+- Date-range reports used a 30-day default. Monthly ADT used a month picker with 24 selected months including the current month to date. Referring Hospitals had no date picker. Live Census had none until it became Daily Census, with a single-date picker defaulting to today.
 - Location drilldowns ran through State, Portfolio, Region, Facility, and selected-facility detail where supported.
 
 ## Table and chart choices at the snapshot

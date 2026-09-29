@@ -249,7 +249,7 @@ distinction should be editable rather than implicit.
 facility and payer plan a daily rate: Medicare varies by facility case mix, Medicare
 Advantage and VA by contract, Medicaid by state with managed care plans close to it,
 and hospice pays 95% of the facility's Medicaid rate. Nothing reads a rate back, so
-changing a rule costs a three-second rebuild. Live Census averages them per resident
+changing a rule costs a three-second rebuild. Daily Census averages them per resident
 on the census day.
 
 **Census logs record who was in a bed, for every day, without a row per day.**

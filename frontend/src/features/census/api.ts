@@ -41,10 +41,12 @@ export type LiveCensusReport = {
   data_status: { available_from: string | null; available_through: string | null; generated_at: string | null }
 }
 
-/** Payer types narrow census and its averages; the payer mix and rates keep every payer. */
-export function getLiveCensus(payers: string[], signal?: AbortSignal) {
+/** Payer types narrow census and its averages; the payer mix and rates keep every
+ * payer. Without a date, the API reads today. */
+export function getLiveCensus(payers: string[], signal?: AbortSignal, date?: string | null) {
   const params = new URLSearchParams()
   payers.forEach(payer => params.append('payer_types', payer))
+  if (date) params.set('date', date)
   return readJson<LiveCensusReport>(`${base}/api/v1/census/live?${params}`, signal)
 }
 
@@ -81,19 +83,23 @@ export type CensusResidentsPage = {
   items: CensusResident[]; total: number; limit: number; offset: number; census_date: string
 }
 
-export function censusResidentParameters(query: CensusResidentsQuery, offset = 0) {
-  return new URLSearchParams({ limit: '50', offset: String(offset),
+/** Without a date, the API reads the latest census day on or before today. */
+export function censusResidentParameters(query: CensusResidentsQuery, offset = 0, date?: string | null) {
+  const params = new URLSearchParams({ limit: '50', offset: String(offset),
     filters: JSON.stringify(query.filters), search: query.search?.trim() ?? '',
     sort: query.sort?.columnId ?? 'resident',
     direction: query.sort?.direction === 'descending' ? 'desc' : 'asc' })
+  if (date) params.set('end_date', date)
+  return params
 }
 
-export function getCensusResidents(offset: number, query: CensusResidentsQuery, signal?: AbortSignal) {
-  return readJson<CensusResidentsPage>(`${censusBase}/residents?${censusResidentParameters(query, offset)}`, signal)
+export function getCensusResidents(offset: number, query: CensusResidentsQuery, signal?: AbortSignal,
+    date?: string | null) {
+  return readJson<CensusResidentsPage>(`${censusBase}/residents?${censusResidentParameters(query, offset, date)}`, signal)
 }
 
 export async function downloadCensusResidents(query: CensusResidentsQuery, censusDate: string) {
-  const response = await authorizedFetch(`${censusBase}/residents/export?${censusResidentParameters(query)}`)
+  const response = await authorizedFetch(`${censusBase}/residents/export?${censusResidentParameters(query, 0, censusDate === 'today' ? null : censusDate)}`)
   if (!response.ok) throw new Error('Resident export could not complete.')
   const url = URL.createObjectURL(await response.blob())
   const anchor = document.createElement('a')

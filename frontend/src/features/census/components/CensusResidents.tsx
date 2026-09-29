@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
 import { LocationName } from '../../../shared/components/LocationName'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { payerLabel } from '../../adt/api/admissionsOverview'
@@ -44,7 +45,11 @@ const columns: TableColumn<CensusResident>[] = [
 /** Everyone in a bed on the census day, paged, sorted and filtered by the API. */
 export function CensusResidents() {
   const [query, setQuery] = useState<CensusResidentsQuery>({ filters: {}, sort: null, search: '' })
-  const queryKey = JSON.stringify(query)
+  // The header's date; absent means the latest census day.
+  const [params] = useReportSearchParams()
+  const censusDay = params.get('date')
+  // A new day starts again at the first page, as a new filter does.
+  const queryKey = JSON.stringify([query, censusDay])
   const [page, setPage] = useState({ queryKey: '', index: 0 })
   const pageIndex = page.queryKey === queryKey ? page.index : 0
   const [retry, setRetry] = useState(0)
@@ -59,7 +64,7 @@ export function CensusResidents() {
 
   useEffect(() => {
     const controller = new AbortController()
-    void getCensusResidents(pageIndex * pageSize, query, controller.signal)
+    void getCensusResidents(pageIndex * pageSize, query, controller.signal, censusDay)
       .then(data => {
         if (controller.signal.aborted) return
         setResponse({ key: requestKey, items: data.items, total: data.total, censusDate: data.census_date })
@@ -69,7 +74,7 @@ export function CensusResidents() {
         if (!controller.signal.aborted) setFailure({ key: requestKey, message: error.message })
       })
     return () => controller.abort()
-  }, [pageIndex, query, requestKey])
+  }, [pageIndex, query, censusDay, requestKey])
 
   const result = response?.key === requestKey ? response : null
   const error = failure?.key === requestKey ? failure.message : null

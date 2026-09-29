@@ -1,3 +1,4 @@
+import dayjs from 'dayjs'
 import { useState } from 'react'
 import { LiveCensus } from '../features/census/components/LiveCensus'
 import { CensusResidents } from '../features/census/components/CensusResidents'
@@ -31,6 +32,7 @@ import { DischargesFilters } from '../features/adt/components/DischargesFilters'
 import type { DischargeSelection } from '../features/adt/components/DischargesOverview'
 import { ReportFilters } from '../shared/components/filters/ReportFilters'
 import { CensusPayerFilter } from '../features/census/components/CensusPayerFilter'
+import { ReportDateFilter } from '../shared/components/filters/ReportDateFilter'
 import { MonthlyAdtFilters } from '../features/adt/components/MonthlyAdtFilters'
 import { AdmissionSourceFilter, DischargeDestinationFilter } from '../features/adt/components/SourceDestinationFilters'
 import { ReportLayout } from '../shared/components/layout/ReportLayout'
@@ -333,6 +335,7 @@ function App() {
             {currentReport.path === '/adt/net-change' && <NetChangePayerFilter />}
             {/* Overview only: the Residents tab filters payers in its own table. */}
             {currentReport.path === '/census/daily-census' && activeLiveCensusTab === 'overview' && <CensusPayerFilter param="live_payer" />}
+            {currentReport.path === '/census/daily-census' && <ReportDateFilter earliest="2023-01-01" />}
             {currentReport.path === '/census/trending' && <CensusPayerFilter param="trending_payer" />}
             {currentReport.path === '/census/bed-board' && <BedBoardFacilityFilter />}
             {isMonthlyCensusReport && <CensusPayerFilter param="monthly_census_payer" />}
@@ -394,7 +397,7 @@ function App() {
               } : undefined
         }
         title={currentReport.title}
-        titleDetail={currentReport.path === '/census/daily-census' ? 'Current census' : currentReport.path === '/census/bed-board' ? 'Current beds, one facility at a time' : currentReport.path === '/census/residents' ? 'Every resident ever admitted' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyAdtReport || isMonthlyCensusReport
+        titleDetail={currentReport.path === '/census/daily-census' ? `Census on ${dayjs(searchParams.get('date') ?? undefined).format('dddd, MMMM D, YYYY')}` : currentReport.path === '/census/bed-board' ? 'Current beds, one facility at a time' : currentReport.path === '/census/residents' ? 'Every resident ever admitted' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyAdtReport || isMonthlyCensusReport
           ? `${monthRange.start.format('MMMM YYYY')} to ${monthRange.end.format('MMMM YYYY')} (${monthRange.end.diff(monthRange.start, 'month') + 1} months)`
           : formatReportDateRange(startDate, endDate)}
         leadingControl={

@@ -114,8 +114,9 @@ first five has an overview built on a fact table, a logs tab reading source rows
 filter options and CSV export. Referring Hospital is the exception in shape: one
 table over a fixed 36-month window, with a per-hospital detail view.
 
-**Live Census** also works: each facility's current census and skilled census
-against last month's average daily census, drilled down from state to facility.
+**Daily Census** also works: each facility's census and skilled census on the
+chosen day (today by default), against the previous month's average daily
+census, drilled down from state to facility.
 **Bed Board** shows one facility's wings, rooms and beds today, with who is in
 each bed, from `facility_beds` and `bed_assignments`. **Monthly Census Trending**
 shows census days by calendar month, with the highest and lowest month, from

@@ -7,12 +7,12 @@ against work already done; it is the list of things consciously left.
 
 The backend was rebuilt from per-report SQL into feature packages over fact tables.
 Every report in the navigation is complete end to end: Admissions, Discharges,
-Payer Changes, Net Change, Monthly ADT Trending, Referring Hospital, Live Census,
+Payer Changes, Net Change, Monthly ADT Trending, Referring Hospital, Daily Census,
 Census Trending, Bed Board, Monthly Census Trending and Residents.
 
 ## Dead frontend reports
 
-None remain. Live Census was the last: it reads `/census/live`, built on
+None remain. Daily Census (first built as Live Census) was the last: it reads `/census/live`, built on
 `daily_payer_census_facts` with no new table, because that table's payer-type split
 already answers skilled census.
 

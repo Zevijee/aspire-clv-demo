@@ -76,7 +76,7 @@ function monthLabel(value: string) {
 }
 
 export function LiveCensus() {
-  const [data, setData] = useState<LiveCensusReport | null>(null)
+  const [response, setResponse] = useState<{ key: string; body: LiveCensusReport } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
   const [path, setPath] = useState<string[]>([])
@@ -85,7 +85,12 @@ export function LiveCensus() {
   // The header's Payers filter, which the payer mix donut also sets.
   const [params, setParams] = useReportSearchParams()
   const payers = params.getAll('live_payer')
-  const payerKey = JSON.stringify(payers)
+  // The header's date; absent means today.
+  const censusDay = params.get('date')
+  const requestKey = JSON.stringify([payers, censusDay])
+  // Kept across the minute's refresh, dropped when the day or payers change, so
+  // one day's numbers never show under another's date.
+  const data = response?.key === requestKey ? response.body : null
   const setPayers = (next: string[]) => {
     const updated = new URLSearchParams(params)
     updated.delete('live_payer')
@@ -99,11 +104,12 @@ export function LiveCensus() {
   useEffect(() => {
     const controller = new AbortController()
     setError(null)
-    getLiveCensus(JSON.parse(payerKey) as string[], controller.signal)
-      .then(body => { if (!controller.signal.aborted) setData(body) })
+    const [payerTypes, day] = JSON.parse(requestKey) as [string[], string | null]
+    getLiveCensus(payerTypes, controller.signal, day)
+      .then(body => { if (!controller.signal.aborted) setResponse({ key: requestKey, body }) })
       .catch((failure: Error) => { if (!controller.signal.aborted) setError(failure.message) })
     return () => controller.abort()
-  }, [retry, payerKey])
+  }, [retry, requestKey])
   const depth = Math.min(path.length, 3)
   const groups = new Map<string, Row>()
   for (const facility of data?.items ?? []) {
