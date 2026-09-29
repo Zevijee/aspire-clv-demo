@@ -69,7 +69,7 @@ def main():
     try:
         summaries = ('admissions_summary', 'discharges_summary', 'payer_changes_summary',
             'net_change_summary',
-            'monthly_adt_summary', 'referrals_summary', 'monthly_adt_facts', 'census_logs',
+            'monthly_adt_summary', 'referrals_summary', 'monthly_adt_facts', 'census_logs', 'payer_change_logs',
             'resident_summaries', 'bed_assignments')
         daily_target = args.only or (args.generator if args.generator in summaries else 'all')
         daily_plan = BaseGenerator.daily_plan(daily_target) if daily else ()

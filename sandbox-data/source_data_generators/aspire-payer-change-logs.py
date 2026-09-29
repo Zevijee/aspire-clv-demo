@@ -1,6 +1,7 @@
 """Payer changes flattened from the payer periods that imply them.
 
 Run: python manage.py payer_change_logs --regenerate
+Also rebuilt by every seed and update, after the day's simulation.
 
 A payer change is not a separate event the simulation records: it is the
 boundary between two adjacent rows in res_payer_stays. That makes a log table
@@ -15,7 +16,7 @@ from psycopg import sql
 from sqlalchemy import func, select
 
 from shared.database import schema
-from base import BaseGenerator, GenerationResult
+from base import BaseGenerator, DailyGenerator, GenerationResult
 
 LOGS_SQL = """
 INSERT INTO __TABLE__ (payer_stay_id, stay_id, resident_id, facility_id, change_date,
@@ -91,3 +92,34 @@ class PayerChangeLogGenerator(BaseGenerator):
 
 
 GENERATORS = (PayerChangeLogGenerator,)
+
+
+class DailyPayerChangeLogs(DailyGenerator):
+    """Rebuilt whole whenever days are added. Without this the table only moved
+    when someone ran its command, and every update left the Payer Changes
+    report and the Net Change filters behind the simulation. A whole rebuild
+    because an added day can close an earlier period, changing new_end_date on
+    an old row. A checkpoint's count is the changes that day."""
+    name = 'payer_change_logs'
+    table = schema.payer_change_logs
+    owned_tables = (table,)
+    depends_on = ('adt',)
+    bulk_dates = True
+
+    def prepare_daily(self, connection):
+        self._builder = PayerChangeLogGenerator(self.database_url)
+        self._builder.progress = self.progress
+        self._builder.prepare_sources(connection)
+
+    def run_dates(self, connection, days):
+        self._builder.write_generated(connection)
+        changes = dict(connection.execute(select(self.table.c.change_date, func.count())
+            .where(self.table.c.change_date.in_(days))
+            .group_by(self.table.c.change_date)).all())
+        return {day: {self.table.name: changes.get(day, 0)} for day in days}
+
+    def run_day(self, connection, day):
+        return self.run_dates(connection, [day])[day]
+
+
+DAILY_GENERATORS = (DailyPayerChangeLogs,)

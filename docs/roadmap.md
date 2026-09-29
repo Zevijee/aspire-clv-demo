@@ -8,7 +8,9 @@ against work already done; it is the list of things consciously left.
 The backend was rebuilt from per-report SQL into feature packages over fact tables.
 Every report in the navigation is complete end to end: Admissions, Discharges,
 Payer Changes, Net Change, Monthly ADT Trending, Referring Hospital, Daily Census,
-Census Trending, Bed Board, Monthly Census Trending and Residents.
+Census Trending, Bed Board, Monthly Census Trending and Residents. In MDS, Current
+Medicare has its first view, a state-to-facility drilldown; the other four MDS
+reports are still placeholders.
 
 ## Dead frontend reports
 

@@ -97,7 +97,7 @@ Check this before editing a generator. Full detail in
 | Metric derivable from existing fact dimensions | **Nothing** |
 | Referral sources, hospital scores, discharge destinations | `admission_logs --regenerate`, seconds |
 | Payer daily rates | `payer_rates --regenerate`, ~3 s, then `census_logs --regenerate` |
-| Care levels, PDPM steps, who was in a bed when | `census_logs --regenerate`, ~1 min |
+| Care levels, PDPM steps and codes, who was in a bed when | `census_logs --regenerate`, ~1 min |
 | Per-resident totals for the Residents report | `resident_summaries --regenerate`, ~3 s |
 | Room layout (wings, rooms, private share) | `facility_beds --regenerate`, ~2 s, then `bed_assignments --regenerate` |
 | Who sleeps in which bed | `bed_assignments --regenerate`, ~36 s |
@@ -180,6 +180,20 @@ generation job. See [docs/deploying.md](docs/deploying.md).
   against a database that is ahead of it. The deploy has to run
   `manage.py upgrade` before the new version serves traffic. This is why
   `render.yaml` sets a pre-deploy command.
+- **Filter menus must not build the whole table.** A server-side table's
+  `filter-options` query must read only what its filters and search need, and
+  still apply every other filter and the search. It is free for a plain query --
+  selecting one column lets PostgreSQL skip the rest -- but not for a
+  `MATERIALIZED` list or a `UNION`, which compute every column for every row:
+  that is how the census-day Residents tables and the Net Change logs reached
+  0.4-1.3 s per menu. Give those an explicit light option query, check it
+  returns the same options as the full one, and time every new table endpoint
+  at 30 days and a year before calling it done.
+- **Time queries in a fresh process, not a long loop, on this laptop.** Its
+  CPU has performance and efficiency cores, and after a few seconds of steady
+  load Windows moves PostgreSQL onto the slow ones: every plan step runs 2-3x
+  slower, with an identical plan. Compare first runs, and compare before and
+  after in the same conditions.
 - **A generator that carries a running balance cannot be rebuilt for one day.**
   `net_change_summary` and `monthly_adt_summary` recompute from the first affected
   row onward. `net_change_summary` has an `extend` path for a contiguous tail only,

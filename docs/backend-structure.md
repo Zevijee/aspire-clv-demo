@@ -36,6 +36,7 @@ backend/
     adt/admissions/            Overview, logs, filter options, CSV export
     adt/referring_hospital/    Referral performance per hospital, fixed 36-month window
     census/                    Live census against last month's daily average
+    mds/                       Current Medicare residents, neutral against actual rate
     system/                    Health, readiness, generator coverage
 ```
 
@@ -88,6 +89,8 @@ All under `/api/v1`.
 | `GET /census/resident-summaries` + `/filter-options` + `/export` | Every resident ever admitted: days, stays, admissions, discharges, current, payers. 35-175 ms |
 | `GET /census/residents` + `/filter-options` + `/export` | Everyone in a bed on the census day, from census_logs, with care level and the day's rate |
 | `GET /census/live` | Per-facility census, skilled census, payer mix and summed daily rates; `payer_types` narrows census and its averages, not the payer mix, rates or empty beds; with last month's average daily census and a history lookback from yesterday to a year ago. ~200 ms |
+| `GET /mds/current-medicare` | Per-facility Medicare residents on the latest census-log day, split Federal / HMO / commercial, with summed actual and case-mix-neutral daily rates and days since admission. Neutral rate is a $720 national per diem times the PDPM day factor, with no care level or facility case-mix index. 140-220 ms |
+| `GET /mds/current-medicare/residents` + `/filter-options` + `/export` | Every Medicare resident on the census day: payer, payer name, length of stay, PDPM score (four-letter PDPM code from `pdpm_assessments`), average rate and PDPM revenue on this payer to date. 260-330 ms |
 
 Every overview reads a fact table and nothing else. Every logs endpoint reads source
 rows, because a log lists named residents and a fact table has no resident in it.

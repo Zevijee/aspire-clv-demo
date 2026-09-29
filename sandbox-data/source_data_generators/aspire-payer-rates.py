@@ -26,6 +26,8 @@ from base import BaseGenerator
 
 SEED = 42
 # National average per diem at the middle of every range below, in dollars.
+# The API's Current Medicare report uses the medicare figure as its neutral
+# rate (NATIONAL_PER_DIEM in backend/app/mds/service.py); keep the two equal.
 BASE_RATE = {
     'medicare': 720, 'medicare_comm': 560, 'medicare_hmo': 520,
     'va': 460, 'private': 390, 'medicaid': 270,

@@ -12,7 +12,10 @@ a LIMIT query over the joins let the planner walk an index on a large table and
 rescan the small set per row: one sort ran past the 30s statement timeout.
 Sorting 27,000 finished rows costs milliseconds whatever the column.
 
-Page, filter options and CSV share one statement, so they cannot disagree.
+Page and CSV share one statement, so they cannot disagree. Filter options use
+_option_rows: the same residents, filters and search without the columns no
+menu shows, because the materialized list computes every column whatever is
+asked of it. Verified to return identical options.
 """
 import csv
 from datetime import date
@@ -149,6 +152,10 @@ def _rows(query: ResidentsQuery, census_date: date, exclude=None):
         .outerjoin(pdpm, and_(pdpm.c.payer_stay_id == current.c.payer_stay_id,
             pdpm.c.in_effect.contains(day))))
     listed = rows.cte('listed').prefix_with('MATERIALIZED')
+    return _filtered(listed, query, exclude), listed
+
+
+def _filtered(listed, query: ResidentsQuery, exclude=None):
     result = select(listed)
     for key, values in json.loads(query.filters).items():
         if values and key != exclude:
@@ -156,7 +163,32 @@ def _rows(query: ResidentsQuery, census_date: date, exclude=None):
     if query.search.strip():
         result = result.where(or_(*(cast(listed.c[name], String).icontains(query.search.strip(), autoescape=True)
             for name in SEARCHABLE)))
-    return result, listed
+    return result
+
+
+def _option_rows(query: ResidentsQuery, census_date: date, exclude):
+    """The same residents and filters, without names, payer periods or the
+    day's rate, which no filter menu shows. Building the full list for a menu of
+    three states cost 340ms, most of it in those joins. Names are joined only
+    when there is a search to match against them."""
+    day = literal(census_date, Date)
+    current = (select(logs).where(logs.c.in_bed.contains(day))
+        .cte('current').prefix_with('MATERIALIZED'))
+    source = (current
+        .join(facilities, facilities.c.facility_id == current.c.facility_id)
+        .join(regions).join(portfolios)
+        .join(payers, payers.c.payer_id == current.c.payer_id))
+    columns = [current.c.stay_id,
+        facilities.c.facility.label('facility_name'), portfolios.c.state, portfolios.c.portfolio,
+        regions.c.region, current.c.care_level, payers.c.payer_name,
+        case((current.c.is_readmission, 'Yes'), else_='No').label('readmission_label'),
+        case(PAYER_LABELS, value=payers.c.payer_type, else_=payers.c.payer_type).label('payer_label'),
+        case((payers.c.is_skilled, 'Yes'), else_='No').label('skilled_label')]
+    if query.search.strip():
+        source = source.join(residents, residents.c.resident_id == current.c.resident_id)
+        columns.append((residents.c.first_name + ' ' + residents.c.last_name).label('resident_name'))
+    listed = select(*columns).select_from(source).cte('listed').prefix_with('MATERIALIZED')
+    return _filtered(listed, query, exclude), listed
 
 
 def _ordered(query: ResidentsQuery, census_date: date, *, with_total=False):
@@ -193,7 +225,7 @@ def options(connection, query: FilterQuery, today: date):
     if query.column not in FILTERS:
         raise ApiError('invalid_filter', 'Unsupported filter column.')
     census_date = census_day(connection, query, today)
-    result, listed = _rows(query, census_date, exclude=query.column)
+    result, listed = _option_rows(query, census_date, exclude=query.column)
     column = listed.c[FILTERS[query.column]]
     source = result.with_only_columns(cast(column, String).label('option')).distinct()
     options = list(connection.scalars(source))

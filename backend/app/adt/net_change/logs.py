@@ -16,7 +16,8 @@ from sqlalchemy import String, and_, cast, func, literal, or_, select, union_all
 from sqlalchemy.sql import label
 
 from shared.database.schema import (
-    discharge_logs, facilities, payers, portfolios, regions, res_payer_stays, res_stays, residents)
+    discharge_logs, facilities, payer_change_logs, payers, portfolios, regions, res_payer_stays,
+    res_stays, residents)
 from ...common.dates import DateRange
 from ...common.errors import ApiError
 from ...common.tables import PageQuery, paginate
@@ -169,9 +170,47 @@ def page(connection, query):
     return dict(items=rows, total=total, limit=query.limit, offset=query.offset)
 
 
+# Filters the light option query can answer: where and what kind of move, not
+# who or why. Resident, description and search need the full list.
+LIGHT = ('facility', 'state', 'portfolio', 'region', 'move-type', 'facility-id')
+
+
+def _light_options(query: FilterQuery):
+    """Facility and move type of every move in the range, from each source's
+    own date index: no names, payers, descriptions or previous periods, which
+    the full list joins for every row. Payer changes come from
+    payer_change_logs, one row per period that began as a change -- the same
+    periods the full list pairs with their predecessors."""
+    start, end = query.start_date, query.end_date
+    kinds = union_all(
+        select(res_stays.c.facility_id, literal('Admission').label('move_type'))
+            .where(res_stays.c.admission_date.between(start, end)),
+        select(res_stays.c.facility_id, literal('Discharge').label('move_type'))
+            .select_from(discharge_logs.join(res_stays, res_stays.c.stay_id == discharge_logs.c.stay_id))
+            .where(discharge_logs.c.discharge_date.between(start, end)),
+        select(payer_change_logs.c.facility_id, literal('Payer change').label('move_type'))
+            .where(payer_change_logs.c.change_date.between(start, end)),
+    ).subquery('kinds')
+    light = {'facility': facilities.c.facility, 'state': portfolios.c.state,
+        'portfolio': portfolios.c.portfolio, 'region': regions.c.region,
+        'move-type': kinds.c.move_type, 'facility-id': kinds.c.facility_id}
+    result = select(cast(light[query.column], String).label('option')).select_from(kinds
+        .join(facilities, facilities.c.facility_id == kinds.c.facility_id)
+        .join(regions, regions.c.region_id == facilities.c.region_id)
+        .join(portfolios, portfolios.c.portfolio_id == regions.c.portfolio_id))
+    for key, values in json.loads(query.filters).items():
+        if values and key != query.column:
+            result = result.where(light[key].in_([UUID(value) for value in values]
+                if key == 'facility-id' else values))
+    return result.distinct().order_by('option')
+
+
 def options(connection, query: FilterQuery):
     if query.column not in columns or query.column == 'facility-id':
         raise ApiError('invalid_filter', 'Unsupported filter column.')
+    active = [key for key, values in json.loads(query.filters).items() if values and key != query.column]
+    if query.column in LIGHT and not query.search.strip() and all(key in LIGHT for key in active):
+        return dict(options=list(connection.scalars(_light_options(query))))
     source = statement(query, exclude=query.column).with_only_columns(
         cast(columns[query.column], String).label('option')).distinct().order_by('option')
     return dict(options=list(connection.scalars(source)))

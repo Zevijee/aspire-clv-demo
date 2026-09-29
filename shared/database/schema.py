@@ -295,6 +295,24 @@ pdpm_rate_logs = Table('pdpm_rate_logs', metadata,
     Index('ix_pdpm_rate_logs_in_effect', 'in_effect', postgresql_using='gist'),
 )
 
+pdpm_assessments = Table('pdpm_assessments', metadata,
+    # The PDPM classification of every Medicare payer period -- Original
+    # Medicare and Medicare Advantage -- as its 5-day assessment would set it:
+    # one row per period, applying from its first day.
+    #
+    # pdpm_code is the four letters of the HIPPS code, one case-mix group per
+    # component: PT/OT (A-P), SLP (A-L), nursing (A-Y, ES3 down to PA1) and
+    # non-therapy ancillaries (A-F, 12+ comorbidity points down to 0). Each letter
+    # maps to its component's CMS case-mix index, so the code is all a report needs.
+    #
+    # Invented like care level: a function of the payer period id, with nursing
+    # drawn from the band the resident's care level implies. Rebuilt with
+    # census_logs, from it.
+    Column('payer_stay_id', Uuid, primary_key=True),
+    Column('pdpm_code', String(4), nullable=False),
+    CheckConstraint("pdpm_code ~ '^[A-P][A-L][A-Y][A-F]$'"),
+)
+
 resident_summaries = Table('resident_summaries', metadata,
     # One row per resident ever admitted, totalled across every stay, for the
     # Residents report. Computing these live from res_stays and res_payer_stays

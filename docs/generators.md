@@ -48,10 +48,10 @@ From `sandbox-data`:
 | `python manage.py monthly_adt_summary --regenerate` | Rebuild the monthly rollup, census days included. ~13 s. |
 | `python manage.py admission_logs --regenerate` | Rebuild admission logs from saved stays. |
 | `python manage.py discharge_logs --regenerate` | Rebuild discharge logs from saved stays. |
-| `python manage.py payer_change_logs --regenerate` | Flatten payer changes from saved periods. |
+| `python manage.py payer_change_logs --regenerate` | Flatten payer changes from saved periods. Also rebuilt by every `update`, ~5 s. |
 | `python manage.py referring_hospitals --regenerate` | Rebuild the 384-hospital catalogue from hospitals.json. |
 | `python manage.py payer_rates --regenerate` | Rebuild the daily rate per facility and payer plan. ~3 s. |
-| `python manage.py census_logs --regenerate` | Rebuild who was in a bed, at what care level and rate, for all history. ~1 min. |
+| `python manage.py census_logs --regenerate` | Rebuild who was in a bed, at what care level and rate, and every Medicare period's PDPM code, for all history. ~1 min. |
 | `python manage.py resident_summaries --regenerate` | Rebuild every resident's totals across their stays. ~3 s. |
 | `python manage.py facility_beds --regenerate` | Rebuild each facility's wings, rooms and beds from its bed count. ~2 s. Follow with `bed_assignments`. |
 | `python manage.py bed_assignments --regenerate` | Replay every stay into a bed, keeping semi-private rooms single-gender where possible. ~36 s. |
@@ -261,5 +261,11 @@ steps (days 1–3, 4–20, then weekly), 1.12M rows and 202 MB, so a skilled sta
 split in `census_logs` every week. Care level is reassessed every 92 days from
 admission and only rises, so a Medicaid rate can change mid-stay with no payer
 change. Both tables are rebuilt whole by every `update`, about a minute, because
-payer periods are edited after the fact. Verified: residents in a bed on 2026-09-24
+payer periods are edited after the fact. Both are written in order of when each row ends, so
+the rows in a bed on a day -- today's, still open, last of all -- share a few pages:
+finding today's 27,000 residents reads 520 pages in 10 ms, where scattered rows took
+~90 ms. `pdpm_assessments` gives every Medicare
+payer period (Original and Advantage) a four-letter PDPM code -- PT/OT, SLP,
+nursing, NTA groups -- drawn from demo distributions in `aspire-census-logs.py`,
+with the nursing group inside the band the care level implies: 280,580 codes. Verified: residents in a bed on 2026-09-24
 and resident-days in August 2026 both match the census facts exactly.

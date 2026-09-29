@@ -6,6 +6,8 @@ import { ResidentsReport } from '../features/census/components/ResidentsReport'
 import { CensusTrending } from '../features/census/components/CensusTrending'
 import { BedBoard, BedBoardFacilityFilter } from '../features/census/components/BedBoard'
 import { MonthlyCensusTrending } from '../features/census/components/MonthlyCensusTrending'
+import { CurrentMedicare } from '../features/mds/components/CurrentMedicare'
+import { MedicareResidents } from '../features/mds/components/MedicareResidents'
 import { Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
 import { AdmissionsLogs } from '../features/adt/components/AdmissionsLogs'
 import { DischargesLogs } from '../features/adt/components/DischargesLogs'
@@ -53,6 +55,11 @@ const dischargesTabs = [
 ]
 const liveCensusTabs = [
   { id: 'overview', label: 'Overview' },
+  { id: 'residents', label: 'Residents', noScroll: true },
+]
+const medicareTabs = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'categories', label: 'Category Breakdown' },
   { id: 'residents', label: 'Residents', noScroll: true },
 ]
 const monthlyTabs = [
@@ -124,6 +131,7 @@ function App() {
   const activeAdmissionsTab = admissionsTabs.find((tab) => tab.id === admissionsView)?.id ?? 'testing'
   const activeDischargesTab = dischargesTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeLiveCensusTab = admissionsView === 'residents' ? 'residents' : 'overview'
+  const activeMedicareTab = medicareTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const defaultRange = getDefaultReportDateRange()
   const startDate = searchParams.get('start_date') ?? defaultRange.startDate
   const endDate = searchParams.get('end_date') ?? defaultRange.endDate
@@ -348,7 +356,8 @@ function App() {
               }} />}
             {isMonthlyAdtReport && <MonthlyAdtFilters activeTab={monthlyTab} />}
             {isMonthlyAdtReport || isMonthlyCensusReport ? <ReportMonthRangeFilter /> : currentReport.path !== '/adt/referring-hospital' && currentReport.path !== '/census/daily-census'
-              && currentReport.path !== '/census/residents' && currentReport.path !== '/census/bed-board' ? <ReportDateRangeFilter /> : null}
+              && currentReport.path !== '/census/residents' && currentReport.path !== '/census/bed-board'
+              && currentReport.path !== '/mds/current-medicare' ? <ReportDateRangeFilter /> : null}
           </ReportFilters>
         }
         tabFilters={
@@ -378,6 +387,15 @@ function App() {
                   else next.set('view', id)
                   setSearchParams(next)
                 },
+              } : currentReport.path === '/mds/current-medicare' ? {
+                activeTabId: activeMedicareTab,
+                tabs: medicareTabs,
+                onTabChange: (id: string) => {
+                  const next = new URLSearchParams(searchParams)
+                  if (id === 'overview') next.delete('view')
+                  else next.set('view', id)
+                  setSearchParams(next)
+                },
               } : isMonthlyAdtReport ? {
                 activeTabId: monthlyTab,
                 tabs: monthlyTabs,
@@ -397,7 +415,7 @@ function App() {
               } : undefined
         }
         title={currentReport.title}
-        titleDetail={currentReport.path === '/census/daily-census' ? `Census on ${dayjs(searchParams.get('date') ?? undefined).format('dddd, MMMM D, YYYY')}` : currentReport.path === '/census/bed-board' ? 'Current beds, one facility at a time' : currentReport.path === '/census/residents' ? 'Every resident ever admitted' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyAdtReport || isMonthlyCensusReport
+        titleDetail={currentReport.path === '/census/daily-census' ? `Census on ${dayjs(searchParams.get('date') ?? undefined).format('dddd, MMMM D, YYYY')}` : currentReport.path === '/census/bed-board' ? 'Current beds, one facility at a time' : currentReport.path === '/mds/current-medicare' ? 'Medicare residents in a bed today' :currentReport.path === '/census/residents' ? 'Every resident ever admitted' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyAdtReport || isMonthlyCensusReport
           ? `${monthRange.start.format('MMMM YYYY')} to ${monthRange.end.format('MMMM YYYY')} (${monthRange.end.diff(monthRange.start, 'month') + 1} months)`
           : formatReportDateRange(startDate, endDate)}
         leadingControl={
@@ -419,7 +437,9 @@ function App() {
           {reports.map((report) => (
             <Route
               element={
-                report.path === '/census/residents' ? <ResidentsReport /> : report.path === '/census/bed-board' ? <BedBoard /> : report.path === '/census/monthly-trending' ? <MonthlyCensusTrending /> : report.path === '/census/trending' ? <CensusTrending /> : report.path === '/census/daily-census' ? (
+                report.path === '/mds/current-medicare' ? (activeMedicareTab === 'residents' ? <MedicareResidents />
+                  : activeMedicareTab === 'categories' ? <section className="report-placeholder" aria-label="Category Breakdown content" />
+                  : <CurrentMedicare />) : report.path === '/census/residents' ? <ResidentsReport /> :report.path === '/census/bed-board' ? <BedBoard /> : report.path === '/census/monthly-trending' ? <MonthlyCensusTrending /> : report.path === '/census/trending' ? <CensusTrending /> : report.path === '/census/daily-census' ? (
                   activeLiveCensusTab === 'residents' ? <CensusResidents /> : <LiveCensus />
                 ) : report.path === '/adt/admissions' ? (
                   activeAdmissionsTab === 'logs' ? (

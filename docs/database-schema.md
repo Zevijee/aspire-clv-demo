@@ -19,6 +19,9 @@ erDiagram
     payers {
         Uuid payer_id PK
     }
+    pdpm_assessments {
+        Uuid payer_stay_id PK
+    }
     pdpm_rate_logs {
         Uuid payer_stay_id PK
         SmallInteger step PK
@@ -239,6 +242,17 @@ Payer catalog. Skilled classification applies to Medicare categories and VA.
 
 - INDEX `ix_payers_payer_type`: payer_type
 - UNIQUE: `payer_type, payer_name`
+
+## pdpm_assessments
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| payer_stay_id | UUID | no | PK |  |  |
+| pdpm_code | VARCHAR(4) | no |  |  |  |
+
+- CHECK: `pdpm_code ~ '^[A-P][A-L][A-Y][A-F]$'`
 
 ## pdpm_rate_logs
 
