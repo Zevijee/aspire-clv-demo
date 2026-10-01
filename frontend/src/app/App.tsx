@@ -415,7 +415,7 @@ function App() {
               } : undefined
         }
         title={currentReport.title}
-        titleDetail={currentReport.path === '/census/daily-census' ? `Census on ${dayjs(searchParams.get('date') ?? undefined).format('dddd, MMMM D, YYYY')}` : currentReport.path === '/census/bed-board' ? 'Current beds, one facility at a time' : currentReport.path === '/mds/current-medicare' ? 'Medicare residents in a bed today' :currentReport.path === '/census/residents' ? 'Every resident ever admitted' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyAdtReport || isMonthlyCensusReport
+        titleDetail={currentReport.path === '/census/daily-census' ? `Census on ${dayjs(searchParams.get('date') ?? undefined).format('dddd, MMMM D, YYYY')}` : currentReport.path === '/census/bed-board' ? 'Current beds, one facility at a time' : currentReport.path === '/mds/current-medicare' ? 'PDPM residents in a bed today' :currentReport.path === '/census/residents' ? 'Every resident ever admitted' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyAdtReport || isMonthlyCensusReport
           ? `${monthRange.start.format('MMMM YYYY')} to ${monthRange.end.format('MMMM YYYY')} (${monthRange.end.diff(monthRange.start, 'month') + 1} months)`
           : formatReportDateRange(startDate, endDate)}
         leadingControl={

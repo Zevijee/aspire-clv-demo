@@ -89,7 +89,10 @@ def main():
         reference = ('states', 'portfolios', 'regions', 'facilities', 'payers', 'payer_rates', 'facility_beds',
             'referring_hospitals')
         if args.reset_history:
-            reference += ('residents',)
+            # The reset drops the users table too. Without admin_user here nobody
+            # could sign in afterwards, and the API said only that the password
+            # was wrong.
+            reference += ('admin_user', 'residents')
         if args.generator in database_commands:
             plan = ()
         elif daily:
@@ -147,6 +150,10 @@ def main():
     database_url = os.getenv('DATABASE_URL')
     if not database_url:
         parser.error('Set DATABASE_URL in the repository root .env or your environment.')
+    # Checked before anything is dropped, so a reset cannot leave no one able to sign in.
+    if args.reset_history and not os.getenv('ADMIN_PASSWORD', '').strip():
+        parser.error('Set ADMIN_PASSWORD in the repository root .env or your environment before '
+            'seed --reset-history: the reset drops the users table and recreates the admin user.')
     # Say which database, every time. Two databases with the same schema and
     # different data is the failure this prevents.
     message(f'  Database    {lifecycle.describe_url(database_url)}')

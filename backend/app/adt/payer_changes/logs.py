@@ -19,8 +19,8 @@ from ...common.dates import DateRange
 from ...common.errors import ApiError
 from ...common.tables import PageQuery, paginate
 
-PAYER_LABELS = {'medicare': 'Medicare', 'medicare_hmo': 'Medicare HMO',
-    'medicare_comm': 'Commercial Medicare', 'medicaid': 'Medicaid', 'private': 'Private Pay',
+PAYER_LABELS = {'medicare': 'Medicare', 'managed_medicare_pdpm': 'Managed Medicare PDPM',
+    'managed_medicare_ppo': 'Managed Medicare PPO', 'medicaid': 'Medicaid', 'private': 'Private Pay',
     'hospice': 'Hospice', 'va': 'VA'}
 
 new_payer = payers.alias('new_payer')

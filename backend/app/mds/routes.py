@@ -15,9 +15,10 @@ router = APIRouter(prefix='/mds', tags=['MDS'])
 
 @router.get('/current-medicare', response_model=CurrentMedicare, responses={409: {'model': ErrorResponse}})
 def current_medicare(request: Request, connection: DbConnection):
-    """Every facility's Medicare residents on the latest census day, split into
-    Federal, HMO and commercial plans, with summed actual and case-mix-neutral daily
-    rates and days since admission for the page to average at any scope."""
+    """Every facility's PDPM residents on the latest census day, split into
+    Federal Medicare and Managed Medicare PDPM, with summed actual and
+    case-mix-neutral daily rates and days since admission for the page to
+    average at any scope. Managed Medicare PPO, a per diem payer, is left out."""
     return current(connection, today(request.app.state.settings.timezone))
 
 
@@ -25,7 +26,7 @@ def current_medicare(request: Request, connection: DbConnection):
     responses={409: {'model': ErrorResponse}})
 def current_medicare_residents(request: Request, connection: DbConnection,
         query: Annotated[residents.ResidentsQuery, Query()]):
-    """Every resident on a Medicare payer on the latest census day, with payer,
+    """Every PDPM resident on the latest census day, with payer group, plan,
     length of stay, PDPM score, average rate and revenue to date."""
     return residents.page(connection, query, today(request.app.state.settings.timezone))
 

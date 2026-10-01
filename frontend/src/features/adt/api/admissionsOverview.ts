@@ -6,11 +6,10 @@ const base = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').repl
 export const admissionsBase = `${base}/api/v1/adt/admissions`
 
 export const payerLabels: Record<string, string> = {
-  medicare: 'Medicare', medicare_hmo: 'Medicare HMO', medicare_comm: 'Commercial Medicare',
+  medicare: 'Medicare', managed_medicare_pdpm: 'Managed Medicare PDPM', managed_medicare_ppo: 'Managed Medicare PPO',
   medicaid: 'Medicaid', private: 'Private Pay', hospice: 'Hospice', va: 'VA',
 }
 export function payerCode(value: string) {
-  if (value === 'Medicare Advantage') return 'medicare_comm'
   return Object.keys(payerLabels).find(key => payerLabels[key] === value) ?? value
 }
 export function payerLabel(value: string) { return payerLabels[payerCode(value)] ?? value }

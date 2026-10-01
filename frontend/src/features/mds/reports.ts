@@ -5,7 +5,7 @@ export const mdsReports: ReportDefinition[] = [
     description: 'Review the current Medicare skilled nursing facility resident census and assessment status.',
     module: 'MDS',
     path: '/mds/current-medicare',
-    title: 'Current Medicare',
+    title: 'Current Medicare PDPM',
   },
   {
     description: 'Review historical Medicare resident, assessment, and reimbursement trends.',

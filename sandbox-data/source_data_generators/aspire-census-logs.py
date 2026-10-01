@@ -51,7 +51,7 @@ NTA_BOOST_THROUGH, NTA_BOOST = 3, 3
 
 # PDPM classification. Payer types classified, and cumulative shares for each
 # letter of the code. These are demo distributions, not CMS statistics.
-PDPM_PAYER_TYPES = ('medicare', 'medicare_hmo', 'medicare_comm')
+PDPM_PAYER_TYPES = ('medicare', 'managed_medicare_pdpm', 'managed_medicare_ppo')
 # PT/OT: clinical category (joint replacement or spinal surgery, other
 # orthopedic, medical management, non-orthopedic surgery or acute neurologic),
 # then function score band (0-5, 6-9, 10-23, 24). Letter = category * 4 + band.

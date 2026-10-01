@@ -7,7 +7,7 @@ const base = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').repl
 export const payerChangesBase = `${base}/api/v1/adt/payer-changes`
 
 // The donuts render one card per payer type, in this order.
-export const payerTypes = ['medicare', 'medicare_comm', 'medicare_hmo', 'medicaid',
+export const payerTypes = ['medicare', 'managed_medicare_pdpm', 'managed_medicare_ppo', 'medicaid',
   'private', 'hospice', 'va'] as const
 
 export type PayerChangeMetrics = { changes: number; average_per_day: number }

@@ -16,6 +16,10 @@ The rules follow how skilled nursing is actually paid:
 - Hospice pays the facility room and board at 95% of its Medicaid rate, by
   statute, whatever the hospice plan.
 - VA and private pay are contract and list prices, varying by facility.
+
+Each contract also says how it pays, and the payer decides it: Original
+Medicare and Managed Medicare PDPM pay from the PDPM code; Managed Medicare PPO
+and everything else pay a per diem.
 """
 from decimal import Decimal, ROUND_HALF_UP
 from random import Random
@@ -26,10 +30,10 @@ from base import BaseGenerator
 
 SEED = 42
 # National average per diem at the middle of every range below, in dollars.
-# The API's Current Medicare report uses the medicare figure as its neutral
+# The API's Current Medicare PDPM report uses the medicare figure as its neutral
 # rate (NATIONAL_PER_DIEM in backend/app/mds/service.py); keep the two equal.
 BASE_RATE = {
-    'medicare': 720, 'medicare_comm': 560, 'medicare_hmo': 520,
+    'medicare': 720, 'managed_medicare_ppo': 560, 'managed_medicare_pdpm': 520,
     'va': 460, 'private': 390, 'medicaid': 270,
 }
 HOSPICE_SHARE_OF_MEDICAID = Decimal('0.95')
@@ -42,6 +46,12 @@ MEDICARE_CASE_MIX_RANGE = (0.88, 1.15)
 PLAN_RANGE = {'medicaid': (0.97, 1.03)}
 DEFAULT_PLAN_RANGE = (0.92, 1.08)
 CENTS = Decimal('0.01')
+# Payers whose contracts pay from the PDPM code; every other contract pays a per diem.
+PDPM_PAYER_TYPES = ('medicare', 'managed_medicare_pdpm')
+
+
+def payment_method(payer_type):
+    return 'pdpm' if payer_type in PDPM_PAYER_TYPES else 'per_diem'
 
 
 class PayerRateGenerator(BaseGenerator):
@@ -89,7 +99,8 @@ class PayerRateGenerator(BaseGenerator):
                             'plan', facility_id, str(payer['payer_id']))
                     rate = Decimal(rate)
                 yield dict(facility_id=facility['facility_id'], payer_id=payer['payer_id'],
-                    daily_rate=rate.quantize(CENTS, ROUND_HALF_UP))
+                    daily_rate=rate.quantize(CENTS, ROUND_HALF_UP),
+                    payment_method=payment_method(payer_type))
 
 
 GENERATORS = (PayerRateGenerator,)

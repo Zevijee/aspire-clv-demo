@@ -8,7 +8,7 @@ import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { getCurrentMedicare, type CurrentMedicareReport, type FacilityMedicare } from '../api'
 
 type Row = { key: string; name: string; path: string[]; facilities: FacilityMedicare[]; isTotal?: boolean }
-type Summed = 'federal' | 'hmo' | 'commercial' | 'actual_rates' | 'neutral_rates' | 'resident_days'
+type Summed = 'federal' | 'managed' | 'actual_rates' | 'neutral_rates' | 'resident_days'
 const levels = ['State', 'Portfolio', 'Region', 'Facility']
 function location(row: FacilityMedicare) { return [row.state, row.portfolio, row.region, row.facility_name] }
 
@@ -18,7 +18,7 @@ function sum(row: Row, field: Summed) {
 // Sums at this scope divided once by its residents: never an average of
 // facility averages.
 function metric(row: Row, field: string): number | null {
-  const residents = sum(row, 'federal') + sum(row, 'hmo') + sum(row, 'commercial')
+  const residents = sum(row, 'federal') + sum(row, 'managed')
   if (field === 'residents') return residents
   if (field === 'neutral_rate') return residents > 0 ? sum(row, 'neutral_rates') / residents : null
   if (field === 'actual_rate') return residents > 0 ? sum(row, 'actual_rates') / residents : null
@@ -27,8 +27,8 @@ function metric(row: Row, field: string): number | null {
 }
 
 const metrics: [id: string, header: string, kind: 'count' | 'rate' | 'days'][] = [
-  ['residents', 'Medicare residents', 'count'], ['federal', 'Federal', 'count'],
-  ['hmo', 'HMO', 'count'], ['commercial', 'Commercial', 'count'],
+  ['residents', 'PDPM residents', 'count'], ['federal', 'Federal Medicare', 'count'],
+  ['managed', 'Managed Medicare PDPM', 'count'],
   ['neutral_rate', 'Neutral rate', 'rate'], ['actual_rate', 'Actual rate', 'rate'],
   ['los', 'Avg. length of stay', 'days'],
 ]
@@ -76,7 +76,8 @@ export function CurrentMedicare() {
   ]
   const facilityRows: Row[] = (data?.items ?? []).map(facility => ({
     key: facility.facility_id, name: facility.facility_name, path: location(facility), facilities: [facility] }))
-  const subtitle = data ? `Medicare residents on ${data.census_date}. `
+  const subtitle = data ? `Residents paid from their PDPM code on ${data.census_date}: Original Medicare, `
+    + 'and Managed Medicare PDPM. Managed Medicare PPO pays per diem and is not included. '
     + "Neutral rate is not adjusted for the facility's case mix. Actual rate is what the payer pays." : ''
 
   return <>
@@ -87,7 +88,7 @@ export function CurrentMedicare() {
     }} items={path.map((name, index) => ({ id: JSON.stringify(path.slice(0, index + 1)), label: name,
       onSelect: () => setPath(path.slice(0, index + 1)) }))}
       level={{ current: depth + 1, total: 4, label: levels[depth] }} />
-    <DrilldownTable<Row> title={`${levels[depth]} Medicare residents`} columns={columns} rows={[...groups.values()]}
+    <DrilldownTable<Row> title={`${levels[depth]} PDPM residents`} columns={columns} rows={[...groups.values()]}
       getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
       loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}
       getFooterRow={rows => ({ key: 'total', name: 'Total', path: [], isTotal: true,
@@ -97,7 +98,7 @@ export function CurrentMedicare() {
       emptyMessage="No facilities match this view."
       csvFileName={`current-medicare-${data?.census_date ?? 'today'}.csv`} />
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
-      title={data ? `All facilities · Medicare residents on ${data.census_date}` : 'All facilities'} subtitle={subtitle}
+      title={data ? `All facilities · PDPM residents on ${data.census_date}` : 'All facilities'} subtitle={subtitle}
       rows={facilityRows} columns={columns.slice(1)} getRowKey={row => row.key} getName={row => row.name}
       getPath={row => [row.path[0], row.path[1], row.path[2]]}
       loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}

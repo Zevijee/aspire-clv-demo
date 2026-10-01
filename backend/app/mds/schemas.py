@@ -11,17 +11,17 @@ class FacilityMedicare(BaseModel):
     portfolio: str
     region: str
     federal: int = Field(description='Residents on Original Medicare Part A on `census_date`.')
-    hmo: int = Field(description='Residents on a Medicare Advantage HMO plan.')
-    commercial: int = Field(description='Residents on a Medicare Advantage PPO or other commercial plan.')
+    managed: int = Field(description='Residents on Managed Medicare PDPM. '
+        'Managed Medicare PPO pays per diem and is not counted anywhere in this report.')
     actual_rates: float = Field(description=
-        "Sum of every Medicare resident's daily rate that day, after PDPM. Divide by "
+        "Sum of every PDPM resident's daily rate that day. Divide by "
         'the residents for the average; sum both first to average over facilities.')
     neutral_rates: float = Field(description=
         'Sum of the case-mix-neutral rate for the same residents: the national per '
         "diem times each resident's PDPM day factor, with no care level or facility "
         'case-mix index.')
     resident_days: int = Field(description=
-        'Sum of days from admission to `census_date` across the Medicare residents. '
+        'Sum of days from admission to `census_date` across the PDPM residents. '
         'Divide by the residents for the average length of stay.')
 
 

@@ -96,8 +96,16 @@ facility_payer_rates = Table('facility_payer_rates', metadata,
     Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
     Column('payer_id', Uuid, ForeignKey('payers.payer_id'), nullable=False),
     Column('daily_rate', Numeric(8, 2), nullable=False),
+    # How the contract pays: 'pdpm' from the resident's PDPM code and its CMIs,
+    # or 'per_diem', a daily rate the code does not change. A property of the
+    # contract, not the plan -- one Medicare Advantage plan can pay PDPM at one
+    # facility and a flat rate at the next -- so reports group Medicare
+    # Advantage by this as Managed Medicare PDPM and Managed Medicare per diem.
+    # Original Medicare is always 'pdpm'.
+    Column('payment_method', String, nullable=False),
     PrimaryKeyConstraint('facility_id', 'payer_id'),
     CheckConstraint('daily_rate > 0'),
+    CheckConstraint("payment_method IN ('pdpm', 'per_diem')"),
 )
 
 users = Table('users', metadata,

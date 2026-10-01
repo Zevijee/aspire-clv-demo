@@ -33,10 +33,11 @@ class ResidentStayGenerator(BaseGenerator):
     STATE_MEDICAID_SHARE = 0.50
     MEDICAID_PENDING_SHARE = 0.50
     MAX_SKILLED_DAYS = 100
-    # Medicare Advantage plans. A resident can disenrol from one mid-stay and
+    # Medicare Advantage plans: Managed Medicare PDPM and Managed Medicare PPO.
+    # A resident can disenrol from one mid-stay and
     # finish under Original Medicare, which is the only skilled-to-skilled payer
     # change that exists here.
-    MANAGED_MEDICARE = ('medicare_hmo', 'medicare_comm')
+    MANAGED_MEDICARE = ('managed_medicare_pdpm', 'managed_medicare_ppo')
     # Below this the remaining allowance is too short to divide between two
     # skilled periods, so the move is not offered.
     MIN_DAYS_TO_SPLIT_SKILLED = 14
@@ -44,7 +45,7 @@ class ResidentStayGenerator(BaseGenerator):
     # Medicare rather than moving to Private Pay or Medicaid. A demo choice.
     MANAGED_DISENROLMENT_SHARE = 0.12
     INITIAL_PAYER_WEIGHTS = {
-        'medicare': 40, 'medicare_hmo': 23, 'medicare_comm': 10,
+        'medicare': 40, 'managed_medicare_pdpm': 23, 'managed_medicare_ppo': 10,
         'medicaid': 20, 'private': 4, 'va': 2, 'hospice': 1,
     }
     # Planned total stay length, chosen at admission from the initial payer type.
@@ -56,8 +57,8 @@ class ResidentStayGenerator(BaseGenerator):
     STAY_LENGTH_BANDS = {
         'medicaid':      (((45, 120), 40), ((121, 240), 40), ((241, 450), 20)),
         'medicare':      (((14, 35), 45), ((36, 70), 40), ((71, 120), 15)),
-        'medicare_comm': (((14, 35), 45), ((36, 70), 40), ((71, 120), 15)),
-        'medicare_hmo':  (((10, 28), 55), ((29, 55), 35), ((56, 90), 10)),
+        'managed_medicare_ppo': (((14, 35), 45), ((36, 70), 40), ((71, 120), 15)),
+        'managed_medicare_pdpm': (((10, 28), 55), ((29, 55), 35), ((56, 90), 10)),
         'va':            (((20, 60), 50), ((61, 120), 35), ((121, 240), 15)),
         'private':       (((30, 120), 30), ((121, 365), 40), ((366, 730), 30)),
         'hospice':       (((5, 30), 55), ((31, 90), 30), ((91, 240), 15)),

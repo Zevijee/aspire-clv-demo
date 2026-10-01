@@ -209,7 +209,7 @@ generation job. See [docs/deploying.md](docs/deploying.md).
   replaced by the daily simulation; the guard says so.
 - **A payer change can move a stay only from managed Medicare into Original
   Medicare, never into any other skilled payer.** Medicare Advantage disenrolment
-  mid-stay is real, so `medicare_hmo` and `medicare_comm` may move to `medicare`.
+  mid-stay is real, so `managed_medicare_pdpm` and `managed_medicare_ppo` may move to `medicare`.
   It continues the same 100-day allowance rather than restarting it, which is why
   every other skilled destination is still blocked. See `MANAGED_MEDICARE` and
   `MANAGED_DISENROLMENT_SHARE` in `aspire-res-stays.py`.

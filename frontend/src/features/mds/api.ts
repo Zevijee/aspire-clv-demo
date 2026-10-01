@@ -9,10 +9,10 @@ export type FacilityMedicare = {
   state: string
   portfolio: string
   region: string
-  // Residents on each Medicare payer on the census day.
+  // PDPM residents on the census day: Original Medicare, and Medicare
+  // Advantage on a PDPM contract. Per diem contract residents are not included.
   federal: number
-  hmo: number
-  commercial: number
+  managed: number
   // Sums, never averages: add them up for a scope, then divide once by its
   // residents, so every average is weighted by who is in the beds.
   actual_rates: number

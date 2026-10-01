@@ -122,7 +122,7 @@ export type AdmissionsDailyTrendItem = {
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
 export function formatPayerType(payerType: string) {
-  return payerType === 'Medicare Advantage' ? 'Commercial Medicare' : payerType
+  return payerType
 }
 
 function getAdmissionsSearchParams(startDate: string, endDate: string) {
@@ -190,9 +190,7 @@ export async function getRecentAdmissions(
       for (const value of values) {
         searchParams.append(
           parameterName,
-          parameterName === 'payer_type' && value === 'Commercial Medicare'
-            ? 'Medicare Advantage'
-            : value,
+          value,
         )
       }
     }

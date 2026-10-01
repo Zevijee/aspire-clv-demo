@@ -1,7 +1,7 @@
 import { FilterDropdown } from '../../../shared/components/filters/FilterDropdown'
 import { formatPayerType } from '../api/admissions'
 
-const payers = ['Medicare', 'Medicare Advantage', 'Medicare HMO', 'Managed Medicaid', 'Medicaid', 'Hospice', 'Private Pay']
+const payers = ['Medicare', 'Managed Medicare PDPM', 'Managed Medicare PPO', 'Managed Medicaid', 'Medicaid', 'Hospice', 'Private Pay']
 
 export function PayerFilter({ values, onChange, displayValues = false }: {
   values: string[]

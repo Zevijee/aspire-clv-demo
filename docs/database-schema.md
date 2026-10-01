@@ -548,8 +548,10 @@ Additive daily payer-change counts at facility/from-type/to-type grain. Resident
 | facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
 | payer_id | UUID | no | PK, FK → payers.payer_id |  |  |
 | daily_rate | NUMERIC(8, 2) | no |  |  |  |
+| payment_method | VARCHAR | no |  |  |  |
 
 - CHECK: `daily_rate > 0`
+- CHECK: `payment_method IN ('pdpm', 'per_diem')`
 
 ## monthly_admission_facts
 

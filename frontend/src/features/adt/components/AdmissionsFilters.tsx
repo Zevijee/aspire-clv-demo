@@ -51,8 +51,8 @@ export function AdmissionsFilters({ filters, setFilters }: AdmissionsFiltersProp
         onChange: (payerTypes) => setFilters((current) => ({ ...current, payerTypes })),
         options: [
           { label: 'Medicare', value: 'Medicare' },
-          { label: 'Commercial Medicare', value: 'Medicare Advantage' },
-          { label: 'Medicare HMO', value: 'Medicare HMO' },
+          { label: 'Managed Medicare PDPM', value: 'Managed Medicare PDPM' },
+          { label: 'Managed Medicare PPO', value: 'Managed Medicare PPO' },
           { label: 'Managed Medicaid', value: 'Managed Medicaid' },
           { label: 'Medicaid', value: 'Medicaid' },
           { label: 'Hospice', value: 'Hospice' },

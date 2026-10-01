@@ -174,8 +174,8 @@ skilled than the bed mix, because that is how real facilities look too.
 | va | 79 d |
 | hospice | 53 d |
 | medicare | 47 d |
-| medicare_comm | 47 d |
-| medicare_hmo | 32 d |
+| managed_medicare_ppo | 47 d |
+| managed_medicare_pdpm | 32 d |
 
 Managed Medicare discharges sooner than traditional Medicare because plans manage
 length of stay down. Private pay is largely custodial. Hospice has a short median
@@ -244,6 +244,15 @@ conversions will exist in real data and do not exist here.
 deterministically from the facility ID and its region. `facilities.json` carries only
 state, portfolio, market, facility and beds. Add a real field there if the
 distinction should be editable rather than implicit.
+
+**Managed Medicare is two payers.** Medicare Advantage is split by how it pays,
+not by plan type: `managed_medicare_pdpm` pays from the resident's PDPM code, and
+`managed_medicare_ppo` pays a contract per diem. They replaced `medicare_hmo` and
+`medicare_comm`, keeping those types' plans, weights and stay lengths in that order.
+`facility_payer_rates.payment_method` records it per contract -- `pdpm` for
+Original Medicare and Managed Medicare PDPM, `per_diem` for everything else -- and
+Current Medicare PDPM counts only PDPM payers. The rate itself does not yet follow
+it: per diem contracts still step with the PDPM day schedule in `pdpm_rate_logs`.
 
 **Payer rates are rules, not observations.** `aspire-payer-rates.py` gives each
 facility and payer plan a daily rate: Medicare varies by facility case mix, Medicare

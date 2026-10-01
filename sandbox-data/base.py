@@ -48,7 +48,7 @@ class BaseGenerator(ABC):
     transaction_isolation = None
     SIMULATION_START = date(2023, 1, 1)
     SIMULATION_TIMEZONE = 'America/New_York'
-    SKILLED_PAYER_TYPES = frozenset(('medicare', 'medicare_hmo', 'medicare_comm', 'va'))
+    SKILLED_PAYER_TYPES = frozenset(('medicare', 'managed_medicare_pdpm', 'managed_medicare_ppo', 'va'))
     facilities_path = Path(__file__).resolve().parent / 'hard_coded_data' / 'facilities.json'
     payers_path = Path(__file__).resolve().parent / 'hard_coded_data' / 'payers.json'
     hospitals_path = Path(__file__).resolve().parent / 'hard_coded_data' / 'hospitals.json'

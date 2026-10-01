@@ -20,9 +20,9 @@ const columns: TableColumn<MedicareResident>[] = [
   { id: 'state', header: 'State', filterable: true, hidden: true, value: row => row.state },
   { id: 'portfolio', header: 'Portfolio', filterable: true, hidden: true, value: row => row.portfolio },
   { id: 'region', header: 'Region', filterable: true, hidden: true, value: row => row.region },
-  { id: 'payer', header: 'Payer', filterable: true, value: row => ({
-    medicare: 'Medicare', medicare_hmo: 'Medicare HMO', medicare_comm: 'Commercial Medicare',
-  } as Record<string, string>)[row.payer_type] ?? row.payer_type },
+  // Labels match the API's filter values exactly.
+  { id: 'payer', header: 'Payer', filterable: true,
+    value: row => row.payer_type === 'medicare' ? 'Federal Medicare' : 'Managed Medicare PDPM' },
   { id: 'payer-name', header: 'Payer name', filterable: true, value: row => row.payer_name },
   { id: 'los', header: 'Length of stay', numeric: true, value: row => row.length_of_stay },
   { id: 'pdpm-score', header: 'PDPM score', filterable: true, value: row => row.pdpm_score },
@@ -67,8 +67,9 @@ export function MedicareResidents() {
     onRetry: () => setRetry(count => count + 1) }
   const pageCount = Math.max(1, Math.ceil((result?.total ?? 0) / pageSize))
   return <Table<MedicareResident> {...status}
-    title="Medicare residents"
-    subtitle={`Everyone on a Medicare payer${censusDate ? ` on ${censusDate}` : ''}. Length of stay is days since admission. `
+    title="PDPM residents"
+    subtitle={`Everyone paid from their PDPM code${censusDate ? ` on ${censusDate}` : ''}: Federal Medicare and Managed Medicare PDPM. `
+      + 'Payer name shows the plan. Length of stay is days since admission. '
       + 'PDPM score is the four-letter PDPM code: PT/OT, SLP, nursing and NTA groups. '
       + 'Total revenue is PDPM revenue on this payer to date; average rate is that revenue per day on the payer.'}
     columns={columns} rows={result?.items ?? []} getRowKey={row => row.stay_id}

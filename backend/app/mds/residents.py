@@ -1,5 +1,6 @@
-"""The residents behind Current Medicare: everyone on a Medicare payer on the
-census day, with their PDPM score, average daily rate and revenue to date.
+"""The residents behind Current Medicare PDPM: everyone paid from their PDPM code
+on the census day -- Federal Medicare and Managed Medicare PDPM -- with their
+PDPM score, average daily rate and revenue to date.
 
 Follows census/residents.py: the day's rows are found first through the range
 index and materialized, and the joined, filtered list is built whole before it is
@@ -25,12 +26,12 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import Date, String, case, cast, func, literal, or_, select, true
 
 from shared.database.schema import (
-    census_logs as logs, facilities, payers, pdpm_assessments as assessments, pdpm_rate_logs as pdpm,
+    census_logs as logs, facilities, facility_payer_rates as contracts, payers,
+    pdpm_assessments as assessments, pdpm_rate_logs as pdpm,
     portfolios, regions, res_payer_stays as periods, residents)
 from ..common.errors import ApiError
 from ..common.tables import Page, PageQuery
-from ..census.residents import PAYER_LABELS
-from .service import MEDICARE, census_day
+from .service import GROUP_LABELS, MEDICARE, census_day, pdpm_contract
 
 # Column id -> the output column of the finished list it sorts, filters and
 # searches on. Labels are what the table shows, so they are what filters match.
@@ -98,8 +99,9 @@ class ResidentsPage(Page[MedicareResident]):
 
 
 def _current(day):
-    """Everyone on a Medicare payer in a bed on the day, found through the range index."""
-    return (select(logs).select_from(logs.join(payers, payers.c.payer_id == logs.c.payer_id))
+    """Every PDPM resident in a bed on the day, found through the range index."""
+    return (select(logs).select_from(logs.join(payers, payers.c.payer_id == logs.c.payer_id)
+            .join(contracts, pdpm_contract(logs)))
         .where(logs.c.in_bed.contains(day), payers.c.payer_type.in_(MEDICARE))
         .cte('current').prefix_with('MATERIALIZED'))
 
@@ -116,7 +118,8 @@ def _located(current):
 def _filter_columns():
     return (facilities.c.facility.label('facility_name'), portfolios.c.state, portfolios.c.portfolio,
         regions.c.region, payers.c.payer_type, payers.c.payer_name,
-        case(PAYER_LABELS, value=payers.c.payer_type, else_=payers.c.payer_type).label('payer_label'),
+        case({payer_type: GROUP_LABELS[group] for payer_type, group in MEDICARE.items()},
+            value=payers.c.payer_type, else_=payers.c.payer_type).label('payer_label'),
         assessments.c.pdpm_code.label('pdpm_score'))
 
 
