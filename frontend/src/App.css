@@ -407,7 +407,12 @@ h1 {
 }
 
 .content-area--no-scroll {
-  overflow: hidden;
+  /* Clip, not hidden. A hidden box is still a scroll container that the browser
+     and scripts can scroll, and the table's content overflows this area by about
+     its padding -- so hovering rows on the hosted site nudged the whole report
+     sideways and up by that much. A clipped box cannot be scrolled at all. The
+     table keeps its own scrolling inside. */
+  overflow: clip;
 }
 
 .report-content {
