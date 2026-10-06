@@ -37,6 +37,14 @@
   --color-chart-series-quinary: #a855f7;
   --color-chart-series-senary: #14b8a6;
   --color-chart-series-septenary: #f59e0b;
+  /* PDPM clinical categories, one hue each wherever they appear. Validated as
+     a categorical set with the dataviz palette script: CVD and normal-vision
+     separation pass; teal and orange are under 3:1 on white, so their charts
+     carry visible labels and a table. */
+  --color-pdpm-major-joint: var(--color-chart-series-primary);
+  --color-pdpm-ortho: var(--color-chart-series-senary);
+  --color-pdpm-acute-neuro: var(--color-chart-series-tertiary);
+  --color-pdpm-medical-management: var(--color-chart-series-quinary);
   --color-chart-grid: #e5e7eb;
   --color-chart-axis: #9ca3af;
   --color-chart-label: #374151;

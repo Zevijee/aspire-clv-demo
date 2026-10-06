@@ -26,6 +26,7 @@ Inspect these owners before adding another implementation. Paths and component n
 | --- | --- |
 | Report shell, title, header filters, body scrolling | `src/shared/components/layout/ReportLayout.tsx` |
 | Report tabs | `src/shared/components/layout/ReportTabs.tsx` |
+| A row of buttons choosing one view or category inside a tab | `src/shared/components/SegmentedControl.tsx` |
 | Tables, sorting, search, export, column filters, pinned columns | `src/shared/components/Table.tsx` |
 | Hierarchical tables with default totals | `src/shared/components/DrilldownTable.tsx` |
 | Breadcrumbs and custom location-view context | `src/shared/components/DrilldownNavigation.tsx` |

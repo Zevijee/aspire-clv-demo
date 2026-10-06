@@ -8,6 +8,7 @@ import { BedBoard, BedBoardFacilityFilter } from '../features/census/components/
 import { MonthlyCensusTrending } from '../features/census/components/MonthlyCensusTrending'
 import { CurrentMedicare } from '../features/mds/components/CurrentMedicare'
 import { MedicareResidents } from '../features/mds/components/MedicareResidents'
+import { CategoryBreakdown } from '../features/mds/components/CategoryBreakdown'
 import { Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
 import { AdmissionsLogs } from '../features/adt/components/AdmissionsLogs'
 import { DischargesLogs } from '../features/adt/components/DischargesLogs'
@@ -438,7 +439,7 @@ function App() {
             <Route
               element={
                 report.path === '/mds/current-medicare' ? (activeMedicareTab === 'residents' ? <MedicareResidents />
-                  : activeMedicareTab === 'categories' ? <section className="report-placeholder" aria-label="Category Breakdown content" />
+                  : activeMedicareTab === 'categories' ? <CategoryBreakdown />
                   : <CurrentMedicare />) : report.path === '/census/residents' ? <ResidentsReport /> :report.path === '/census/bed-board' ? <BedBoard /> : report.path === '/census/monthly-trending' ? <MonthlyCensusTrending /> : report.path === '/census/trending' ? <CensusTrending /> : report.path === '/census/daily-census' ? (
                   activeLiveCensusTab === 'residents' ? <CensusResidents /> : <LiveCensus />
                 ) : report.path === '/adt/admissions' ? (

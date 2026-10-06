@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 
 export type DrilldownBreadcrumb = {
   id: string
@@ -22,6 +22,9 @@ type DrilldownNavigationProps = {
   /** Ordered from the root to the current location; the final item is not clickable. */
   items: readonly DrilldownBreadcrumb[]
   level?: { current: number; total: number; label: string }
+  /** The report's own controls, such as a category choice, on a row of their own
+   * under the breadcrumbs. The bar is sticky, so they stay in reach on scroll. */
+  controls?: ReactNode
 }
 
 export function DrilldownNavigation({
@@ -32,6 +35,7 @@ export function DrilldownNavigation({
   items: pathItems,
   locationView,
   level,
+  controls,
 }: DrilldownNavigationProps) {
   const isCustomView = Boolean(locationView && (locationView.groupBy !== 'state' || locationView.selectedCount > 0))
   let items = pathItems
@@ -102,6 +106,7 @@ export function DrilldownNavigation({
         </span>
       )}
       </div>
+      {controls && <div className="drilldown-navigation__controls">{controls}</div>}
     </nav>
   )
 }

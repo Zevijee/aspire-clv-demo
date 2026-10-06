@@ -6,11 +6,10 @@ import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModa
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { getCurrentMedicare, type CurrentMedicareReport, type FacilityMedicare } from '../api'
+import { drilldownLevels as levels, facilityRows as toFacilityRows, groupByLocation, type DrilldownRow } from '../utils/locationDrilldown'
 
-type Row = { key: string; name: string; path: string[]; facilities: FacilityMedicare[]; isTotal?: boolean }
+type Row = DrilldownRow<FacilityMedicare>
 type Summed = 'federal' | 'managed' | 'actual_rates' | 'neutral_rates' | 'resident_days'
-const levels = ['State', 'Portfolio', 'Region', 'Facility']
-function location(row: FacilityMedicare) { return [row.state, row.portfolio, row.region, row.facility_name] }
 
 function sum(row: Row, field: Summed) {
   return row.facilities.reduce((total, facility) => total + facility[field], 0)
@@ -54,17 +53,7 @@ export function CurrentMedicare() {
     return () => controller.abort()
   }, [retry])
 
-  const depth = Math.min(path.length, 3)
-  const groups = new Map<string, Row>()
-  for (const facility of data?.items ?? []) {
-    const parts = location(facility)
-    if (!path.every((value, index) => parts[index] === value)) continue
-    const nextPath = parts.slice(0, depth + 1)
-    const key = JSON.stringify(nextPath)
-    const row = groups.get(key) ?? { key, name: parts[depth], path: nextPath, facilities: [] }
-    row.facilities.push(facility)
-    groups.set(key, row)
-  }
+  const { depth, rows } = groupByLocation(data?.items ?? [], path)
   const nameColumn: TableColumn<Row> = { id: 'name', header: levels[depth], isRowHeader: true, value: row => row.name,
     format: (_, row) => row.isTotal || path.length === 4 ? row.name :
       <button type="button" className="drilldown-table__link" onClick={() => setPath(row.path)}>{row.name}</button> }
@@ -74,8 +63,7 @@ export function CurrentMedicare() {
       id, header, numeric: true, value: row => metric(row, id) ?? '—', format: value => formatMetric(value, kind),
     })),
   ]
-  const facilityRows: Row[] = (data?.items ?? []).map(facility => ({
-    key: facility.facility_id, name: facility.facility_name, path: location(facility), facilities: [facility] }))
+  const facilityRows: Row[] = toFacilityRows(data?.items ?? [])
   const subtitle = data ? `Residents paid from their PDPM code on ${data.census_date}: Original Medicare, `
     + 'and Managed Medicare PDPM. Managed Medicare PPO pays per diem and is not included. '
     + "Neutral rate is not adjusted for the facility's case mix. Actual rate is what the payer pays." : ''
@@ -88,7 +76,7 @@ export function CurrentMedicare() {
     }} items={path.map((name, index) => ({ id: JSON.stringify(path.slice(0, index + 1)), label: name,
       onSelect: () => setPath(path.slice(0, index + 1)) }))}
       level={{ current: depth + 1, total: 4, label: levels[depth] }} />
-    <DrilldownTable<Row> title={`${levels[depth]} PDPM residents`} columns={columns} rows={[...groups.values()]}
+    <DrilldownTable<Row> title={`${levels[depth]} PDPM residents`} columns={columns} rows={rows}
       getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
       loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}
       getFooterRow={rows => ({ key: 'total', name: 'Total', path: [], isTotal: true,

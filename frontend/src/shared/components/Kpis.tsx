@@ -11,6 +11,9 @@ export type KpiItem = {
   header: string
   trend: KpiTrend
   value: string
+  /** A colour token for a small square before the header, when the card stands
+   * for a category that has the same colour in the report's charts. */
+  marker?: string
 }
 
 type KpisProps = DataStateProps & {
@@ -74,7 +77,10 @@ export function Kpis({ items, loading, error, onRetry }: KpisProps) {
     <section aria-label="Key performance indicators" className="kpis">
       {items.map((item) => (
         <article aria-busy={loading} className="kpi" key={item.header}>
-          <h2 className="kpi__header">{item.header}</h2>
+          <h2 className="kpi__header">
+            {item.marker && <span aria-hidden="true" className="kpi__marker" style={{ background: item.marker }} />}
+            {item.header}
+          </h2>
           {loading || error ? (
             <div className="kpi__body">
               <DataState loading={loading} error={error} onRetry={onRetry} label={item.header} />

@@ -8,7 +8,7 @@ from ..common.errors import ApiError, ErrorResponse
 from ..database import DbConnection
 from .schemas import CurrentMedicare
 from .service import current
-from . import residents
+from . import categories, residents
 
 router = APIRouter(prefix='/mds', tags=['MDS'])
 
@@ -20,6 +20,14 @@ def current_medicare(request: Request, connection: DbConnection):
     case-mix-neutral daily rates and days since admission for the page to
     average at any scope. Managed Medicare PPO, a per diem payer, is left out."""
     return current(connection, today(request.app.state.settings.timezone))
+
+
+@router.get('/current-medicare/categories', response_model=categories.Categories,
+    responses={409: {'model': ErrorResponse}})
+def current_medicare_categories(request: Request, connection: DbConnection):
+    """Every facility's PDPM residents on the latest census day, counted by PDPM
+    category. Primary diagnosis is the PT/OT clinical category of the code."""
+    return categories.categories(connection, today(request.app.state.settings.timezone))
 
 
 @router.get('/current-medicare/residents', response_model=residents.ResidentsPage,

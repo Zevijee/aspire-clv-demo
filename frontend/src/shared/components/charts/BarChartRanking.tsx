@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { DataState, type DataStateProps } from '../DataState'
 import {
   Bar,
@@ -72,13 +73,15 @@ export function BarChartRanking({
   formatValue: axisFormat,
   showShare = true,
 }: BarChartRankingProps) {
+  // Unique per chart: several rankings on one page each label their own section.
+  const titleId = useId()
   const formatValue = axisFormat ?? ((value: number) => value.toLocaleString())
   const largestValue = Math.max(...items.map((item) => item.value), 1)
   const total = items.reduce((sum, item) => sum + item.value, 0)
 
   return (
-    <section aria-busy={loading} className="bar-chart-ranking" aria-labelledby="bar-chart-ranking-title">
-      <h2 id="bar-chart-ranking-title">{title}</h2>
+    <section aria-busy={loading} className="bar-chart-ranking" aria-labelledby={titleId}>
+      <h2 id={titleId}>{title}</h2>
       <p className="bar-chart-ranking__subtitle">{subtitle}
         {selectedLabels.length > 0 && onClear && <> · <button className="donut-chart__legend-select donut-chart__clear-filter" type="button" onClick={onClear}>{clearLabel}</button></>}
       </p>

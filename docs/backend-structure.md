@@ -90,6 +90,7 @@ All under `/api/v1`.
 | `GET /census/residents` + `/filter-options` + `/export` | Everyone in a bed on the census day, from census_logs, with care level and the day's rate |
 | `GET /census/live` | Per-facility census, skilled census, payer mix and summed daily rates; `payer_types` narrows census and its averages, not the payer mix, rates or empty beds; with last month's average daily census and a history lookback from yesterday to a year ago. ~200 ms |
 | `GET /mds/current-medicare` | Per-facility PDPM residents on the latest census-log day -- Original Medicare, and Medicare Advantage on a PDPM contract (`facility_payer_rates.payment_method`) -- split Federal Medicare / Managed Medicare PDPM, with summed actual and case-mix-neutral daily rates and days since admission. Neutral rate is a $720 national per diem times the PDPM day factor, with no care level or facility case-mix index. ~80 ms |
+| `GET /mds/current-medicare/categories` | Per-facility PDPM residents counted by PDPM category; primary diagnosis is the PT/OT clinical category, the first letter of the code. ~40 ms |
 | `GET /mds/current-medicare/residents` + `/filter-options` + `/export` | Every PDPM resident on the census day: payer group, plan name, length of stay, PDPM score (four-letter PDPM code from `pdpm_assessments`), average rate and PDPM revenue on this payer to date. Page ~80 ms, filter options ~30 ms |
 
 Every overview reads a fact table and nothing else. Every logs endpoint reads source

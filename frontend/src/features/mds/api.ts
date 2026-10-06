@@ -88,3 +88,26 @@ export async function downloadMedicareResidents(query: MedicareResidentsQuery, c
   anchor.remove()
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
+
+export type PrimaryDiagnosis = {
+  major_joint: number
+  ortho: number
+  acute_neuro: number
+  medical_management: number
+}
+
+export type FacilityCategories = {
+  facility_id: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  // PDPM residents per PT/OT clinical category, the first letter of the code.
+  primary_diagnosis: PrimaryDiagnosis
+}
+
+export type CategoriesReport = { census_date: string; items: FacilityCategories[] }
+
+export function getMedicareCategories(signal?: AbortSignal) {
+  return readJson<CategoriesReport>(`${base}/api/v1/mds/current-medicare/categories`, signal)
+}
