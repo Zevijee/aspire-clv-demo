@@ -3,7 +3,17 @@ import { authorizedFetch } from '../auth/api'
 import { medicareBase } from './api'
 
 const worksheetBase = medicareBase.replace(/current-medicare$/, 'pdpm-worksheet')
-export const worksheetFilterOptions = `${worksheetBase}/filter-options`
+
+/** Which date the page's range applies to: each stay's start, or its ARD. */
+export type WorksheetDateBasis = 'start' | 'ard'
+
+/** The page's date basis, from its date_basis parameter; stay start by default. */
+export const worksheetDateBasis = (params: URLSearchParams): WorksheetDateBasis =>
+  params.get('date_basis') === 'ard' ? 'ard' : 'start'
+
+/** The filter-options endpoint for one date basis, so menus match the table. */
+export const worksheetFilterOptions = (dateBasis: WorksheetDateBasis) =>
+  `${worksheetBase}/filter-options?${new URLSearchParams({ date_basis: dateBasis })}`
 
 // text is a group's Reply: free text, saved as the entry's note.
 export type WorksheetFieldKind = 'choice' | 'score' | 'diagnoses' | 'hipps' | 'text'
@@ -30,6 +40,9 @@ export type WorksheetNtaItem = {
   value: string; label: string; points: number; note: string | null; author: string; entry_id: string
 }
 
+/** A HIPPS code priced over a 100-day Medicare stay at the stay's contract rate. */
+export type StayRates = { average_rate: number; neutral_rate: number; total_revenue: number }
+
 export type WorksheetRow = {
   payer_stay_id: string
   stay_id: string
@@ -43,12 +56,21 @@ export type WorksheetRow = {
   medicare_start: string
   // Yes if this Medicare stay is still running on the latest census day.
   active: 'Yes' | 'No'
+  // How it began: at admission, or by disenrolling from Medicare Advantage.
+  start_reason: 'Admission' | 'Disenrollment'
+  // Why an ended stay ended, and its last day; null while active.
+  end_reason: 'Payer change' | 'Discharge' | null
+  ended_on: string | null
   ard: string | null
   // ARD plus 14 days; null once the MDS is complete.
   due_date: string | null
   mds_status: 'Complete' | 'Due' | 'Overdue'
   // The coded PDPM code plus the 5-day assessment indicator; null until coded.
   final_hipps: string | null
+  // Each HIPPS priced over a full 100-day stay, by the formula the data uses;
+  // null until there is a code.
+  final_rates: StayRates | null
+  projected_rates: StayRates | null
   // Latest set entry per cell id.
   cells: Record<string, WorksheetCell>
   nta: { items: WorksheetNtaItem[]; points: number; band: string }
@@ -88,10 +110,10 @@ export function getWorksheetCatalog(signal?: AbortSignal) {
   return readJson<WorksheetCatalog>(`${worksheetBase}/catalog`, signal)
 }
 
-/** Medicare PDPM stays that started from startDate to endDate, inclusive. */
-export function getWorksheet(startDate: string, endDate: string, offset: number, query: WorksheetQuery,
-    signal?: AbortSignal) {
-  const params = new URLSearchParams({ start_date: startDate, end_date: endDate,
+/** Medicare PDPM stays whose start (or ARD) falls from startDate to endDate, inclusive. */
+export function getWorksheet(startDate: string, endDate: string, dateBasis: WorksheetDateBasis, offset: number,
+    query: WorksheetQuery, signal?: AbortSignal) {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate, date_basis: dateBasis,
     limit: '50', offset: String(offset),
     filters: JSON.stringify(query.filters), search: query.search?.trim() ?? '',
     sort: query.sort?.columnId ?? 'resident',

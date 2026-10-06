@@ -202,12 +202,42 @@ def main():
             write_documentation(check=True)
         elif args.generator == 'revision':
             lifecycle.revision(database_url, args.message)
+        # update rebuilds whatever changed generator code built: a finished day
+        # looks the same whichever code built it, so dates alone cannot tell.
+        # See generator_rules for what can be rebuilt and what needs a reset.
+        import generator_rules
+        rebuild, reset_needed, current_rules = set(), [], {}
+        if args.generator == 'update':
+            rebuild, reset_needed, current_rules = generator_rules.changes(database_url)
+            if rebuild:
+                message('  Rules changed  rebuilding ' + ', '.join(name for name in BaseGenerator.RUN_ORDER
+                    if name in rebuild))
+            for name in reset_needed:
+                message(f'  Rules changed  {name}: completed history cannot be rebuilt in place. '
+                    'Run python manage.py seed --reset-history to apply it.')
+            if rebuild or reset_needed:
+                message()
         for generator_class in plan:
             generator = generator_class(database_url)
-            generator.run(regenerate=not daily and args.regenerate and args.generator == generator.name)
+            generator.run(regenerate=(not daily and args.regenerate and args.generator == generator.name)
+                or generator.name in rebuild)
+        # Logs rebuilt from saved stays alone, before the summaries built from them.
+        for name in generator_rules.STANDALONE:
+            if name in rebuild:
+                BaseGenerator.execution_plan(name)[-1](database_url).run(regenerate=True)
         if daily:
             BaseGenerator.run_days(database_url, through=through, start=start, target=daily_target,
-                reset_history=args.reset_history, refresh=args.regenerate)
+                reset_history=args.reset_history, refresh=args.regenerate, rebuild=rebuild)
+        # Record the rules the data now matches: everything after update or a
+        # reset; one generator after its --regenerate. A reset-only change stays
+        # unrecorded, so update keeps reporting it until the reset is done.
+        if args.generator == 'update' or args.reset_history:
+            generator_rules.record(database_url, current_rules or generator_rules.fingerprints(), skip=reset_needed)
+        elif args.regenerate and args.generator not in database_commands:
+            name = daily_target if daily else args.generator
+            current = generator_rules.fingerprints()
+            if name in current:
+                generator_rules.record(database_url, {name: current[name]})
     except (SQLAlchemyError, PsycopgError) as error:
         # Never print connection strings, passwords or bound row values.
         original = getattr(error, 'orig', error)

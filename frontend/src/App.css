@@ -1160,7 +1160,8 @@ h1 {
 }
 
 .date-range-picker,
-.filter-dropdown {
+.filter-dropdown,
+.toggle-field {
   align-self: stretch;
   display: flex;
   flex-direction: column;
@@ -1171,7 +1172,8 @@ h1 {
 }
 
 .date-range-picker span,
-.filter-dropdown__label {
+.filter-dropdown__label,
+.toggle-field__label {
   color: var(--color-text-muted);
   font-size: 0.6875rem;
   font-weight: 600;
@@ -1310,6 +1312,126 @@ h1 {
   background: var(--color-accent);
   border-color: var(--color-accent);
   color: var(--color-surface);
+}
+
+/* Toggle: an on/off switch, the height of the header controls (32px). Off is
+   the neutral track, on is primary; the side label in effect is highlighted. */
+.toggle {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--space-2);
+  min-height: 32px;
+  user-select: none;
+}
+
+.toggle__switch {
+  background: var(--color-border-strong);
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  height: 20px;
+  padding: 0;
+  position: relative;
+  transition: background 150ms ease;
+  width: 36px;
+}
+
+.toggle__switch--on {
+  background: var(--color-primary);
+}
+
+.toggle__switch:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.toggle__thumb {
+  background: var(--color-surface);
+  border-radius: 50%;
+  box-shadow: 0 1px 2px var(--color-shadow-subtle);
+  height: 16px;
+  left: 2px;
+  position: absolute;
+  top: 2px;
+  transition: transform 150ms ease;
+  width: 16px;
+}
+
+.toggle__switch--on .toggle__thumb {
+  transform: translateX(16px);
+}
+
+.toggle__label {
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* The two-value toggle: a light pill track, the value in effect a primary
+   chip. 32px tall, like the header controls beside it. */
+/* The box matches the date range picker's exactly -- white surface, the same
+   border, 6px corners -- so the two read as one row of controls. */
+.toggle-pill {
+  align-items: stretch;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  display: inline-flex;
+  gap: 2px;
+  height: 32px;
+  padding: 2px;
+}
+
+/* Under a heading, beside the date range: the date picker's own box, 224px by
+   32px, the two values sharing it equally. */
+.toggle-field .toggle-pill {
+  width: 224px;
+}
+
+.toggle-field .toggle-pill__option {
+  flex: 1;
+}
+
+.toggle-pill__option {
+  background: transparent;
+  border: 1px solid transparent;
+  /* The box's 6px corner, less its 2px inset. */
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0 var(--space-3);
+  transition: background 120ms ease, color 120ms ease;
+  white-space: nowrap;
+}
+
+.toggle-pill__option:hover {
+  color: var(--color-primary);
+}
+
+/* The value in effect: the app's primary, as selected controls are elsewhere. */
+.toggle-pill__option--active,
+.toggle-pill__option--active:hover {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-surface);
+}
+
+.toggle-pill__option:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle__switch,
+  .toggle__thumb {
+    transition: none;
+  }
 }
 
 .segmented-control__option:focus-visible {
@@ -1930,23 +2052,31 @@ h1 {
   right: 0;
   top: 0;
   touch-action: none;
-  width: 8px;
+  width: 12px;
 }
 
+/* Always visible, so columns read as resizable: a divider on every header's
+   right edge, blue and thicker when hovered, focused or dragged. */
 .report-table__resize-handle::after {
-  background: transparent;
-  bottom: 20%;
+  background: var(--color-border-strong);
+  border-radius: 1px;
+  bottom: 22%;
   content: '';
   position: absolute;
   right: 3px;
-  top: 20%;
+  top: 22%;
+  transition: background 120ms ease, width 120ms ease, right 120ms ease;
   width: 2px;
 }
 
 .report-table__resize-handle:hover::after,
 .report-table__resize-handle:focus-visible::after,
-.report-table--resizing .report-table__resize-handle::after {
+.report-table__resize-handle--active::after {
   background: var(--color-primary);
+  bottom: 12%;
+  right: 2px;
+  top: 12%;
+  width: 4px;
 }
 
 .report-table__resize-handle:focus-visible {
@@ -1963,6 +2093,20 @@ h1 {
 /* A resized column's cell content: held to the column's width. */
 .report-table__sized {
   overflow: hidden;
+}
+
+/* A resizable table is as wide as its columns, not stretched to the panel:
+   stretching hands spare width back to every column, so a narrowed column
+   would not narrow and its edge would drift from the handle. */
+.report-table--resizable .report-table__table {
+  width: max-content;
+}
+
+/* Cells with their own width limits (worksheet cells) follow a resized
+   column instead: wrap narrower, use the room when wider. */
+.report-table__sized .worksheet-cell {
+  max-width: none;
+  min-width: 0;
 }
 
 .report-table__sort-button {
@@ -3334,6 +3478,91 @@ h1 {
   background: var(--color-warning-subtle);
 }
 
+/* PDPM Worksheet: the how-to callout above, the table filling the rest and
+   scrolling inside, as it did alone in the report body's single row. */
+/* min-width: 0 on the wrapper and its children, or they size to the table's
+   full width -- a grid or flex child is at least as wide as its content by
+   default -- and the whole report spills past the panel instead of the table
+   scrolling inside it. */
+.pdpm-worksheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-report-section-gap);
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.pdpm-worksheet > * {
+  min-width: 0;
+}
+
+.pdpm-worksheet > .report-table {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
+/* A HIPPS code's 100-day rates under the code: label left, amount right. */
+.worksheet-final {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.worksheet-rates {
+  display: grid;
+  flex-basis: 100%;
+  font-size: 0.75rem;
+  gap: 2px;
+  margin: var(--space-1) 0 0;
+  min-width: 11rem;
+}
+
+.worksheet-rates div {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.worksheet-rates dt {
+  color: var(--color-text-muted);
+}
+
+.worksheet-rates dd {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* A worksheet value with details on lines beneath it -- Stay start and how it
+   began; Active and, once ended, why and when -- with room between lines. */
+.worksheet-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.worksheet-stack__detail {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.3;
+}
+
+/* The worksheet's Name cell: the resident, and their facility beneath. */
+.worksheet-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.worksheet-name__facility {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
 /* Cells read from the top of the row, for tables whose rows stacked content
    makes tall. */
 .report-table--align-top .report-table__table tbody th,
@@ -3366,12 +3595,12 @@ h1 {
      between items when the cell is the row's tallest. */
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-6);
   height: 100%;
   justify-content: space-between;
-  min-width: 11rem;
+  min-width: 14rem;
   /* Notes wrap here; the table's whole-text cells otherwise never wrap. */
-  max-width: 18rem;
+  max-width: 24rem;
   white-space: normal;
 }
 
@@ -3391,7 +3620,7 @@ h1 {
 .worksheet-cell__part--list {
   align-items: flex-start;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
 }
 
 .worksheet-cell__line {
@@ -3417,8 +3646,9 @@ h1 {
   font-weight: 600;
 }
 
-/* A Reply's text, beside its title: regular weight, wraps within the cell. */
-.worksheet-cell__reply {
+/* A Notes item's text, beside its title: regular weight, wraps within the cell. */
+.worksheet-cell__notes {
+  line-height: 1.5;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
@@ -3426,7 +3656,8 @@ h1 {
 .worksheet-cell__item {
   display: flex;
   flex-direction: column;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
 }
 
 /* The entry's note, in full, under its value: wraps within the cell rather
@@ -3434,8 +3665,10 @@ h1 {
 .worksheet-cell__note {
   color: var(--color-text-muted);
   flex-basis: 100%;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 400;
+  line-height: 1.5;
+  margin-top: var(--space-1);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }

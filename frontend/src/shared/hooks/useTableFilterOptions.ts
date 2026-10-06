@@ -15,7 +15,10 @@ export function useTableFilterOptions(source: TableFilterSource | undefined,
     const params = new URLSearchParams({ start_date: startDate, end_date: endDate,
       column: columnId, filters: JSON.stringify(otherFilters), search: searchTerm })
     const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
-    void authorizedFetch(`${endpoint ?? `${baseUrl}/api/v1/table-filter-options/${id}`}?${params}`, { signal: controller.signal })
+    // An endpoint may carry its own parameters (a report's own setting the
+    // options must match), so join with & when it already has a query.
+    const url = endpoint ?? `${baseUrl}/api/v1/table-filter-options/${id}`
+    void authorizedFetch(`${url}${url.includes('?') ? '&' : '?'}${params}`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error('Could not load filter options.')
         const data = await response.json() as { options: string[] }

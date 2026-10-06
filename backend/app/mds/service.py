@@ -27,6 +27,7 @@ from decimal import Decimal
 from sqlalchemy import Date, and_, func, literal, select
 from sqlalchemy.engine import Connection
 
+from shared import pdpm as pdpm_rates
 from shared.database.schema import (
     census_logs as logs, daily_runs, facility_payer_rates as contracts, payers, pdpm_rate_logs as pdpm)
 from ..common.errors import ApiError
@@ -46,7 +47,8 @@ def pdpm_contract(census_rows):
 # of 1.0, before PDPM day adjustments. The demo's stand-in for CMS's published
 # unadjusted national rate; it is the midpoint the payer_rates generator
 # (BASE_RATE['medicare']) scatters facility rates around, so keep them equal.
-NATIONAL_PER_DIEM = Decimal(720)
+# One value, in shared.pdpm, which prices every code from it.
+NATIONAL_PER_DIEM = pdpm_rates.NATIONAL_PER_DIEM
 
 
 def census_day(connection: Connection, today: date) -> date:

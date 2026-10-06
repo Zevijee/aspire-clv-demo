@@ -122,7 +122,7 @@ export function WorksheetCellEditor({ row, field, onClose, onSaved }: {
           : <Input id="worksheet-value" maxLength={5} className="care-code" placeholder="e.g. KBCD1"
             value={value ?? ''} onChange={event => setValue(event.target.value.toUpperCase() || null)} />}
       </section>}
-      {/* A Reply is only this text box; every other cell's note is optional. */}
+      {/* Notes is only this text box; every other cell's note is optional. */}
       <label className="worksheet-editor__label" htmlFor="worksheet-note">
         {field.kind === 'text' ? field.label : 'Note (optional)'}</label>
       <Input.TextArea id="worksheet-note" ref={noteRef} rows={field.kind === 'text' ? 5 : 3} maxLength={4000}

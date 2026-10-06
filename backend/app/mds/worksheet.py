@@ -18,6 +18,7 @@ cells from the log; writing validates the cell and value here, so the table
 holds only values this module knows.
 """
 import json
+from typing import Literal
 import re
 from datetime import date, datetime
 from uuid import UUID, uuid4
@@ -26,6 +27,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import Date, String, case, cast, func, insert, literal, or_, select
 from sqlalchemy.engine import Connection
 
+from shared import pdpm as pdpm_rates
 from shared.database.schema import (
     facilities, facility_payer_rates as contracts, payers, pdpm_assessments as assessments,
     pdpm_worksheet_entries as entries, portfolios, regions, res_payer_stays as periods, res_stays as stays,
@@ -116,23 +118,26 @@ FIELDS = {
     'pt_ot.gg': dict(group='PT/OT', label='GG', kind='score', min=0, max=24),
     'slp.cognitive_impairment': dict(group='SLP', label='Cognitive Ability', kind='choice', options=YES_NO),
     'slp.acute_neuro': dict(group='SLP', label='Acute Neuro Primary', kind='choice', options=YES_NO),
+    'slp.comorbidity': dict(group='SLP', label='Comorbidity', kind='choice', options=YES_NO),
     'slp.mechanically_altered_diet': dict(group='SLP', label='MAD', kind='choice', options=YES_NO),
     'slp.swallowing_disorder': dict(group='SLP', label='SD', kind='choice', options=YES_NO),
-    'slp.comorbidity': dict(group='SLP', label='Comorbidity', kind='choice', options=YES_NO),
     'nursing.category': dict(group='Nursing', label='Clinical category', kind='choice',
         options=_choices(NURSING_CATEGORIES)),
     'nursing.gg': dict(group='Nursing', label='GG', kind='score', min=0, max=16),
+    'nursing.depression': dict(group='Nursing', label='Depression', kind='choice', options=YES_NO),
     'nta': dict(group='NTA', label='Diagnoses', kind='diagnoses',
         options=[dict(value=key, label=label, points=points) for key, (label, points) in NTA_CONDITIONS.items()]),
     'projected_hipps': dict(group='Projected HIPPS', label='Projected HIPPS', kind='hipps'),
     # Final HIPPS is not entered: it is the coded assessment's own (final_hipps on the row).
 }
-# One more part in every group: Reply, free text. Its text is the entry's note;
-# the latest shows in the cell and the log keeps the rest.
-FIELDS = {**FIELDS, **{f'{prefix}.reply': dict(group=group, label='Reply', kind='text') for prefix, group in (
+# One more part in every group: Notes, free text. Its text is the entry's note;
+# the latest shows in the cell and the log keeps the rest. The cell ids stay
+# *.reply -- the part was first called Reply -- so entries already saved under
+# them still show.
+FIELDS = {**FIELDS, **{f'{prefix}.reply': dict(group=group, label='Notes', kind='text') for prefix, group in (
     ('pt_ot', 'PT/OT'), ('slp', 'SLP'), ('nursing', 'Nursing'), ('nta', 'NTA'),
     ('projected_hipps', 'Projected HIPPS'))}}
-# The page's order: each group's parts, then its Reply.
+# The page's order: each group's parts, then its Notes.
 FIELDS = dict(sorted(FIELDS.items(), key=lambda item: [spec['group'] for spec in FIELDS.values()].index(item[1]['group'])))
 
 SORTS = {'resident': 'resident_name', 'facility': 'facility_name', 'payer': 'payer_label',
@@ -143,9 +148,11 @@ SEARCHABLE = ('resident_name', 'facility_name', 'state', 'portfolio', 'region', 
 
 
 class WorksheetQuery(PageQuery):
-    # Inclusive range of Medicare stay starts.
+    # Inclusive range of dates, applied to each stay's start (start) or its
+    # 5-day assessment's ARD (ard).
     start_date: date
     end_date: date
+    date_basis: Literal['start', 'ard'] = 'start'
     filters: str = Field(default='{}', max_length=100000)
     search: str = Field(default='', max_length=200)
 
@@ -213,15 +220,30 @@ class WorksheetRow(BaseModel):
     payer_label: str
     medicare_start: date = Field(description='First day of this Medicare payer period.')
     active: str = Field(description='Yes if this Medicare stay is still running on the latest census day.')
+    start_reason: str = Field(description='How the Medicare stay began: Admission, or Disenrollment -- a move '
+        'from Medicare Advantage into Original Medicare mid-stay.')
+    end_reason: str | None = Field(description='Why an ended stay ended: Payer change or Discharge; null while active.')
+    ended_on: date | None = Field(description='The ended stay\'s last day; null while active.')
     ard: date | None = Field(description="The 5-day assessment's reference date.")
     due_date: date | None = Field(description='ARD plus 14 days; null once the MDS is complete.')
     mds_status: str = Field(description='Complete, Due or Overdue.')
+    final_rates: 'StayRates | None' = Field(description='Final HIPPS priced over a 100-day stay.')
+    projected_rates: 'StayRates | None' = Field(description='Projected HIPPS, once entered, priced over a 100-day stay.')
     final_hipps: str | None = Field(description='The coded PDPM code plus the 5-day assessment indicator, 1; '
         'null until the MDS is coded.')
     cells: dict[str, Cell] = Field(description='Latest set entry per cell, by cell id.')
     nta: Nta
     # Entries per cell, replies included, so the page can show where there is talk.
     activity: dict[str, int]
+
+
+class StayRates(BaseModel):
+    average_rate: float = Field(description='Total revenue over the days, per day.')
+    neutral_rate: float = Field(description='The case-mix-neutral average: $720 national, every CMI 1.0.')
+    total_revenue: float = Field(description='Every day of a full 100-day Medicare stay at this code.')
+
+
+WorksheetRow.model_rebuild()
 
 
 class WorksheetPage(Page[WorksheetRow]):
@@ -261,7 +283,8 @@ def _label(field: str, value: str | None) -> str | None:
 
 
 def _rows(query: WorksheetQuery, census_date: date, exclude=None):
-    """Medicare PDPM stays that started in the range. Status is judged on the
+    """Medicare PDPM stays whose start -- or ARD, by date_basis -- falls in the
+    range. Status is judged on the
     latest census day: coded by then is Complete, past due by then Overdue."""
     day = literal(census_date, Date)
     complete = func.coalesce(assessments.c.coded_date <= day, False)
@@ -278,15 +301,33 @@ def _rows(query: WorksheetQuery, census_date: date, exclude=None):
         # end_date is the day after the last day, as census_logs ranges are.
         case((or_(periods.c.end_date.is_(None), periods.c.end_date > day), 'Yes'),
             else_='No').label('active'),
+        # A Medicare stay that began on a payer change, not at admission, is a
+        # disenrollment: every one moves a resident from Medicare Advantage into
+        # Original Medicare (MANAGED_MEDICARE in the ADT simulation).
+        case((periods.c.start_reason == 'payer_change', 'Disenrollment'), else_='Admission').label('start_reason'),
+        # Why it ended, once it has by the census day. end_date is exclusive.
+        case((periods.c.end_date <= day, case((periods.c.end_reason == 'discharge', 'Discharge'),
+            else_='Payer change')), else_=None).label('end_reason'),
+        case((periods.c.end_date <= day, periods.c.end_date - 1), else_=None).label('ended_on'),
         assessments.c.ard,
         case((complete, None), else_=due).label('due_date'),
         case((complete, 'Complete'), (due < day, 'Overdue'), else_='Due').label('mds_status'),
         # Filled from the assessment once coded, never entered: its PDPM code and
         # the assessment indicator, 1 for the 5-day assessment.
         case((complete, assessments.c.pdpm_code + FIVE_DAY_INDICATOR), else_=None).label('final_hipps'),
+        # The stay's contract rate: what a code's case-mix factor multiplies.
+        contracts.c.daily_rate.label('contract_rate'),
         # Complete sorts after every date, as the column reads.
         case((complete, None), else_=due).label('due_sort'),
-    ).select_from(periods
+    )
+    by_ard = query.date_basis == 'ard'
+    # Start from whichever date the range applies to, so its index narrows the
+    # rows first. With this many tables PostgreSQL largely keeps the written
+    # join order, and starting from periods it joined all 80k Medicare periods
+    # before filtering by ARD: 540 ms against about 100 ms by stay start.
+    source = (assessments.join(periods, periods.c.payer_stay_id == assessments.c.payer_stay_id)
+        if by_ard else periods)
+    source = (source
         .join(payers, payers.c.payer_id == periods.c.payer_id)
         .join(stays, stays.c.stay_id == periods.c.stay_id)
         # A PDPM contract, as Current Medicare PDPM counts: per diem plans are out.
@@ -294,10 +335,13 @@ def _rows(query: WorksheetQuery, census_date: date, exclude=None):
             & (contracts.c.payer_id == periods.c.payer_id) & (contracts.c.payment_method == 'pdpm'))
         .join(residents, residents.c.resident_id == stays.c.resident_id)
         .join(facilities, facilities.c.facility_id == stays.c.facility_id)
-        .join(regions).join(portfolios)
-        .outerjoin(assessments, assessments.c.payer_stay_id == periods.c.payer_stay_id)
-    ).where(payers.c.payer_type.in_(MEDICARE),
-        periods.c.start_date.between(query.start_date, query.end_date))
+        .join(regions).join(portfolios))
+    if not by_ard:
+        # By stay start, a stay is listed even before it has an assessment.
+        source = source.outerjoin(assessments, assessments.c.payer_stay_id == periods.c.payer_stay_id)
+    rows = rows.select_from(source).where(payers.c.payer_type.in_(MEDICARE),
+        # The range applies to the stay's start or its ARD, as the page's toggle says.
+        (assessments.c.ard if by_ard else periods.c.start_date).between(query.start_date, query.end_date))
     listed = rows.cte('listed').prefix_with('MATERIALIZED')
     result = select(listed)
     for key, values in json.loads(query.filters).items():
@@ -348,7 +392,14 @@ def page(connection: Connection, query: WorksheetQuery, today: date):
         .order_by(order, listed.c.payer_stay_id).limit(query.limit).offset(query.offset)).mappings().all()
     total = rows[0]['total'] if rows else connection.scalar(select(func.count()).select_from(result.subquery()))
     sheets = _cells(connection, [row['payer_stay_id'] for row in rows])
-    return dict(items=[dict(row, **sheets[row['payer_stay_id']]) for row in rows], total=total,
+    def priced(code):
+        # Over a full 100-day Medicare stay, at the stay's own contract rate,
+        # by the same formula the generator prices every PDPM day with.
+        return lambda row: pdpm_rates.stay(code(row), row['contract_rate']) if code(row) else None
+    final = priced(lambda row: row['final_hipps'])
+    projected = priced(lambda row: (sheets[row['payer_stay_id']]['cells'].get('projected_hipps') or {}).get('value'))
+    return dict(items=[dict(row, **sheets[row['payer_stay_id']], final_rates=final(row), projected_rates=projected(row))
+            for row in rows], total=total,
         limit=query.limit, offset=query.offset, census_date=census_date)
 
 
@@ -407,9 +458,9 @@ def add_entry(connection: Connection, payer_stay_id: UUID, new: NewEntry, author
             raise ApiError('invalid_action', 'NTA diagnoses are added or removed.')
         _check_value(new.field, value)
     elif kind == 'text':
-        # A Reply is its text alone, kept as the note.
+        # Notes is its text alone, kept as the note.
         if new.action != 'set' or note is None:
-            raise ApiError('invalid_value', 'A reply needs some text.')
+            raise ApiError('invalid_value', 'Notes needs some text.')
         value = None
     else:
         if new.action != 'set':

@@ -8,7 +8,8 @@ import { BedBoard, BedBoardFacilityFilter } from '../features/census/components/
 import { MonthlyCensusTrending } from '../features/census/components/MonthlyCensusTrending'
 import { MedicareResidents } from '../features/mds/components/MedicareResidents'
 import { CategoryBreakdown } from '../features/mds/components/CategoryBreakdown'
-import { PdpmWorksheet } from '../features/mds/components/PdpmWorksheet'
+import { PdpmWorksheet, WorksheetDateBasisToggle } from '../features/mds/components/PdpmWorksheet'
+import { worksheetDateBasis } from '../features/mds/worksheetApi'
 import { Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
 import { AdmissionsLogs } from '../features/adt/components/AdmissionsLogs'
 import { DischargesLogs } from '../features/adt/components/DischargesLogs'
@@ -356,6 +357,8 @@ function App() {
                 setSearchParams(next)
               }} />}
             {isMonthlyAdtReport && <MonthlyAdtFilters activeTab={monthlyTab} />}
+            {/* Left of the date range: which date the range applies to. */}
+            {currentReport.path === '/mds/pdpm-worksheet' && <WorksheetDateBasisToggle />}
             {isMonthlyAdtReport || isMonthlyCensusReport ? <ReportMonthRangeFilter /> : currentReport.path !== '/adt/referring-hospital' && currentReport.path !== '/census/daily-census'
               && currentReport.path !== '/census/residents' && currentReport.path !== '/census/bed-board'
               && currentReport.path !== '/mds/current-medicare' ? <ReportDateRangeFilter /> : null}
@@ -418,6 +421,8 @@ function App() {
         title={currentReport.title}
         titleDetail={currentReport.path === '/census/daily-census' ? `Census on ${dayjs(searchParams.get('date') ?? undefined).format('dddd, MMMM D, YYYY')}` : currentReport.path === '/census/bed-board' ? 'Current beds, one facility at a time' : currentReport.path === '/mds/current-medicare' ? 'PDPM residents in a bed today' :currentReport.path === '/census/residents' ? 'Every resident ever admitted' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyAdtReport || isMonthlyCensusReport
           ? `${monthRange.start.format('MMMM YYYY')} to ${monthRange.end.format('MMMM YYYY')} (${monthRange.end.diff(monthRange.start, 'month') + 1} months)`
+          : currentReport.path === '/mds/pdpm-worksheet'
+            ? `Medicare stays by ${worksheetDateBasis(searchParams) === 'ard' ? 'ARD' : 'stay start'} · ${formatReportDateRange(startDate, endDate)}`
           : formatReportDateRange(startDate, endDate)}
         leadingControl={
           <button

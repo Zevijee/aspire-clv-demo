@@ -34,6 +34,9 @@ erDiagram
         String generator PK
         Date simulation_date PK
     }
+    sandbox_generator_rules {
+        String name PK
+    }
     sandbox_generator_runs {
         String name PK
     }
@@ -267,6 +270,7 @@ Payer catalog. Skilled classification applies to Medicare categories and VA.
 
 - CHECK: `nursing_function_score BETWEEN 0 AND 16`
 - CHECK: `pdpm_code ~ '^[A-P][A-L][A-Y][A-F]$'`
+- INDEX `ix_pdpm_assessments_ard`: ard
 
 ## pdpm_rate_logs
 
@@ -317,6 +321,16 @@ Committed generator/day checkpoints; independent of schema and backfill versions
 | simulation_date | DATE | no | PK |  |  |
 | row_counts | JSON | no |  |  |  |
 | completed_at | TIMESTAMP WITH TIME ZONE | no |  | now() |  |
+
+## sandbox_generator_rules
+
+Fingerprint of the generator code each table was last built with; update rebuilds a generator whose fingerprint changed.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| name | VARCHAR | no | PK |  |  |
+| fingerprint | VARCHAR(64) | no |  |  |  |
+| recorded_at | TIMESTAMP WITH TIME ZONE | no |  | now() |  |
 
 ## sandbox_generator_runs
 

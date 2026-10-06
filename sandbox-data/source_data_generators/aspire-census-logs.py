@@ -36,6 +36,7 @@ the care level multiplier. A PDPM row's rate is that times the day's PDPM factor
 from psycopg import sql
 from sqlalchemy import func, select
 
+from shared import pdpm as pdpm_rates
 from shared.database import schema
 from base import BaseGenerator, DailyGenerator, GenerationResult
 
@@ -49,9 +50,12 @@ DRIFT_SHARES = ((0.25, 2), (0.55, 3), (0.80, 4))
 ASSESSMENT_DAYS = 92
 # PDPM: the share of the per diem in physical and occupational therapy, and in
 # non-therapy ancillaries, and how each is adjusted by day of skilled coverage.
-THERAPY_SHARE, NTA_SHARE = 0.42, 0.10
-THERAPY_STEP_FROM, THERAPY_STEP_DAYS, THERAPY_STEP = 21, 7, 0.02
-NTA_BOOST_THROUGH, NTA_BOOST = 3, 3
+# The PDPM day schedule -- therapy steps down weekly from day 21, NTA is boosted
+# through day 3 -- comes from shared.pdpm, which also prices each day, so the
+# rate steps written here and the rates on them cannot disagree.
+THERAPY_STEP_FROM = pdpm_rates.THERAPY_FULL_THROUGH + 1
+THERAPY_STEP_DAYS = pdpm_rates.THERAPY_STEP_DAYS
+NTA_BOOST_THROUGH = pdpm_rates.NTA_BOOST_THROUGH
 
 # PDPM classification. Payer types classified, and cumulative shares for each
 # letter of the code. These are demo distributions, not CMS statistics.
@@ -119,13 +123,6 @@ def _drift_case():
     cases = ' '.join(f'WHEN {_uniform("care-drift")} < {share} THEN {quarters}'
         for share, quarters in DRIFT_SHARES)
     return f'CASE {cases} END'
-
-
-def _pdpm_factor(day):
-    therapy = (f'CASE WHEN {day} < {THERAPY_STEP_FROM} THEN 1 ELSE 1 - {THERAPY_STEP} * '
-        f'(({day} - {THERAPY_STEP_FROM}) / {THERAPY_STEP_DAYS} + 1) END')
-    nta = f'CASE WHEN {day} <= {NTA_BOOST_THROUGH} THEN {NTA_BOOST} ELSE 1 END'
-    return f'({1 - THERAPY_SHARE - NTA_SHARE} + {THERAPY_SHARE} * {therapy} + {NTA_SHARE} * {nta})'
 
 
 def _draw(column, salt):
@@ -242,12 +239,18 @@ ORDER BY coalesce(g.next_bound, c.end_date, 'infinity'), g.segment_start
 """
 
 
-def pdpm_sql(table, census):
-    """PDPM rate periods for skilled payer periods, from the census rows just built.
+def pdpm_sql(table, census, assessments):
+    """PDPM rate periods for skilled payer periods, from the census rows and PDPM
+    codes just built.
 
-    Each step takes the rate of the census row containing its first day. Care
-    level is reassessed quarterly and skilled coverage ends by day 100, so a
-    step crossing a care level change is possible only in principle.
+    A period on a PDPM contract is priced from its code: the contract rate times
+    the code's case-mix factor for the step's first day (shared.pdpm). Any other
+    skilled period -- a per diem contract, or no code -- keeps the rate of the
+    census row containing the step's first day times the case-mix-neutral day
+    factor. pdpm_factor stores that neutral factor, so the neutral rate is
+    always $720 times it. Care level is reassessed quarterly and skilled
+    coverage ends by day 100, so a step crossing a care level change is
+    possible only in principle.
     """
     return f"""
 WITH through AS ({THROUGH}), skilled AS (
@@ -268,10 +271,15 @@ WITH through AS ({THROUGH}), skilled AS (
 INSERT INTO {table} (payer_stay_id, step, skilled_day, in_effect, pdpm_factor, daily_rate)
 SELECT o.payer_stay_id, o.step, o.day,
        daterange(o.step_start, coalesce(o.next_start, o.end_date, 'infinity'), '[)'),
-       f.factor, round(c.daily_rate * f.factor, 2)
+       f.factor,
+       CASE WHEN r.payment_method = 'pdpm' AND a.pdpm_code IS NOT NULL
+            THEN round(r.daily_rate * {pdpm_rates.factor_sql('a.pdpm_code', 'o.day')}, 2)
+            ELSE round(c.daily_rate * f.factor, 2) END
 FROM ordered o
 JOIN {census} c ON c.payer_stay_id = o.payer_stay_id AND c.in_bed @> o.step_start
-CROSS JOIN LATERAL (SELECT round({_pdpm_factor('o.day')}, 4) AS factor) f
+JOIN facility_payer_rates r ON r.facility_id = c.facility_id AND r.payer_id = c.payer_id
+LEFT JOIN {assessments} a ON a.payer_stay_id = o.payer_stay_id
+CROSS JOIN LATERAL (SELECT round({pdpm_rates.neutral_factor_sql('o.day')}, 4) AS factor) f
 -- In order of when each step ends, like census_logs, so one day's steps are together.
 ORDER BY coalesce(o.next_start, o.end_date, 'infinity'), o.step_start
 """
@@ -345,19 +353,7 @@ class CensusLogGenerator(BaseGenerator):
         # Restored before the PDPM build, which looks census rows up by period.
         self.restore_indexes(connection, census_table, suspended)
 
-        self.show_table_progress(pdpm_table)
-        suspended = self.suspend_indexes(connection, pdpm_table)
-        if self.progress:
-            self.progress.set_phase('PDPM rate periods', details=f'{self._skilled:,} skilled payer periods')
-        pdpm_rows = connection.exec_driver_sql(
-            pdpm_sql(pdpm.as_string(driver), census.as_string(driver))).rowcount
-        rated = connection.scalar(select(func.count(func.distinct(pdpm_table.c.payer_stay_id))))
-        if rated != self._skilled:
-            raise ValueError(f'{self._skilled - rated:,} skilled payer periods got no PDPM rate; run again.')
-        if self.progress:
-            self.progress.set_phase('Rebuild keys', details=f'{pdpm_rows:,} PDPM rows')
-        self.restore_indexes(connection, pdpm_table, suspended)
-
+        # Codes first: PDPM pricing reads them.
         self.show_table_progress(schema.pdpm_assessments)
         if self.progress:
             self.progress.set_phase('PDPM codes', details=f'{self._medicare:,} Medicare payer periods')
@@ -365,6 +361,19 @@ class CensusLogGenerator(BaseGenerator):
             assessment_sql(assessments.as_string(driver), census.as_string(driver))).rowcount
         if assessed != self._medicare:
             raise ValueError(f'{self._medicare - assessed:,} Medicare payer periods got no PDPM code; run again.')
+        self.show_table_progress(pdpm_table)
+        suspended = self.suspend_indexes(connection, pdpm_table)
+        if self.progress:
+            self.progress.set_phase('PDPM rate periods', details=f'{self._skilled:,} skilled payer periods')
+        pdpm_rows = connection.exec_driver_sql(
+            pdpm_sql(pdpm.as_string(driver), census.as_string(driver), assessments.as_string(driver))).rowcount
+        rated = connection.scalar(select(func.count(func.distinct(pdpm_table.c.payer_stay_id))))
+        if rated != self._skilled:
+            raise ValueError(f'{self._skilled - rated:,} skilled payer periods got no PDPM rate; run again.')
+        if self.progress:
+            self.progress.set_phase('Rebuild keys', details=f'{pdpm_rows:,} PDPM rows')
+        self.restore_indexes(connection, pdpm_table, suspended)
+
         written = census_rows + pdpm_rows + assessed
         return GenerationResult(generated=written, changed=written)
 

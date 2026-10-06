@@ -33,8 +33,8 @@ assessed and coded yet. Those residents are counted in no_score instead, so
 the categories and no_score together make up the residents.
 
 Speech comorbidity counts residents with each SLP condition: cognitive
-impairment, an acute neuro primary diagnosis, a mechanically altered diet and a
-swallowing disorder. Unlike the two above they overlap -- one resident can have
+impairment, an acute neuro primary diagnosis, a mechanically altered diet, a
+swallowing disorder and an SLP-related comorbidity. Unlike the two above they overlap -- one resident can have
 several -- so they never sum to the residents. They are flags on the assessment
 rather than letters, because the SLP letter says how many conditions, not which.
 """
@@ -69,6 +69,7 @@ NTA = {'points_0': 'F', 'points_1_2': 'E', 'points_3_5': 'D', 'points_6_8': 'C',
 SPEECH = {
     'cognitive_impairment': assessments.c.cognitive_impairment,
     'acute_neuro': assessments.c.acute_neuro,
+    'slp_comorbidity': assessments.c.slp_comorbidity,
     'mechanically_altered_diet': assessments.c.mechanically_altered_diet,
     'swallowing_disorder': assessments.c.swallowing_disorder,
 }
@@ -93,6 +94,7 @@ class Speech(BaseModel):
     acute_neuro: int
     mechanically_altered_diet: int
     swallowing_disorder: int
+    slp_comorbidity: int
 
 
 class Depression(BaseModel):

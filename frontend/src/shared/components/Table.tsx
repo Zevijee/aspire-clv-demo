@@ -43,6 +43,9 @@ export type TableColumn<Row> = {
   isRowHeader?: boolean
   numeric?: boolean
   sortable?: boolean
+  /** With the table's resizableColumns on, false keeps this column at its
+   * natural width with no drag edge. */
+  resizable?: boolean
   /** False keeps the whole text on one line, never cut to an ellipsis, for a
    * column whose full text is the point, such as a name to click. */
   truncate?: boolean
@@ -394,32 +397,8 @@ export function Table<Row>({
   // Widths the user has set by dragging a header edge, in px, by column id.
   // Unset columns keep sizing to their content.
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
-  const setColumnWidth = (columnId: string, width: number | null) => setColumnWidths(current => {
-    const next = { ...current }
-    if (width === null) delete next[columnId]
-    else next[columnId] = Math.max(MIN_COLUMN_WIDTH, Math.round(width))
-    return next
-  })
-  const startColumnResize = (columnId: string, event: ReactPointerEvent<HTMLElement>) => {
-    event.preventDefault()
-    const header = event.currentTarget.closest('th')
-    const startWidth = header?.getBoundingClientRect().width ?? MIN_COLUMN_WIDTH
-    const startX = event.clientX
-    const move = (moveEvent: PointerEvent) => setColumnWidth(columnId, startWidth + moveEvent.clientX - startX)
-    const stop = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', stop)
-      document.body.classList.remove('report-table--resizing')
-    }
-    document.body.classList.add('report-table--resizing')
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', stop)
-  }
-  // A resized column's cells hold their content at its width: wider content
-  // wraps or is cut, rather than pushing the column back out.
-  const sized = (columnId: string, content: ReactNode) => columnWidths[columnId] === undefined ? content
-    : <div className="report-table__sized"
-      style={{ width: `calc(${columnWidths[columnId]}px - 2 * var(--space-4))` }}>{content}</div>
+  // The column whose edge is being dragged, so only its edge lights up.
+  const [resizingColumn, setResizingColumn] = useState<string | null>(null)
   function highlightColumn(cell: HTMLTableCellElement, columnId: string) {
     const table = cell.closest('table')
     if (!table) return
@@ -486,6 +465,46 @@ export function Table<Row>({
     }
   }, [horizontalTrack])
   const [lockedColumns, setLockedColumns] = useState<{ ids: string; widths: number[] } | null>(null)
+  // Column resizing, declared after the scroll ref and the column lock it uses.
+  const setColumnWidth = (columnId: string, width: number | null) => {
+    // A sort or filter locks every column at its width while results load
+    // (lockedColumns, and the table's min-width). A resize is the user setting
+    // widths on purpose, so it releases that lock; otherwise the locked widths
+    // would win and the drag would do nothing.
+    setLockedColumns(null)
+    const table = scrollRef.current?.querySelector('table')
+    if (table) table.style.minWidth = ''
+    setColumnWidths(current => {
+      const next = { ...current }
+      if (width === null) delete next[columnId]
+      else next[columnId] = Math.max(MIN_COLUMN_WIDTH, Math.round(width))
+      return next
+    })
+  }
+  const startColumnResize = (columnId: string, event: ReactPointerEvent<HTMLElement>) => {
+    event.preventDefault()
+    const header = event.currentTarget.closest('th')
+    const startWidth = header?.getBoundingClientRect().width ?? MIN_COLUMN_WIDTH
+    const startX = event.clientX
+    const move = (moveEvent: PointerEvent) => setColumnWidth(columnId, startWidth + moveEvent.clientX - startX)
+    const stop = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', stop)
+      document.body.classList.remove('report-table--resizing')
+      setResizingColumn(null)
+    }
+    // The page-wide class only sets the cursor and stops text selection; the
+    // dragged edge alone is highlighted, by resizingColumn.
+    document.body.classList.add('report-table--resizing')
+    setResizingColumn(columnId)
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', stop)
+  }
+  // A resized column's cells hold their content at its width: wider content
+  // wraps or is cut, rather than pushing the column back out.
+  const sized = (columnId: string, content: ReactNode) => columnWidths[columnId] === undefined ? content
+    : <div className="report-table__sized"
+      style={{ width: `calc(${columnWidths[columnId]}px - 2 * var(--space-4))` }}>{content}</div>
   const visibleColumns = useMemo(() => columns.filter((column) => column.hidden !== true), [columns])
   const hiddenFilterColumns = useMemo(
     () => columns.filter((column) => column.hidden === true && column.filterable === true && column.numeric !== true),
@@ -759,7 +778,7 @@ export function Table<Row>({
       aria-busy={loading || searchPending}
       aria-labelledby={titleId}
       className={`report-table ${internalScroll ? 'report-table--internal-scroll' : ''}${
-        alignTop ? ' report-table--align-top' : ''}`}
+        alignTop ? ' report-table--align-top' : ''}${resizableColumns ? ' report-table--resizable' : ''}`}
     >
       <header className="report-table__header">
         <div className="report-table__heading">
@@ -853,7 +872,7 @@ export function Table<Row>({
                     scope="col"
                   >
                     <div className={className} style={columnWidths[column.id] === undefined ? undefined
-                      : { width: columnWidths[column.id] }}>
+                      : { width: columnWidths[column.id], overflow: 'hidden' }}>
                       {isSortable ? (
                         <button
                           aria-label={`Sort by ${column.header} ${nextDirection}`}
@@ -999,11 +1018,12 @@ export function Table<Row>({
                           )}
                         </div>
                       )}
-                      {resizableColumns && <span
+                      {resizableColumns && column.resizable !== false && <span
                         aria-label={`Resize ${column.header} column`}
                         aria-orientation="vertical"
                         aria-valuenow={columnWidths[column.id]}
-                        className="report-table__resize-handle"
+                        className={`report-table__resize-handle${
+                          resizingColumn === column.id ? ' report-table__resize-handle--active' : ''}`}
                         onDoubleClick={() => setColumnWidth(column.id, null)}
                         onKeyDown={(event) => {
                           if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return

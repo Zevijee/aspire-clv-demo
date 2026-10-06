@@ -97,6 +97,16 @@ Breaking one of these is a design change, not a refactor. Each was measured; see
 Check this before editing a generator. Full detail in
 [docs/generators.md](docs/generators.md).
 
+**`update` runs these rebuilds itself.** It fingerprints each generator's code
+(`sandbox-data/generator_rules.py`, saved in `sandbox_generator_rules`) and rebuilds
+any generator whose rules changed, plus everything built from it, before generating
+days. Every deploy and the midnight job run `update`, so a generator change reaches
+the server's data on deploy with no manual `--regenerate`. Comments and docstrings
+do not count. The exceptions are the reset-only rows below -- the ADT simulation,
+facilities, payers, residents -- for which `update` prints a warning every run until
+`seed --reset-history` is done. A generator whose rules come from another file must
+list it in `SHARED_RULES` there, or a change to that file goes unnoticed.
+
 | Change | Rebuild |
 | --- | --- |
 | Metric derivable from existing fact dimensions | **Nothing** |
@@ -143,6 +153,12 @@ python manage.py payer_change_logs --regenerate
 python backend/manage.py serve --reload         # from the repository root
 npm --prefix frontend run dev                   # frontend on 127.0.0.1:5173
 ```
+
+**Check the site in a real browser** with `python tools/site_audit.py` (needs the
+API and dev server running, and `pip install playwright` + `playwright install
+chromium`). It signs in, opens every report and tab, and lists JavaScript errors,
+failed API calls, error panels and content pushed off-screen, with a screenshot of
+each view. A clean type check and build do not mean the page works; this does.
 
 Everything runs on this machine against one PostgreSQL 18 database. There is no
 local Docker workflow; `Dockerfile` exists only to deploy the API and the daily

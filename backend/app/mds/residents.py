@@ -139,7 +139,7 @@ def _filter_columns():
         # Null until coded, so no category matches a missing care code.
         assessments.c.pdpm_code, assessments.c.nursing_function_score, assessments.c.depression,
         assessments.c.cognitive_impairment, assessments.c.acute_neuro,
-        assessments.c.mechanically_altered_diet, assessments.c.swallowing_disorder)
+        assessments.c.mechanically_altered_diet, assessments.c.swallowing_disorder, assessments.c.slp_comorbidity)
 
 
 def _category_predicates(listed):
@@ -160,7 +160,8 @@ def _category_predicates(listed):
         speech, swallowing = divmod(index, 3)
         parts[f'SLP: {speech} speech, {swallowing} swallowing'] = slp == chr(ord('A') + index)
     for column, label in (('cognitive_impairment', 'Cognitive Ability'), ('acute_neuro', 'Acute Neuro Primary'),
-            ('mechanically_altered_diet', 'MAD'), ('swallowing_disorder', 'SD')):
+            ('slp_comorbidity', 'Comorbidity'), ('mechanically_altered_diet', 'MAD'),
+            ('swallowing_disorder', 'SD')):
         parts[f'Speech Comorbidity: {label}'] = listed.c[column].is_(True)
     for (low, high), label in zip(categories.NURSING.values(), ('0-5', '6-14', '15-16')):
         parts[f'Nursing: {label}'] = listed.c.nursing_function_score.between(low, high)

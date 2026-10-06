@@ -22,6 +22,16 @@ run_history = Table('sandbox_generator_runs', metadata,
     Column('row_counts', JSON, nullable=False),
     Column('completed_at', DateTime(timezone=True), nullable=False, server_default=func.now()),
 )
+# The rules each generator's saved data was built with: a fingerprint of its
+# code. update compares them with the code it is running and rebuilds any
+# generator whose rules changed, so a deploy that changes generation needs no
+# manual --regenerate. Dates alone cannot tell: a finished day looks the same
+# whichever code built it.
+rule_history = Table('sandbox_generator_rules', metadata,
+    Column('name', String, primary_key=True),
+    Column('fingerprint', String(64), nullable=False),
+    Column('recorded_at', DateTime(timezone=True), nullable=False, server_default=func.now()),
+)
 
 states = Table('states', metadata,
     Column('state', String(2), primary_key=True),
@@ -342,7 +352,8 @@ pdpm_assessments = Table('pdpm_assessments', metadata,
     # groups, where depression does not change the group, it is drawn.
     Column('depression', Boolean, nullable=False, server_default=false()),
     # The 5-day assessment's reference date (ARD): day 1-8 of the payer period.
-    Column('ard', Date, nullable=False),
+    # Indexed: the PDPM Worksheet filters stays by ARD range.
+    Column('ard', Date, nullable=False, index=True),
     # The day this code became available: the ARD plus the time to complete
     # and code the assessment. Before then the resident is in a bed on Medicare
     # with no PDPM score yet, and reports count them as not coded.
@@ -823,6 +834,7 @@ _descriptions = {
     'adt_daily_census': 'Daily facility census: opening + admissions - discharges = closing.',
     'sandbox_schema_migrations': 'Preserved legacy SQL migration history; new migrations use Alembic.',
     'sandbox_generator_runs': 'Reference-generator completion records used to retain existing data.',
+    'sandbox_generator_rules': 'Fingerprint of the generator code each table was last built with; update rebuilds a generator whose fingerprint changed.',
     'sandbox_daily_runs': 'Committed generator/day checkpoints; independent of schema and backfill versions.',
     'sandbox_adt_residents': 'Internal simulation state for readmissions, eligibility and cumulative skilled days.',
     'sandbox_adt_active_stays': 'Internal future simulation plans. These are not completed clinical events.',

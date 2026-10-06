@@ -139,14 +139,18 @@ class BaseGenerator(ABC):
 
     @classmethod
     def run_days(cls, database_url, *, through=None, start=None, target='all', reset_history=False,
-            refresh=False):
+            refresh=False, rebuild=()):
         """Resume missing work in dependency order; data and its markers commit together.
 
         Handlers use run_day(connection, day), depend only on saved data, and must
         write only their owned tables. A newly registered handler can backfill
         historical days without re-running completed dependencies. Stateful handlers
         declare sequential=True and cannot be inserted into the middle of their history.
+
+        rebuild names handlers to build over every requested day, finished or not,
+        as --regenerate does for one: update passes those whose rules changed.
         """
+        rebuild = set(rebuild)
         through = through or cls.today()
         start = start or cls.SIMULATION_START
         if through > cls.today() or start < cls.SIMULATION_START or start > through:
@@ -154,6 +158,8 @@ class BaseGenerator(ABC):
         plan = cls.daily_plan(target)
         if refresh and (target == 'all' or any(handler.name == target and handler.sequential for handler in plan)):
             raise ValueError('Completed ADT days cannot be regenerated. Use seed --reset-history for a full rebuild.')
+        if any(handler.name in rebuild and handler.sequential for handler in plan):
+            raise ValueError('Completed ADT days cannot be rebuilt. Use seed --reset-history for a full rebuild.')
         if reset_history and (target != 'all' or start != cls.SIMULATION_START):
             raise ValueError('--reset-history requires seed from 2023-01-01 with all daily handlers.')
         engine = create_engine(cls.postgres_url(database_url))
@@ -222,7 +228,7 @@ class BaseGenerator(ABC):
                     # missing dates without thousands of queries and transactions.
                     for handler in handlers:
                         days = [day for day in requested_days
-                            if (refresh and handler.name == target)
+                            if (refresh and handler.name == target) or handler.name in rebuild
                             or day not in completed.get(handler.name, set())]
                         if not days:
                             continue

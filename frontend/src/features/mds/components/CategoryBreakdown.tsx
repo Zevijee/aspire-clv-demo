@@ -155,6 +155,7 @@ const speech: Breakdown = {
   parts: [
     ['cognitive_impairment', 'Cognitive Ability', 'var(--color-pdpm-major-joint)'],
     ['acute_neuro', 'Acute Neuro Primary', 'var(--color-pdpm-ortho)'],
+    ['slp_comorbidity', 'Comorbidity', 'var(--color-chart-series-secondary)'],
     ['mechanically_altered_diet', 'MAD', 'var(--color-pdpm-acute-neuro)'],
     ['swallowing_disorder', 'SD', 'var(--color-pdpm-medical-management)'],
   ],
@@ -275,7 +276,8 @@ function CategoryDrilldown({ breakdown, categoryLabel, onOpenResidents, path, se
       title={`${breakdown.name} by ${levels[depth].toLowerCase()}`} totalLabel="residents with a care code"
       subtitle={data ? `PDPM residents with a care code on ${data.census_date} in each ${levels[depth].toLowerCase()}, `
         + (breakdown.overlapping ? `with each ${breakdown.splitBy}, the most residents first; one resident `
-          + 'can have several. MAD is a mechanically altered diet, SD a swallowing disorder.'
+          + 'can have several. MAD is a mechanically altered diet, SD a swallowing disorder, '
+          + 'Comorbidity an SLP-related comorbidity.'
           : `split by ${breakdown.splitBy}, the most residents first.`) : undefined}
       // The KPI cards above key every colour, so the chart needs no legend.
       hideLegend series={breakdown.parts.map(([id, label, color]) => ({ id, label, color }))} items={ranking}

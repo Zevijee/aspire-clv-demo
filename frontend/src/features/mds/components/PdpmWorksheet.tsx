@@ -1,12 +1,14 @@
 import { Tooltip } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { LocationName } from '../../../shared/components/LocationName'
+import { BooleanBadge } from '../../../shared/components/BooleanBadge'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
+import { Toggle } from '../../../shared/components/Toggle'
 import {
-  getWorksheet, getWorksheetCatalog, worksheetFilterOptions,
-  type WorksheetCatalog, type WorksheetField, type WorksheetQuery, type WorksheetRow,
+  getWorksheet, getWorksheetCatalog, worksheetDateBasis, worksheetFilterOptions,
+  type StayRates, type WorksheetCatalog, type WorksheetField, type WorksheetQuery, type WorksheetRow,
 } from '../worksheetApi'
 import { WorksheetCellEditor } from './WorksheetCellEditor'
 
@@ -20,6 +22,17 @@ const entriesLabel = (count: number) => `${count} entr${count === 1 ? 'y' : 'ies
 
 /** One part of a component cell, "Name: value", a button that opens its
  * editor. Hovering shows what was entered: the value, its note, who and when. */
+const money = (value: number) => value.toLocaleString(undefined, { style: 'currency', currency: 'USD' })
+
+/** A HIPPS code's rates over a full 100-day stay, under the code. */
+function HippsRates({ rates }: { rates: StayRates }) {
+  return <dl className="worksheet-rates">
+    <div><dt>Average rate</dt><dd>{money(rates.average_rate)}</dd></div>
+    <div><dt>Neutral rate</dt><dd>{money(rates.neutral_rate)}</dd></div>
+    <div><dt>100-day revenue</dt><dd>{money(rates.total_revenue)}</dd></div>
+  </dl>
+}
+
 // Opens a part's editor. Only a part's title does; its value and note are text.
 type OpenEditor = (field: WorksheetField) => void
 
@@ -30,7 +43,7 @@ function CellPart({ field, row, onOpen }: {
   const activity = row.activity[field.id] ?? 0
   const single = field.group === field.label
   const name = single ? field.label : `${field.group} ${field.label}`
-  // A Reply is text only: its note is what it says.
+  // Notes is text only: its note is what it says.
   const text = field.kind === 'text'
   const shown = text ? cell?.note : cell?.label
   const details = <div className="worksheet-tooltip">
@@ -49,10 +62,12 @@ function CellPart({ field, row, onOpen }: {
       <button type="button" className="drilldown-table__link worksheet-cell__title" onClick={() => onOpen(field)}
         aria-label={`${name}: ${shown ?? 'not entered'}. Edit`}>{field.label}:</button>
     </Tooltip>
-    {shown ? <span className={text ? 'worksheet-cell__reply'
+    {shown ? <span className={text ? 'worksheet-cell__notes'
       : `worksheet-cell__value${field.kind === 'hipps' ? ' care-code' : ''}`}>{shown}</span>
       : <span className="worksheet-cell__empty-tag">Empty</span>}
     {activity > 1 && <span className="worksheet-cell__activity" aria-label={entriesLabel(activity)}>{activity}</span>}
+    {/* A projected HIPPS, once entered, is priced like the final one. */}
+    {field.kind === 'hipps' && row.projected_rates && <HippsRates rates={row.projected_rates} />}
     {!text && cell?.note && <span className="worksheet-cell__note">{cell.note}</span>}
   </div>
 }
@@ -98,10 +113,12 @@ export function PdpmWorksheet() {
   const defaults = getDefaultReportDateRange()
   const startDate = params.get('start_date') ?? defaults.startDate
   const endDate = params.get('end_date') ?? defaults.endDate
+  // The header toggle beside the date range: which date the range applies to.
+  const dateBasis = worksheetDateBasis(params)
   const [catalog, setCatalog] = useState<WorksheetCatalog | null>(null)
   const [catalogError, setCatalogError] = useState<string | null>(null)
   const [query, setQuery] = useState<WorksheetQuery>({ filters: {}, sort: null, search: '' })
-  const queryKey = JSON.stringify([startDate, endDate, query])
+  const queryKey = JSON.stringify([startDate, endDate, dateBasis, query])
   const [page, setPage] = useState({ queryKey: '', index: 0 })
   const pageIndex = page.queryKey === queryKey ? page.index : 0
   const [retry, setRetry] = useState(0)
@@ -129,7 +146,7 @@ export function PdpmWorksheet() {
 
   useEffect(() => {
     const controller = new AbortController()
-    void getWorksheet(startDate, endDate, pageIndex * pageSize, query, controller.signal)
+    void getWorksheet(startDate, endDate, dateBasis, pageIndex * pageSize, query, controller.signal)
       .then(data => {
         if (controller.signal.aborted) return
         setResponse({ key: requestKey, items: data.items, total: data.total })
@@ -139,7 +156,7 @@ export function PdpmWorksheet() {
         if (!controller.signal.aborted) setFailure({ key: requestKey, message: error.message })
       })
     return () => controller.abort()
-  }, [startDate, endDate, pageIndex, query, requestKey, refresh])
+  }, [startDate, endDate, dateBasis, pageIndex, query, requestKey, refresh])
 
   const result = response?.key === requestKey ? response : null
   const error = failure?.key === requestKey ? failure.message : catalogError
@@ -165,17 +182,29 @@ export function PdpmWorksheet() {
 
   // Column ids match the API's sort and filter allowlists.
   const columns: TableColumn<WorksheetRow>[] = [
-    { id: 'resident', header: 'Name', isRowHeader: true, value: row => row.resident_name },
-    { id: 'payer', header: 'Payer', filterable: true, value: row => row.payer_label },
-    { id: 'medicare-start', header: 'Stay start', value: row => row.medicare_start,
-      format: (_, row) => dateLabel(row.medicare_start) },
-    { id: 'active', header: 'Active', filterable: true, dataType: 'boolean', value: row => row.active },
+    // The facility under the name, so the pinned column says who and where.
+    { id: 'resident', header: 'Name', isRowHeader: true, truncate: false, value: row => row.resident_name,
+      format: (_, row) => <span className="worksheet-name">
+        <span>{row.resident_name}</span>
+        <span className="worksheet-name__facility">
+          <LocationName region={row.region} portfolio={row.portfolio} state={row.state}>{row.facility_name}</LocationName>
+        </span>
+      </span> },
     { id: 'facility', header: 'Facility', filterable: true, value: row => row.facility_name,
       format: (_, row) => <LocationName region={row.region} portfolio={row.portfolio} state={row.state}>
         {row.facility_name}</LocationName> },
     { id: 'state', header: 'State', filterable: true, hidden: true, value: row => row.state },
     { id: 'portfolio', header: 'Portfolio', filterable: true, hidden: true, value: row => row.portfolio },
     { id: 'region', header: 'Region', filterable: true, hidden: true, value: row => row.region },
+    { id: 'payer', header: 'Payer', filterable: true, value: row => row.payer_label },
+    // With how the Medicare stay began: at admission, or by disenrolling from
+    // Medicare Advantage mid-stay.
+    { id: 'medicare-start', header: 'Stay start', value: row => row.medicare_start, truncate: false,
+      exportValue: row => `${row.medicare_start} (${row.start_reason})`,
+      format: (_, row) => <span className="worksheet-stack">
+        <span>{dateLabel(row.medicare_start)}</span>
+        <span className="worksheet-stack__detail">{row.start_reason}</span>
+      </span> },
     { id: 'ard', header: 'ARD', value: row => row.ard ?? '', format: (_, row) => dateLabel(row.ard) },
     { id: 'mds-due', header: 'MDS due', filterable: true, value: row => row.mds_status,
       exportValue: row => row.due_date ?? 'Complete',
@@ -183,32 +212,47 @@ export function PdpmWorksheet() {
         ? <span className="boolean-badge boolean-badge--yes">Complete</span>
         : <span className={row.mds_status === 'Overdue' ? 'worksheet-due worksheet-due--overdue' : 'worksheet-due'}>
           {dateLabel(row.due_date)}{row.mds_status === 'Overdue' ? ' · Overdue' : ''}</span> },
-    // Projected and final HIPPS first, side by side, then the components.
-    ...componentColumns.filter(column => column.id === 'cell-Projected HIPPS'),
-    // Not entered: filled from the coded assessment, so it can be checked
-    // against the projected HIPPS beside it.
-    { id: 'final-hipps', header: 'Final HIPPS', sortable: false, value: row => row.final_hipps ?? '',
-      format: (_, row) => row.final_hipps ? <span className="care-code">{row.final_hipps}</span>
-        : <span className="worksheet-cell__value--empty">Not coded yet</span> },
+    // The components, then the projected HIPPS worked out from them, then the
+    // final HIPPS the coded assessment gave.
     ...componentColumns.filter(column => column.id !== 'cell-Projected HIPPS'),
+    ...componentColumns.filter(column => column.id === 'cell-Projected HIPPS'),
+    // Not entered: filled from the coded assessment.
+    // Not truncated: the rates under the code would lose their cents.
+    { id: 'final-hipps', header: 'Final HIPPS', sortable: false, truncate: false, value: row => row.final_hipps ?? '',
+      format: (_, row) => row.final_hipps ? <div className="worksheet-final">
+        <span className="care-code worksheet-cell__value">{row.final_hipps}</span>
+        {row.final_rates && <HippsRates rates={row.final_rates} />}
+      </div> : <span className="worksheet-cell__value--empty">Not coded yet</span> },
+    // An ended stay says why and when. The value stays Yes/No for the filter.
+    { id: 'active', header: 'Active', filterable: true, truncate: false, value: row => row.active,
+      exportValue: row => row.end_reason ? `No (${row.end_reason}, ${row.ended_on})` : row.active,
+      format: (_, row) => <span className="worksheet-stack">
+        <span><BooleanBadge value={row.active === 'Yes'} /></span>
+        {row.end_reason && <>
+          <span className="worksheet-stack__detail">{row.end_reason}</span>
+          <span className="worksheet-stack__detail">{dateLabel(row.ended_on)}</span>
+        </>}
+      </span> },
   ]
+  // Only the columns people edit -- the component cells -- can be resized.
+  const tableColumns = columns.map(column => column.id.startsWith('cell-') ? column : { ...column, resizable: false })
 
-  return <>
+  return <div className="pdpm-worksheet">
     <Table<WorksheetRow> {...status}
       title="PDPM worksheet"
-      subtitle={`Every Federal Medicare and Managed Medicare PDPM stay that started from ${startDate} to ${endDate}, `
+      subtitle={`Every Federal Medicare and Managed Medicare PDPM stay whose ${dateBasis === 'ard' ? 'ARD' : 'stay start'} `
+        + `falls from ${startDate} to ${endDate}, `
         + 'including stays that have since ended. Stay start is the first day on this Medicare payer. '
         + `Active is whether this Medicare stay is still running${censusDate ? ` on ${censusDate}` : ''}; `
         + 'a resident can stay in the building on another payer after it ends. '
         + `MDS due is ${catalog?.mds_due_days ?? 14} days after the ARD, or Complete once coded. `
         + 'Final HIPPS fills in from the assessment once it is coded: its PDPM code and 1, the 5-day indicator. '
-        + 'Click any part of PT/OT, SLP, Nursing, NTA or Projected HIPPS to enter it, add a note, '
-        + 'and read or reply to what others have entered. A number shows how many entries a part has.'}
-      columns={columns} rows={result?.items ?? []} getRowKey={row => row.payer_stay_id}
+        + 'A number beside a title shows how many entries it has.'}
+      columns={tableColumns} rows={result?.items ?? []} getRowKey={row => row.payer_stay_id}
       initialSort={{ columnId: 'resident', direction: 'ascending' }}
       internalScroll alignTop resizableColumns stickyFirstColumn searchable serverSide clearableFilters
       filterSource={{ id: 'pdpm-worksheet', startDate, endDate,
-        endpoint: worksheetFilterOptions }}
+        endpoint: worksheetFilterOptions(dateBasis) }}
       onQueryChange={onQueryChange} totalRows={result?.total}
       emptyMessage="No residents match these filters."
       csvFileName={`pdpm-worksheet-${censusDate || 'today'}.csv`}
@@ -233,5 +277,19 @@ export function PdpmWorksheet() {
     />
     {editing && editingRow && <WorksheetCellEditor row={editingRow} field={editing.field}
       onClose={() => setEditing(null)} onSaved={() => setRefresh(count => count + 1)} />}
-  </>
+  </div>
+}
+
+/** The header toggle left of the date range: whether the range picks stays by
+ * their start or by their ARD. Kept in the URL, as the range is. */
+export function WorksheetDateBasisToggle() {
+  const [params, setParams] = useReportSearchParams()
+  return <Toggle heading="Date range applies to" offLabel="Stay start" onLabel="ARD"
+    checked={worksheetDateBasis(params) === 'ard'}
+    onChange={byArd => {
+      const next = new URLSearchParams(params)
+      if (byArd) next.set('date_basis', 'ard')
+      else next.delete('date_basis')
+      setParams(next)
+    }} />
 }

@@ -84,6 +84,7 @@ export type Speech = {
   acute_neuro: number
   mechanically_altered_diet: number
   swallowing_disorder: number
+  slp_comorbidity: number
 }
 
 // PDPM residents per SLP group, the second letter of the code: speech_N_swallowing_M
@@ -167,7 +168,8 @@ export type OverviewReport = { census_date: string; items: FacilityOverview[] }
 
 const noDiagnosis: PrimaryDiagnosis = { major_joint: 0, ortho: 0, acute_neuro: 0, medical_management: 0 }
 const noFunction: PtOt = { score_0_5: 0, score_6_9: 0, score_10_23: 0, score_24: 0 }
-const noSpeech: Speech = { cognitive_impairment: 0, acute_neuro: 0, mechanically_altered_diet: 0, swallowing_disorder: 0 }
+const noSpeech: Speech = { cognitive_impairment: 0, acute_neuro: 0, mechanically_altered_diet: 0, swallowing_disorder: 0,
+  slp_comorbidity: 0 }
 
 /** The Overview tab: the residents-and-rates report and the category counts,
  * fetched together and joined by facility. Both list every facility on the same
