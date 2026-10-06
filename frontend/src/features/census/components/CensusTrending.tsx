@@ -157,7 +157,7 @@ export function CensusTrending() {
       headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} />}
       emptyMessage="No facilities match this view."
       csvFileName={`census-trending-${startDate}-to-${endDate}.csv`} />
-    <LineChart title="Daily Census Trending" valueLabel="Census" variant="line" height={360}
+    <LineChart title="Daily Census Trending" valueLabel="Census" variant="line" height={480}
       subtitle={`${scopeName}. Census at the close of each day.`}
       headerActions={<OpenViewButton kind="table" label="See in table view" onClick={() => setShowTrendTable(true)} />}
       items={(currentTrend?.data?.days ?? []).map(day => ({ date: day.date, value: day.census }))}

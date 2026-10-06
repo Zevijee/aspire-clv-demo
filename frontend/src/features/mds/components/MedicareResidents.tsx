@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { LocationName } from '../../../shared/components/LocationName'
 import { Table, type TableColumn } from '../../../shared/components/Table'
+import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
 import {
   downloadMedicareResidents, getMedicareResidents, medicareBase,
   type MedicareResident, type MedicareResidentsQuery,
@@ -20,21 +21,42 @@ const columns: TableColumn<MedicareResident>[] = [
   { id: 'state', header: 'State', filterable: true, hidden: true, value: row => row.state },
   { id: 'portfolio', header: 'Portfolio', filterable: true, hidden: true, value: row => row.portfolio },
   { id: 'region', header: 'Region', filterable: true, hidden: true, value: row => row.region },
+  // A filter only, set by a click on an Overview chart segment: "PT/OT: 0-5"
+  // and so on, each matched by the API. A resident can be in several parts.
+  { id: 'pdpm-category', header: 'PDPM category', filterable: true, hidden: true, value: () => '' },
   // Labels match the API's filter values exactly.
   { id: 'payer', header: 'Payer', filterable: true,
     value: row => row.payer_type === 'medicare' ? 'Federal Medicare' : 'Managed Medicare PDPM' },
   { id: 'payer-name', header: 'Payer name', filterable: true, value: row => row.payer_name },
+  { id: 'admission-date', header: 'Admission date', value: row => row.admission_date },
   { id: 'los', header: 'Length of stay', numeric: true, value: row => row.length_of_stay },
-  { id: 'pdpm-score', header: 'PDPM score', filterable: true, value: row => row.pdpm_score },
+  { id: 'ard', header: 'ARD', value: row => row.ard ?? '—' },
+  // The value stays the text, so filters, search and export match the API. The
+  // ARD is null exactly while the care code is missing, so it marks the label.
+  { id: 'pdpm-score', header: 'PDPM score', filterable: true, value: row => row.pdpm_score,
+    format: (_, row) => row.ard === null
+      ? <span className="care-code-badge care-code-badge--missing">{row.pdpm_score}</span>
+      : <span className="care-code">{row.pdpm_score}</span> },
   { id: 'average-rate', header: 'Average rate', numeric: true, value: row => row.average_rate,
     format: (_, row) => money(row.average_rate) },
   { id: 'total-revenue', header: 'Total revenue', numeric: true, value: row => row.total_revenue,
     format: (_, row) => money(row.total_revenue) },
 ]
 
-/** Every Medicare resident on the census day, paged, sorted and filtered by the API. */
+/** Every Medicare resident on the census day, paged, sorted and filtered by the API.
+ * Opening filters come from residents_* parameters, set when an Overview chart
+ * segment is clicked; a new set remounts the table with them. */
 export function MedicareResidents() {
-  const [query, setQuery] = useState<MedicareResidentsQuery>({ filters: {}, sort: null, search: '' })
+  const [params] = useReportSearchParams()
+  const initialFilters: Record<string, string[]> = {}
+  for (const [key, value] of params) {
+    if (key.startsWith('residents_')) (initialFilters[key.slice('residents_'.length)] ??= []).push(value)
+  }
+  return <MedicareResidentsTable key={JSON.stringify(initialFilters)} initialFilters={initialFilters} />
+}
+
+function MedicareResidentsTable({ initialFilters }: { initialFilters: Record<string, string[]> }) {
+  const [query, setQuery] = useState<MedicareResidentsQuery>({ filters: initialFilters, sort: null, search: '' })
   const queryKey = JSON.stringify(query)
   const [page, setPage] = useState({ queryKey: '', index: 0 })
   const pageIndex = page.queryKey === queryKey ? page.index : 0
@@ -70,14 +92,16 @@ export function MedicareResidents() {
     title="PDPM residents"
     subtitle={`Everyone paid from their PDPM code${censusDate ? ` on ${censusDate}` : ''}: Federal Medicare and Managed Medicare PDPM. `
       + 'Payer name shows the plan. Length of stay is days since admission. '
-      + 'PDPM score is the four-letter PDPM code: PT/OT, SLP, nursing and NTA groups. '
+      + 'ARD is the 5-day assessment reference date, on day 1-8 of the Medicare stay. '
+      + 'PDPM score is the four-letter PDPM code: PT/OT, SLP, nursing and NTA groups; '
+      + 'until the assessment is coded, a few days after the ARD, the care code is missing and the ARD blank. '
       + 'Total revenue is PDPM revenue on this payer to date; average rate is that revenue per day on the payer.'}
     columns={columns} rows={result?.items ?? []} getRowKey={row => row.stay_id}
     initialSort={{ columnId: 'resident', direction: 'ascending' }}
     internalScroll stickyFirstColumn searchable serverSide clearableFilters
     filterSource={{ id: 'medicare-residents', startDate: censusDate, endDate: censusDate,
       endpoint: `${medicareBase}/residents/filter-options` }}
-    onQueryChange={onQueryChange} totalRows={result?.total}
+    onQueryChange={onQueryChange} totalRows={result?.total} initialFilters={initialFilters}
     emptyMessage="No residents match these filters."
     csvFileName={`current-medicare-residents-${censusDate || 'today'}.csv`}
     onExport={() => downloadMedicareResidents(query, censusDate || 'today')}

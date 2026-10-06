@@ -122,10 +122,11 @@ each bed, from `facility_beds` and `bed_assignments`. **Monthly Census Trending*
 shows census days by calendar month, with the highest and lowest month, from
 `census_days` on `monthly_payer_census_facts`.
 
-**Current Medicare PDPM**, the first MDS report, drills from state to facility through
-today's PDPM residents -- Federal Medicare and Managed Medicare PDPM; per diem
-contract residents are left out -- with their average neutral and actual daily
-rates and length of stay, from `census_logs` and `pdpm_rate_logs`.
+**Current Medicare PDPM**, the first MDS report, counts today's PDPM residents --
+Federal Medicare and Managed Medicare PDPM; per diem contract residents are left
+out -- by PDPM category, drilled from state to facility, with a Residents tab
+listing each one, from `census_logs`, `pdpm_rate_logs` and `pdpm_assessments`.
+Primary diagnosis is the only category built so far.
 
 Measured response times on the full dataset, 30-day and 1-year ranges:
 

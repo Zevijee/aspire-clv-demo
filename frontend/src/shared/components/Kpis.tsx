@@ -1,4 +1,31 @@
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { DataState, type DataStateProps } from './DataState'
+
+// A card's narrowest width, in px: 11rem, matching .kpi's min-width.
+const CARD_MIN_WIDTH = 176
+
+/** Columns for stacked cards: as few rows as the width allows, then the cards
+ * spread evenly over them, so 12 cards where 8 fit make two rows of 6, not 8
+ * and 4. */
+function useBalancedColumns(count: number, enabled: boolean) {
+  const ref = useRef<HTMLElement>(null)
+  const [columns, setColumns] = useState(count)
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (!enabled || !element) return
+    const measure = () => {
+      const gap = parseFloat(getComputedStyle(element).columnGap) || 0
+      const fit = Math.max(1, Math.floor((element.clientWidth + gap) / (CARD_MIN_WIDTH + gap)))
+      const rows = Math.ceil(count / fit)
+      setColumns(Math.max(1, Math.ceil(count / rows)))
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [count, enabled])
+  return { ref, columns }
+}
 
 export type KpiTrend = {
   direction?: 'up' | 'down' | 'flat'
@@ -18,6 +45,10 @@ export type KpiItem = {
 
 type KpisProps = DataStateProps & {
   items: KpiItem[]
+  /** Stack onto further rows instead of scrolling one row sideways, for a set
+   * of cards too long to fit, such as twelve SLP groups. Rows are balanced and
+   * always full width. */
+  stack?: boolean
 }
 
 function TrendIcon({ direction }: { direction: KpiTrend['direction'] }) {
@@ -72,9 +103,12 @@ function TrendIcon({ direction }: { direction: KpiTrend['direction'] }) {
   )
 }
 
-export function Kpis({ items, loading, error, onRetry }: KpisProps) {
+export function Kpis({ items, loading, error, onRetry, stack = false }: KpisProps) {
+  const { ref, columns } = useBalancedColumns(items.length, stack)
   return (
-    <section aria-label="Key performance indicators" className="kpis">
+    <section aria-label="Key performance indicators" ref={ref}
+      className={`kpis${stack ? ' kpis--stack' : ''}`}
+      style={stack ? { '--kpi-columns': columns } as CSSProperties : undefined}>
       {items.map((item) => (
         <article aria-busy={loading} className="kpi" key={item.header}>
           <h2 className="kpi__header">

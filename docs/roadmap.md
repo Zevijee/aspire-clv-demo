@@ -9,7 +9,8 @@ The backend was rebuilt from per-report SQL into feature packages over fact tabl
 Every report in the navigation is complete end to end: Admissions, Discharges,
 Payer Changes, Net Change, Monthly ADT Trending, Referring Hospital, Daily Census,
 Census Trending, Bed Board, Monthly Census Trending and Residents. In MDS, Current
-Medicare has its first view, a state-to-facility drilldown; the other four MDS
+Medicare has an Overview by PDPM category (Primary Diagnosis, PT/OT, SLP,
+Speech Comorbidity, Nursing, NTA and Depression, all built) and a Residents tab; the other four MDS
 reports are still placeholders.
 
 ## Dead frontend reports

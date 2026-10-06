@@ -251,7 +251,17 @@ Payer catalog. Skilled classification applies to Medicare categories and VA.
 | --- | --- | --- | --- | --- | --- |
 | payer_stay_id | UUID | no | PK |  |  |
 | pdpm_code | VARCHAR(4) | no |  |  |  |
+| acute_neuro | BOOLEAN | no |  | false |  |
+| slp_comorbidity | BOOLEAN | no |  | false |  |
+| cognitive_impairment | BOOLEAN | no |  | false |  |
+| mechanically_altered_diet | BOOLEAN | no |  | false |  |
+| swallowing_disorder | BOOLEAN | no |  | false |  |
+| nursing_function_score | SMALLINT | no |  | 0 |  |
+| depression | BOOLEAN | no |  | false |  |
+| ard | DATE | no |  |  |  |
+| coded_date | DATE | no |  |  |  |
 
+- CHECK: `nursing_function_score BETWEEN 0 AND 16`
 - CHECK: `pdpm_code ~ '^[A-P][A-L][A-Y][A-F]$'`
 
 ## pdpm_rate_logs

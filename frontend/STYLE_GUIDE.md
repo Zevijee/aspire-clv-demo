@@ -84,6 +84,9 @@ font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
 ```
 
 Preserve shared sans-serif typography. Do not introduce an alternative font for an individual report.
+The one other face is `--font-mono`, for codes such as PDPM scores, applied through the shared
+`.care-code` class so code letters line up down a column. Use it for identifiers that are read
+character by character, never for prose, labels or numbers.
 
 | Use | Size | Weight | Line height |
 | --- | ---: | ---: | ---: |

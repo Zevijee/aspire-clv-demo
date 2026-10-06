@@ -1274,6 +1274,44 @@ h1 {
   color: var(--color-surface);
 }
 
+/* Separate buttons: no shared strip, each option carries its own border and
+   surface, so they read as individual buttons with space between them. */
+.segmented-control--separate,
+.drilldown-navigation .segmented-control--separate {
+  background: transparent;
+  border: 0;
+  gap: var(--space-2);
+  padding: 0;
+}
+
+.segmented-control--separate .segmented-control__option {
+  border: 1px solid var(--color-border-strong);
+}
+
+/* Unselected only, so the selected colours above (and the drilldown bar's solid
+   primary) still win. */
+.segmented-control--separate .segmented-control__option:not(.segmented-control__option--selected) {
+  background: var(--color-surface);
+}
+
+.segmented-control--separate .segmented-control__option:not(.segmented-control__option--selected):hover {
+  background: var(--color-surface-hover);
+}
+
+.segmented-control--separate .segmented-control__option--selected {
+  border-color: var(--color-primary);
+}
+
+/* Accent tone: only the selected button is orange, for a control on a blue
+   surface such as the drilldown bar. The extra class outranks the drilldown
+   bar's primary rules. */
+.segmented-control.segmented-control--accent .segmented-control__option--selected,
+.segmented-control.segmented-control--accent .segmented-control__option--selected:hover {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-surface);
+}
+
 .segmented-control__option:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
@@ -1334,6 +1372,17 @@ h1 {
   gap: var(--layout-report-grid-gap);
   overflow-x: auto;
   overscroll-behavior-x: contain;
+}
+
+/* Stacked cards: --kpi-columns per row (set by Kpis to balance the rows), and
+   a short last row stretches, so every row spans the full width. */
+.kpis.kpis--stack {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+
+.kpis.kpis--stack > .kpi {
+  flex: 1 1 calc((100% - (var(--kpi-columns) - 1) * var(--layout-report-grid-gap)) / var(--kpi-columns));
 }
 
 .kpi {
@@ -3197,7 +3246,8 @@ h1 {
 }
 
 .boolean-badge,
-.payer-status-badge {
+.payer-status-badge,
+.care-code-badge {
   display: inline;
   padding: var(--space-1) var(--space-2);
   box-shadow: inset 0 0 0 1px var(--color-border);
@@ -3228,6 +3278,19 @@ h1 {
 .boolean-badge--positive {
   color: var(--color-success);
   background: var(--color-success-subtle);
+}
+
+/* A care code still to come: needs attention, not an error. */
+.care-code-badge--missing {
+  color: var(--color-warning);
+  background: var(--color-warning-subtle);
+}
+
+/* A PDPM or other care code, in the code font. */
+.care-code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
 }
 
 .payer-status-badge--ongoing {
@@ -3324,8 +3387,11 @@ h1 {
   overflow: hidden;
 }
 
+/* As tall as its rows, never taller than the modal: a short table ends after its
+   last row instead of padding the card with blank space, and a long one scrolls
+   inside. The modal itself keeps its full height either way. */
 .net-change-daily-modal__table > .report-table {
-  flex: 1;
+  flex: 0 1 auto;
   height: auto;
   min-height: 0;
 }
@@ -3370,9 +3436,11 @@ h1 {
   margin: 0;
 }
 
+/* The title keeps at least 240px; the legend takes what is left and wraps,
+   so a long legend can never squeeze the title into one word per line. */
 .stacked-ranking-chart__header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 1fr) minmax(0, auto) minmax(max-content, 1fr);
   align-items: center;
   gap: var(--space-4);
 }
@@ -3381,13 +3449,26 @@ h1 {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: var(--space-4);
+  gap: var(--space-2) var(--space-4);
+  /* Wraps onto more lines past this width rather than spreading across the
+     whole header. */
+  max-width: 640px;
   font-size: 0.75rem;
+}
+
+.stacked-ranking-chart__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
 }
 
 @media (max-width: 1100px) {
   .stacked-ranking-chart__header {
     grid-template-columns: 1fr;
+  }
+
+  .stacked-ranking-chart__actions {
+    justify-content: flex-start;
   }
 }
 

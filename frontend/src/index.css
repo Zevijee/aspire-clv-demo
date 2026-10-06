@@ -20,6 +20,9 @@
   --color-warning-subtle: #fff2d4;
   --color-danger: #ad3030;
   --color-danger-subtle: #fce8e8;
+  /* Accent for controls sitting on a primary-tinted surface, where blue would
+     vanish. White text on it is 5.2:1. */
+  --color-accent: #c2410c;
   --color-info: #3d5f91;
   --color-info-subtle: #ebf0f8;
   --color-info-callout-background: #f0f9ff;
@@ -45,6 +48,20 @@
   --color-pdpm-ortho: var(--color-chart-series-senary);
   --color-pdpm-acute-neuro: var(--color-chart-series-tertiary);
   --color-pdpm-medical-management: var(--color-chart-series-quinary);
+  /* SLP groups: the same four hues, one per number of speech conditions (0-3),
+     lighter, as is and darker for 0, 1 and 2 swallowing needs. */
+  --color-pdpm-slp-0-0: color-mix(in srgb, var(--color-pdpm-major-joint) 55%, var(--color-surface));
+  --color-pdpm-slp-0-1: var(--color-pdpm-major-joint);
+  --color-pdpm-slp-0-2: color-mix(in srgb, var(--color-pdpm-major-joint) 60%, var(--color-text));
+  --color-pdpm-slp-1-0: color-mix(in srgb, var(--color-pdpm-ortho) 55%, var(--color-surface));
+  --color-pdpm-slp-1-1: var(--color-pdpm-ortho);
+  --color-pdpm-slp-1-2: color-mix(in srgb, var(--color-pdpm-ortho) 60%, var(--color-text));
+  --color-pdpm-slp-2-0: color-mix(in srgb, var(--color-pdpm-acute-neuro) 55%, var(--color-surface));
+  --color-pdpm-slp-2-1: var(--color-pdpm-acute-neuro);
+  --color-pdpm-slp-2-2: color-mix(in srgb, var(--color-pdpm-acute-neuro) 60%, var(--color-text));
+  --color-pdpm-slp-3-0: color-mix(in srgb, var(--color-pdpm-medical-management) 55%, var(--color-surface));
+  --color-pdpm-slp-3-1: var(--color-pdpm-medical-management);
+  --color-pdpm-slp-3-2: color-mix(in srgb, var(--color-pdpm-medical-management) 60%, var(--color-text));
   --color-chart-grid: #e5e7eb;
   --color-chart-axis: #9ca3af;
   --color-chart-label: #374151;
@@ -66,6 +83,8 @@
   --shadow-report-card: 0 1px 3px var(--color-shadow-subtle);
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
+  /* Codes read as codes: fixed-width, so letters line up down a column. */
+  --font-mono: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;

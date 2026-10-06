@@ -316,9 +316,39 @@ pdpm_assessments = Table('pdpm_assessments', metadata,
     # Invented like care level: a function of the payer period id, with nursing
     # drawn from the band the resident's care level implies. Rebuilt with
     # census_logs, from it.
+    #
+    # The SLP letter counts how many of acute neuro, SLP comorbidity and
+    # cognitive impairment are present (0-3) and whether neither, one or both of
+    # a mechanically altered diet and a swallowing disorder are, but not which.
+    # The five flags record which, and the generator writes the letter from
+    # them, so the two always agree: SLP letter = conditions * 3 + (MAD + SD).
+    # Acute neuro is only ever set inside the PT/OT acute neuro / non-ortho
+    # surgery category, the primary diagnosis it stands for.
     Column('payer_stay_id', Uuid, primary_key=True),
     Column('pdpm_code', String(4), nullable=False),
+    Column('acute_neuro', Boolean, nullable=False, server_default=false()),
+    Column('slp_comorbidity', Boolean, nullable=False, server_default=false()),
+    Column('cognitive_impairment', Boolean, nullable=False, server_default=false()),
+    Column('mechanically_altered_diet', Boolean, nullable=False, server_default=false()),
+    Column('swallowing_disorder', Boolean, nullable=False, server_default=false()),
+    # The nursing function score (0-16) behind the nursing letter, inside the
+    # range CMS gives that group: some groups span more than one report band
+    # (Extensive Services 0-14, Behavioral 11-16), so the letter alone cannot
+    # place them.
+    Column('nursing_function_score', SmallInteger, nullable=False, server_default='0'),
+    # Whether the resident shows signs of depression. For the special care and
+    # clinically complex nursing groups the letter already says so -- the "2"
+    # groups are with depression -- and the flag follows it; for the other
+    # groups, where depression does not change the group, it is drawn.
+    Column('depression', Boolean, nullable=False, server_default=false()),
+    # The 5-day assessment's reference date (ARD): day 1-8 of the payer period.
+    Column('ard', Date, nullable=False),
+    # The day this code became available: the ARD plus the time to complete
+    # and code the assessment. Before then the resident is in a bed on Medicare
+    # with no PDPM score yet, and reports count them as not coded.
+    Column('coded_date', Date, nullable=False),
     CheckConstraint("pdpm_code ~ '^[A-P][A-L][A-Y][A-F]$'"),
+    CheckConstraint('nursing_function_score BETWEEN 0 AND 16', name='ck_pdpm_assessments_nursing_function_score'),
 )
 
 resident_summaries = Table('resident_summaries', metadata,

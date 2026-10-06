@@ -12,7 +12,11 @@ Three tables, built together:
   the census rows so the two cannot disagree about a resident's base rate. The
   census row is not split by them.
 - pdpm_assessments: the four-letter PDPM code of every Medicare payer period,
-  with its nursing group drawn from the band the period's care level implies.
+  with its nursing group drawn from the band the period's care level implies,
+  its nursing function score drawn inside that group's range, its depression
+  flag (from the letter where the group says, drawn otherwise), the SLP
+  conditions its SLP letter is written from, its reference date (ARD), and
+  the day the code became available, a few days after it.
 
 Care level is invented here, like referral sources: a pure output that nothing
 in the simulation reads back, a function of the stay id alone, so changing any
@@ -57,12 +61,43 @@ PDPM_PAYER_TYPES = ('medicare', 'managed_medicare_pdpm', 'managed_medicare_ppo')
 # then function score band (0-5, 6-9, 10-23, 24). Letter = category * 4 + band.
 PT_OT_CATEGORY_SHARES = (0.15, 0.35, 0.80)
 PT_OT_FUNCTION_SHARES = (0.25, 0.55, 0.95)
-# SLP, A (no condition, no swallowing need) through L.
-SLP_SHARES = (0.55, 0.63, 0.65, 0.77, 0.82, 0.84, 0.90, 0.93, 0.95, 0.98, 0.99)
+# SLP: each condition drawn on its own, then the letter written from them, A (no
+# condition, no swallowing need) through L: conditions * 3 + (MAD + SD). Acute
+# neuro is a share of the acute neuro / non-ortho surgery PT/OT category (index
+# 3), the primary diagnosis it stands for; the rest apply to anyone.
+ACUTE_NEURO_CATEGORY = 3
+ACUTE_NEURO_SHARE = 0.5
+SLP_COMORBIDITY_SHARE = 0.10
+COGNITIVE_IMPAIRMENT_SHARE = 0.22
+MECHANICALLY_ALTERED_DIET_SHARE = 0.12
+SWALLOWING_DISORDER_SHARE = 0.10
 # NTA, A (12+ comorbidity points) through F (none).
 NTA_SHARES = (0.03, 0.10, 0.25, 0.55, 0.85)
 # Nursing letters each care level draws from, uniformly: A-G extensive services
 # and high-acuity special care, down to R-Y behavioral and reduced physical function.
+# The nursing function score range (0-16) CMS gives each nursing group, by letter:
+# ES 0-14, high and low special care and clinically complex split 0-5 / 6-14
+# (and CA 15-16), behavioral 11-16, reduced physical function 0-5 / 6-14 / 15-16.
+# The score is drawn uniformly inside its letter's range.
+NURSING_FUNCTION_RANGES = {
+    'A': (0, 14), 'B': (0, 14), 'C': (0, 14),
+    'D': (0, 5), 'E': (0, 5), 'F': (6, 14), 'G': (6, 14),
+    'H': (0, 5), 'I': (0, 5), 'J': (6, 14), 'K': (6, 14),
+    'L': (0, 5), 'M': (0, 5), 'N': (6, 14), 'O': (15, 16), 'P': (6, 14), 'Q': (15, 16),
+    'R': (11, 16), 'S': (11, 16),
+    'T': (0, 5), 'U': (0, 5), 'V': (6, 14), 'W': (15, 16), 'X': (6, 14), 'Y': (15, 16),
+}
+# Depression. In special care high and low and clinically complex the nursing
+# letter decides it, the "2" group being with depression (HDE2, HBC2, LDE2,
+# LBC2, CDE2, CBC2, CA2); elsewhere it does not change the group, and is drawn.
+DEPRESSED_LETTERS = 'DFHJLNO'
+NOT_DEPRESSED_LETTERS = 'EGIKMPQ'
+DEPRESSION_SHARE = 0.30
+# The 5-day assessment: its reference date (ARD) is drawn on days 1-8 of the
+# payer period (0-7 days in), then it takes 2-4 days to complete and code.
+# Until the coded date the resident has no PDPM score.
+ARD_DAYS = (0, 7)
+CODING_DAYS = (2, 4)
 NURSING_BANDS = {'Complex': 'ABCDEFG', 'High': 'DEFGHIJK', 'Moderate': 'HIJKLMNOPQ', 'Low': 'RSTUVWXY'}
 
 THROUGH = "SELECT max(simulation_date) AS day FROM sandbox_daily_runs WHERE generator = 'adt'"
@@ -109,21 +144,51 @@ def _letter(index):
 
 
 def assessment_sql(table, census):
-    """One PDPM code per Medicare payer period, from its first census row."""
+    """One PDPM code per Medicare payer period, from its first census row, with
+    the SLP conditions its SLP letter is written from."""
     column = 'c.payer_stay_id'
-    pt_ot = (f'{_index(_draw(column, "pdpm-category"), PT_OT_CATEGORY_SHARES)} * 4 + '
-        f'{_index(_draw(column, "pdpm-function"), PT_OT_FUNCTION_SHARES)}')
+    category = _index(_draw(column, "pdpm-category"), PT_OT_CATEGORY_SHARES)
+    band = _index(_draw(column, "pdpm-function"), PT_OT_FUNCTION_SHARES)
     nursing = 'CASE c.care_level ' + ' '.join(
         f"WHEN '{level}' THEN substr('{letters}', 1 + floor({_draw(column, 'pdpm-nursing')} * {len(letters)})::int, 1)"
         for level, letters in NURSING_BANDS.items()) + ' END'
     types = ', '.join(f"'{payer_type}'" for payer_type in PDPM_PAYER_TYPES)
+    low, high = (('CASE nursing ' + ' '.join(f"WHEN '{letter}' THEN {bounds[end]}"
+        for letter, bounds in NURSING_FUNCTION_RANGES.items()) + ' END') for end in (0, 1))
     return f"""
-INSERT INTO {table} (payer_stay_id, pdpm_code)
-SELECT c.payer_stay_id,
-       {_letter(pt_ot)} || {_letter(_index(_draw(column, 'pdpm-slp'), SLP_SHARES))}
-       || {nursing} || {_letter(_index(_draw(column, 'pdpm-nta'), NTA_SHARES))}
-FROM {census} c JOIN payers p ON p.payer_id = c.payer_id
-WHERE c.segment = 1 AND p.payer_type IN ({types})
+INSERT INTO {table} (payer_stay_id, pdpm_code, acute_neuro, slp_comorbidity, cognitive_impairment,
+                     mechanically_altered_diet, swallowing_disorder, nursing_function_score,
+                     depression, ard, coded_date)
+SELECT payer_stay_id,
+       {_letter('category * 4 + band')}
+       || {_letter('(acute_neuro::int + slp_comorbidity::int + cognitive_impairment::int) * 3 '
+                   '+ mechanically_altered_diet::int + swallowing_disorder::int')}
+       || nursing || nta,
+       acute_neuro, slp_comorbidity, cognitive_impairment, mechanically_altered_diet, swallowing_disorder,
+       {low} + floor({_draw('payer_stay_id', 'pdpm-nursing-function')} * ({high} - {low} + 1))::int,
+       CASE WHEN nursing = ANY(string_to_array('{DEPRESSED_LETTERS}', NULL)) THEN true
+            WHEN nursing = ANY(string_to_array('{NOT_DEPRESSED_LETTERS}', NULL)) THEN false
+            ELSE {_draw('payer_stay_id', 'pdpm-depression')} < {DEPRESSION_SHARE} END,
+       ard, ard + {CODING_DAYS[0]}
+         + floor({_draw('payer_stay_id', 'pdpm-coding')} * {CODING_DAYS[1] - CODING_DAYS[0] + 1})::int
+FROM (
+  SELECT payer_stay_id, period_start + {ARD_DAYS[0]}
+           + floor({_draw('payer_stay_id', 'pdpm-ard')} * {ARD_DAYS[1] - ARD_DAYS[0] + 1})::int AS ard,
+         category, band, nursing, nta,
+         category = {ACUTE_NEURO_CATEGORY} AND acute_neuro_draw < {ACUTE_NEURO_SHARE} AS acute_neuro,
+         slp_comorbidity, cognitive_impairment, mechanically_altered_diet, swallowing_disorder
+  FROM (
+    SELECT c.payer_stay_id, lower(c.in_bed) AS period_start, {category} AS category, {band} AS band,
+           {nursing} AS nursing, {_letter(_index(_draw(column, 'pdpm-nta'), NTA_SHARES))} AS nta,
+           {_draw(column, 'pdpm-acute-neuro')} AS acute_neuro_draw,
+           {_draw(column, 'pdpm-slp-comorbidity')} < {SLP_COMORBIDITY_SHARE} AS slp_comorbidity,
+           {_draw(column, 'pdpm-cognitive')} < {COGNITIVE_IMPAIRMENT_SHARE} AS cognitive_impairment,
+           {_draw(column, 'pdpm-mad')} < {MECHANICALLY_ALTERED_DIET_SHARE} AS mechanically_altered_diet,
+           {_draw(column, 'pdpm-sd')} < {SWALLOWING_DISORDER_SHARE} AS swallowing_disorder
+    FROM {census} c JOIN payers p ON p.payer_id = c.payer_id
+    WHERE c.segment = 1 AND p.payer_type IN ({types})
+  ) drawn
+) flagged
 """
 
 
