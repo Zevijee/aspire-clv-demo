@@ -263,6 +263,10 @@ Use the shared `InfoDisclosure` component for inline explanations of KPIs, formu
   shared by its page, filter-options, and export queries. Do not place runtime API
   code in seeding.
   Preserve request cancellation, cascading, and stale-response behavior. Do not write or run tests unless explicitly requested, per `AGENTS.md`.
+- `resizableColumns` (off by default) gives each header a drag edge to set its column's width;
+  double-click resets it and arrow keys resize a focused edge. A resized column holds its cell
+  content to that width. `alignTop` aligns every cell to the top of its row, for rows made tall
+  by stacked content.
 - Use tabular numerals for numeric columns.
 - Keep headers visible when feasible for long, scrollable data.
 - Support empty, loading, and error states.

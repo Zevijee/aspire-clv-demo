@@ -89,7 +89,8 @@ DbConnection = Annotated[Connection, Depends(get_connection)]
 
 
 def get_write_connection(request: Request) -> Iterator[Connection]:
-    """For the auth routes only. The transaction commits when the route returns."""
+    """For the auth routes and PDPM Worksheet entries, the only writers. The
+    transaction commits when the route returns."""
     with request.app.state.database.connection(write=True) as connection:
         yield connection
 

@@ -26,6 +26,10 @@ erDiagram
         Uuid payer_stay_id PK
         SmallInteger step PK
     }
+    pdpm_worksheet_entries {
+        Uuid entry_id PK
+    }
+    pdpm_worksheet_entries ||--o{ pdpm_worksheet_entries : "reply_to"
     sandbox_daily_runs {
         String generator PK
         Date simulation_date PK
@@ -281,6 +285,27 @@ Payer catalog. Skilled classification applies to Medicare categories and VA.
 - CHECK: `pdpm_factor > 0 AND daily_rate > 0`
 - CHECK: `skilled_day >= 1`
 - INDEX `ix_pdpm_rate_logs_in_effect`: in_effect
+
+## pdpm_worksheet_entries
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| entry_id | UUID | no | PK |  |  |
+| payer_stay_id | UUID | no |  |  |  |
+| field | VARCHAR(40) | no |  |  |  |
+| action | VARCHAR(10) | no |  |  |  |
+| value | VARCHAR(100) | yes |  |  |  |
+| note | VARCHAR | yes |  |  |  |
+| reply_to | UUID | yes | FK → pdpm_worksheet_entries.entry_id |  |  |
+| author | VARCHAR | no |  |  |  |
+| created_at | TIMESTAMP WITH TIME ZONE | no |  | now() |  |
+
+- CHECK: `(action = 'reply') = (reply_to IS NOT NULL)`
+- CHECK: `action <> 'reply' OR length(trim(note)) > 0`
+- CHECK: `action IN ('set', 'add', 'remove', 'reply')`
+- INDEX `ix_pdpm_worksheet_entries_cell`: payer_stay_id, field, created_at
 
 ## sandbox_daily_runs
 

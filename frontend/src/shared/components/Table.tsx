@@ -1,7 +1,10 @@
 import { createPortal } from 'react-dom'
 import { BooleanBadge } from './BooleanBadge'
 import { DataState, type DataStateProps } from './DataState'
-import { useEffect, useLayoutEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  useEffect, useLayoutEffect, useId, useMemo, useRef, useState,
+  type PointerEvent as ReactPointerEvent, type ReactNode,
+} from 'react'
 import { MultiSelectFilterOptions } from './filters/MultiSelectFilterOptions'
 import { FilterDropdown } from './filters/FilterDropdown'
 import { useTableFilterOptions } from '../hooks/useTableFilterOptions'
@@ -105,6 +108,12 @@ export type TableProps<Row> = DataStateProps & {
   getRowClassName?: (row: Row) => string | undefined
   onRowClick?: (row: Row) => void
   internalScroll?: boolean
+  /** Align every cell to the top of its row instead of the middle, for rows
+   * made tall by stacked content, so short values read along one line. */
+  alignTop?: boolean
+  /** Drag a header's right edge to set its column's width; double-click the
+   * edge to reset it. Arrow keys resize a focused edge. Off by default. */
+  resizableColumns?: boolean
   onQueryChange?: (query: TableQuery) => void
   rows: Row[]
   searchable?: boolean
@@ -129,6 +138,9 @@ export type TableQuery = {
 }
 
 const textCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
+// The narrowest a resized column may be dragged, in px, and one arrow-key step.
+const MIN_COLUMN_WIDTH = 48
+const COLUMN_RESIZE_STEP = 16
 const numericFilterOperators: NumericFilterOperator[] = [
   'equal',
   'greater-than',
@@ -369,6 +381,8 @@ export function Table<Row>({
   getRowClassName,
   onRowClick,
   internalScroll = false,
+  alignTop = false,
+  resizableColumns = false,
   onQueryChange,
   rows,
   searchable = false,
@@ -377,6 +391,35 @@ export function Table<Row>({
   title,
 }: TableProps<Row>) {
   const [hoveredColumn, setHoveredColumn] = useState<string | null>(null)
+  // Widths the user has set by dragging a header edge, in px, by column id.
+  // Unset columns keep sizing to their content.
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
+  const setColumnWidth = (columnId: string, width: number | null) => setColumnWidths(current => {
+    const next = { ...current }
+    if (width === null) delete next[columnId]
+    else next[columnId] = Math.max(MIN_COLUMN_WIDTH, Math.round(width))
+    return next
+  })
+  const startColumnResize = (columnId: string, event: ReactPointerEvent<HTMLElement>) => {
+    event.preventDefault()
+    const header = event.currentTarget.closest('th')
+    const startWidth = header?.getBoundingClientRect().width ?? MIN_COLUMN_WIDTH
+    const startX = event.clientX
+    const move = (moveEvent: PointerEvent) => setColumnWidth(columnId, startWidth + moveEvent.clientX - startX)
+    const stop = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', stop)
+      document.body.classList.remove('report-table--resizing')
+    }
+    document.body.classList.add('report-table--resizing')
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', stop)
+  }
+  // A resized column's cells hold their content at its width: wider content
+  // wraps or is cut, rather than pushing the column back out.
+  const sized = (columnId: string, content: ReactNode) => columnWidths[columnId] === undefined ? content
+    : <div className="report-table__sized"
+      style={{ width: `calc(${columnWidths[columnId]}px - 2 * var(--space-4))` }}>{content}</div>
   function highlightColumn(cell: HTMLTableCellElement, columnId: string) {
     const table = cell.closest('table')
     if (!table) return
@@ -715,7 +758,8 @@ export function Table<Row>({
     <section
       aria-busy={loading || searchPending}
       aria-labelledby={titleId}
-      className={`report-table ${internalScroll ? 'report-table--internal-scroll' : ''}`}
+      className={`report-table ${internalScroll ? 'report-table--internal-scroll' : ''}${
+        alignTop ? ' report-table--align-top' : ''}`}
     >
       <header className="report-table__header">
         <div className="report-table__heading">
@@ -808,7 +852,8 @@ export function Table<Row>({
                     key={column.id}
                     scope="col"
                   >
-                    <div className={className}>
+                    <div className={className} style={columnWidths[column.id] === undefined ? undefined
+                      : { width: columnWidths[column.id] }}>
                       {isSortable ? (
                         <button
                           aria-label={`Sort by ${column.header} ${nextDirection}`}
@@ -954,6 +999,24 @@ export function Table<Row>({
                           )}
                         </div>
                       )}
+                      {resizableColumns && <span
+                        aria-label={`Resize ${column.header} column`}
+                        aria-orientation="vertical"
+                        aria-valuenow={columnWidths[column.id]}
+                        className="report-table__resize-handle"
+                        onDoubleClick={() => setColumnWidth(column.id, null)}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+                          event.preventDefault()
+                          const current = columnWidths[column.id]
+                            ?? event.currentTarget.closest('th')?.getBoundingClientRect().width ?? MIN_COLUMN_WIDTH
+                          setColumnWidth(column.id, current + (event.key === 'ArrowRight' ? COLUMN_RESIZE_STEP : -COLUMN_RESIZE_STEP))
+                        }}
+                        onPointerDown={(event) => startColumnResize(column.id, event)}
+                        role="separator"
+                        tabIndex={0}
+                        title="Drag to resize; double-click to reset"
+                      />}
                     </div>
                   </th>
                 )
@@ -994,11 +1057,11 @@ export function Table<Row>({
 
                     return column.isRowHeader ? (
                       <th onMouseEnter={highlightColumnOnHover ? (event) => column.highlightOnHover === false ? setHoveredColumn(null) : highlightColumn(event.currentTarget, column.id) : undefined} className={className} key={column.id} scope="row">
-                        {formattedValue}
+                        {sized(column.id, formattedValue)}
                       </th>
                     ) : (
                       <td onMouseEnter={highlightColumnOnHover ? (event) => column.highlightOnHover === false ? setHoveredColumn(null) : highlightColumn(event.currentTarget, column.id) : undefined} className={className} key={column.id}>
-                        {formattedValue}
+                        {sized(column.id, formattedValue)}
                       </td>
                     )
                   })}
@@ -1015,11 +1078,11 @@ export function Table<Row>({
 
                   return column.isRowHeader ? (
                     <th onMouseEnter={highlightColumnOnHover ? (event) => column.highlightOnHover === false ? setHoveredColumn(null) : highlightColumn(event.currentTarget, column.id) : undefined} className={className} key={column.id} scope="row">
-                      {formattedValue}
+                      {sized(column.id, formattedValue)}
                     </th>
                   ) : (
                     <td onMouseEnter={highlightColumnOnHover ? (event) => column.highlightOnHover === false ? setHoveredColumn(null) : highlightColumn(event.currentTarget, column.id) : undefined} className={className} key={column.id}>
-                      {formattedValue}
+                      {sized(column.id, formattedValue)}
                     </td>
                   )
                 })}

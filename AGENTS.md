@@ -83,9 +83,14 @@ Breaking one of these is a design change, not a refactor. Each was measured; see
   explicit selections.
 - **Location selection is not authorisation.** It narrows data. Sign-in gates the
   whole API; there is no per-facility access control.
-- **The auth routes are the API's only writers.** Every report request runs in a
-  read-only transaction. Sign-in, refresh and sign-out use `DbWriteConnection` to
-  store and rotate refresh tokens; keep reports on `DbConnection`.
+- **The auth routes and PDPM Worksheet entries are the API's only writers.** Every
+  report request runs in a read-only transaction. Sign-in, refresh and sign-out use
+  `DbWriteConnection` to store and rotate refresh tokens; `POST
+  /mds/pdpm-worksheet/{payer_stay_id}/entries` uses it to append to
+  `pdpm_worksheet_entries`, an append-only log of what people enter (never updated
+  or deleted). Keep every read, the worksheet's included, on `DbConnection`.
+- **`pdpm_worksheet_entries` is user data, not generated.** `seed --reset-history`
+  drops every table, so it deletes what people have entered on the worksheet.
 
 ## What a change actually costs
 

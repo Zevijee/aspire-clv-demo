@@ -8,6 +8,12 @@ export const mdsReports: ReportDefinition[] = [
     title: 'Current Medicare PDPM',
   },
   {
+    description: 'Work through a resident\'s PDPM classification.',
+    module: 'MDS',
+    path: '/mds/pdpm-worksheet',
+    title: 'PDPM Worksheet',
+  },
+  {
     description: 'Review historical Medicare resident, assessment, and reimbursement trends.',
     module: 'MDS',
     path: '/mds/historical-medicare',

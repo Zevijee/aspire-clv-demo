@@ -8,6 +8,7 @@ import { BedBoard, BedBoardFacilityFilter } from '../features/census/components/
 import { MonthlyCensusTrending } from '../features/census/components/MonthlyCensusTrending'
 import { MedicareResidents } from '../features/mds/components/MedicareResidents'
 import { CategoryBreakdown } from '../features/mds/components/CategoryBreakdown'
+import { PdpmWorksheet } from '../features/mds/components/PdpmWorksheet'
 import { Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
 import { AdmissionsLogs } from '../features/adt/components/AdmissionsLogs'
 import { DischargesLogs } from '../features/adt/components/DischargesLogs'
@@ -288,7 +289,8 @@ function App() {
         </ReportLayout>
       ) : (
       <ReportLayout
-        internalScroll={currentReport.path === '/adt/referring-hospital' || currentReport.path === '/census/residents'}
+        internalScroll={currentReport.path === '/adt/referring-hospital' || currentReport.path === '/census/residents'
+          || currentReport.path === '/mds/pdpm-worksheet'}
         filters={
           <ReportFilters>
             {isAdmissionsReport && <AdmissionsPayerFilter
@@ -437,7 +439,7 @@ function App() {
             <Route
               element={
                 report.path === '/mds/current-medicare' ? (activeMedicareTab === 'residents' ? <MedicareResidents />
-                  : <CategoryBreakdown />) : report.path === '/census/residents' ? <ResidentsReport /> :report.path === '/census/bed-board' ? <BedBoard /> : report.path === '/census/monthly-trending' ? <MonthlyCensusTrending /> : report.path === '/census/trending' ? <CensusTrending /> : report.path === '/census/daily-census' ? (
+                  : <CategoryBreakdown />) : report.path === '/mds/pdpm-worksheet' ? <PdpmWorksheet /> : report.path === '/census/residents' ? <ResidentsReport /> :report.path === '/census/bed-board' ? <BedBoard /> : report.path === '/census/monthly-trending' ? <MonthlyCensusTrending /> : report.path === '/census/trending' ? <CensusTrending /> : report.path === '/census/daily-census' ? (
                   activeLiveCensusTab === 'residents' ? <CensusResidents /> : <LiveCensus />
                 ) : report.path === '/adt/admissions' ? (
                   activeAdmissionsTab === 'logs' ? (

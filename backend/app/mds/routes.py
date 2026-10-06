@@ -1,14 +1,16 @@
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 
 from ..common.dates import today
 from ..common.errors import ApiError, ErrorResponse
-from ..database import DbConnection
+from ..auth.routes import require_user
+from ..database import DbConnection, DbWriteConnection
 from .schemas import CurrentMedicare
 from .service import current
-from . import categories, residents
+from . import categories, residents, worksheet
 
 router = APIRouter(prefix='/mds', tags=['MDS'])
 
@@ -55,3 +57,37 @@ def current_medicare_resident_export(request: Request,
     return StreamingResponse(residents.csv_chunks(request.app.state.database, query,
         today(request.app.state.settings.timezone)), media_type='text/csv',
         headers={'Content-Disposition': 'attachment; filename="current-medicare-residents.csv"'})
+
+
+@router.get('/pdpm-worksheet/catalog')
+def pdpm_worksheet_catalog():
+    """The worksheet's cells: what each is called, what it accepts, the NTA list."""
+    return worksheet.catalog()
+
+
+@router.get('/pdpm-worksheet', response_model=worksheet.WorksheetPage, responses={409: {'model': ErrorResponse}})
+def pdpm_worksheet(request: Request, connection: DbConnection,
+        query: Annotated[worksheet.WorksheetQuery, Query()]):
+    """Today's PDPM residents with their ARD, MDS due date and worksheet cells."""
+    return worksheet.page(connection, query, today(request.app.state.settings.timezone))
+
+
+@router.get('/pdpm-worksheet/filter-options')
+def pdpm_worksheet_options(request: Request, connection: DbConnection,
+        query: Annotated[worksheet.WorksheetFilterQuery, Query()]):
+    return worksheet.options(connection, query, today(request.app.state.settings.timezone))
+
+
+@router.get('/pdpm-worksheet/{payer_stay_id}/entries', response_model=list[worksheet.Entry])
+def pdpm_worksheet_log(connection: DbConnection, payer_stay_id: UUID, field: str = Query(max_length=40)):
+    """Every entry and reply on one cell, oldest first."""
+    return worksheet.log(connection, payer_stay_id, field)
+
+
+@router.post('/pdpm-worksheet/{payer_stay_id}/entries', response_model=worksheet.Entry,
+    responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}})
+def pdpm_worksheet_add(connection: DbWriteConnection, payer_stay_id: UUID, entry: worksheet.NewEntry,
+        user: Annotated[str, Depends(require_user)]):
+    """Append one entry to a cell's log. The only report route that writes:
+    worksheet entries are what people enter, kept as an append-only log."""
+    return worksheet.add_entry(connection, payer_stay_id, entry, user)

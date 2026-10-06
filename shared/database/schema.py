@@ -351,6 +351,35 @@ pdpm_assessments = Table('pdpm_assessments', metadata,
     CheckConstraint('nursing_function_score BETWEEN 0 AND 16', name='ck_pdpm_assessments_nursing_function_score'),
 )
 
+pdpm_worksheet_entries = Table('pdpm_worksheet_entries', metadata,
+    # What people enter on the PDPM Worksheet, one row per entry, never updated
+    # or deleted: the log everyone sees. A cell shows its latest set entry;
+    # NTA keeps a list, built from its add and remove entries in order; a reply
+    # answers one earlier entry. Unlike every other table here this is written
+    # by the API, by signed-in users, not generated -- so a seed --reset-history,
+    # which drops every table, also drops what people have entered.
+    #
+    # One worksheet per Medicare payer period, the period its assessment is for.
+    Column('entry_id', Uuid, primary_key=True),
+    Column('payer_stay_id', Uuid, nullable=False),
+    # The worksheet cell: pt_ot.primary_diagnosis, slp.comorbidity, nta,
+    # projected_hipps and so on. The API owns the list and validates values.
+    Column('field', String(40), nullable=False),
+    # set replaces the cell's value; add and remove change the NTA list;
+    # reply answers reply_to, with a note and no value.
+    Column('action', String(10), nullable=False),
+    Column('value', String(100)),
+    Column('note', String),
+    Column('reply_to', Uuid, ForeignKey('pdpm_worksheet_entries.entry_id')),
+    # The signed-in username, as it was when they wrote it.
+    Column('author', String, nullable=False),
+    Column('created_at', DateTime(timezone=True), nullable=False, server_default=func.now()),
+    CheckConstraint("action IN ('set', 'add', 'remove', 'reply')", name='ck_pdpm_worksheet_entries_action'),
+    CheckConstraint("(action = 'reply') = (reply_to IS NOT NULL)", name='ck_pdpm_worksheet_entries_reply'),
+    CheckConstraint("action <> 'reply' OR length(trim(note)) > 0", name='ck_pdpm_worksheet_entries_reply_note'),
+    Index('ix_pdpm_worksheet_entries_cell', 'payer_stay_id', 'field', 'created_at'),
+)
+
 resident_summaries = Table('resident_summaries', metadata,
     # One row per resident ever admitted, totalled across every stay, for the
     # Residents report. Computing these live from res_stays and res_payer_stays
