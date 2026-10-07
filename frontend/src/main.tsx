@@ -6,6 +6,7 @@ import 'antd/dist/reset.css'
 import './index.css'
 import App from './app/App.tsx'
 import { SignInGate } from './features/auth/SignInGate.tsx'
+import { CustomGroupingProvider } from './shared/components/CustomGroupingProvider.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -36,7 +37,9 @@ createRoot(document.getElementById('root')!).render(
         {/* Wraps the router rather than sitting inside it, so no report route
             can be reached by URL before a session exists. */}
         <SignInGate>
-          <App />
+          <CustomGroupingProvider>
+            <App />
+          </CustomGroupingProvider>
         </SignInGate>
       </BrowserRouter>
     </ConfigProvider>

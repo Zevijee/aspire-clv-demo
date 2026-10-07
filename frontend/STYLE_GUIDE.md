@@ -190,6 +190,18 @@ The component owns breadcrumb separators, styling, responsive wrapping, current-
 semantics, and focus restoration when the path changes. Features own their hierarchy
 state and data filtering; do not duplicate the breadcrumb markup or override its styles.
 
+Every location drilldown also takes part in the app-wide **custom grouping**
+(`src/shared/customGrouping.ts`): a level and the locations chosen at it, which
+replace a drilldown's top level on every report until it is cleared. It is kept in
+`localStorage` and held by `CustomGroupingProvider` in `main.tsx`. A report passes
+`locationView` from `useLocationView(() => setPath([]))`, so `DrilldownNavigation`
+shows the root crumb and the clear action, and puts `CustomGroupingButton` in its
+drilldown table's `headerActions`, after Show all facilities. A report
+grouping facility rows in the browser uses `groupLocations(items, path, grouping)`
+and `inView` for its charts' scope. A server-side report puts the grouping into
+its selection's `locations` and `groupBy`, which resolve to `facility_ids`. A new
+drilldown that skips `locationView` silently ignores the grouping.
+
 ### KPI cards
 
 Use the shared `Kpis` component in the report content stack. It owns card

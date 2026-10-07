@@ -44,6 +44,7 @@ from pydantic import BaseModel, create_model
 from sqlalchemy import Date, and_, func, literal, select
 from sqlalchemy.engine import Connection
 
+from shared import pdpm as pdpm_rates
 from shared.database.schema import pdpm_assessments as assessments
 from ..common.locations import LocationSelection, facility_locations
 from .residents import _current
@@ -62,6 +63,9 @@ PT_OT = ('score_0_5', 'score_6_9', 'score_10_23', 'score_24')
 SLP = tuple(f'speech_{speech}_swallowing_{swallowing}' for speech in range(4) for swallowing in range(3))
 # Field -> the nursing function score range it counts, inclusive.
 NURSING = {'score_0_5': (0, 5), 'score_6_14': (6, 14), 'score_15_16': (15, 16)}
+# Field -> the nursing letters in that clinical category, from shared.pdpm, so
+# the names match the PDPM Worksheet's Nursing clinical category.
+NURSING_CATEGORY = {field: letters for field, _, letters in pdpm_rates.NURSING_CATEGORIES}
 # Field -> the NTA letter for that points band, fewest points first.
 NTA = {'points_0': 'F', 'points_1_2': 'E', 'points_3_5': 'D', 'points_6_8': 'C', 'points_9_11': 'B',
     'points_12_plus': 'A'}
@@ -102,6 +106,9 @@ class Depression(BaseModel):
     no: int
 
 
+NursingCategory = create_model('NursingCategory', **{field: (int, ...) for field in NURSING_CATEGORY})
+
+
 class Nursing(BaseModel):
     score_0_5: int
     score_6_14: int
@@ -122,6 +129,7 @@ class FacilityCategories(BaseModel):
     pt_ot: PtOt
     slp: Slp
     nursing: Nursing
+    nursing_category: NursingCategory
     nta: Nta
     depression: Depression
     speech: Speech
@@ -144,7 +152,8 @@ def categories(connection: Connection, today: date):
     slp_letter = func.substr(assessments.c.pdpm_code, 2, 1)
     diagnosis_of = {code: field for field, letters in PRIMARY_DIAGNOSIS.items() for code in letters}
     empty = lambda: dict(primary_diagnosis=dict.fromkeys(PRIMARY_DIAGNOSIS, 0), pt_ot=dict.fromkeys(PT_OT, 0),
-        slp=dict.fromkeys(SLP, 0), nursing=dict.fromkeys(NURSING, 0), nta=dict.fromkeys(NTA, 0),
+        slp=dict.fromkeys(SLP, 0), nursing=dict.fromkeys(NURSING, 0), nursing_category=dict.fromkeys(NURSING_CATEGORY, 0),
+        nta=dict.fromkeys(NTA, 0),
         depression=dict(yes=0, no=0), speech=dict.fromkeys(SPEECH, 0), no_score=0,
         no_score_days=0)
     counts = {}
@@ -154,12 +163,15 @@ def categories(connection: Connection, today: date):
     # facility with no letters, which is its no_score count.
     score = assessments.c.nursing_function_score
     nta_letter = func.substr(assessments.c.pdpm_code, 4, 1)
+    nursing_letter = func.substr(assessments.c.pdpm_code, 3, 1)
     for facility_id, code, slp_code, residents, days, *flagged in connection.execute(select(
                 current.c.facility_id, letter, slp_letter, func.count(), func.sum(day - current.c.admission_date),
                 *(func.count().filter(score.between(low, high)) for low, high in NURSING.values()),
                 *(func.count().filter(nta_letter == code) for code in NTA.values()),
                 func.count().filter(assessments.c.depression),
-                *(func.count().filter(flag) for flag in SPEECH.values()))
+                *(func.count().filter(flag) for flag in SPEECH.values()),
+                # Last, so the counts before keep their places.
+                *(func.count().filter(nursing_letter.in_(list(letters))) for letters in NURSING_CATEGORY.values()))
             .select_from(current.outerjoin(assessments, and_(
                 assessments.c.payer_stay_id == current.c.payer_stay_id, assessments.c.coded_date <= day)))
             .group_by(current.c.facility_id, letter, slp_letter)):
@@ -177,8 +189,11 @@ def categories(connection: Connection, today: date):
         depressed = flagged[len(NURSING) + len(NTA)]
         facility['depression']['yes'] += depressed
         facility['depression']['no'] += residents - depressed
-        for field, residents_with in zip(SPEECH, flagged[len(NURSING) + len(NTA) + 1:]):
+        speech_end = len(NURSING) + len(NTA) + 1 + len(SPEECH)
+        for field, residents_with in zip(SPEECH, flagged[len(NURSING) + len(NTA) + 1:speech_end]):
             facility['speech'][field] += residents_with
+        for field, residents_in in zip(NURSING_CATEGORY, flagged[speech_end:]):
+            facility['nursing_category'][field] += residents_in
         facility['primary_diagnosis'][diagnosis_of[code]] += residents
         facility['pt_ot'][PT_OT[(ord(code) - ord('A')) % 4]] += residents
         facility['slp'][SLP[ord(slp_code) - ord('A')]] += residents

@@ -8,7 +8,9 @@ import { DrilldownNavigation } from '../../../shared/components/DrilldownNavigat
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
+import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { useAdmissionsReferences } from '../hooks/useAdmissionsOverview'
+import { groupingPaths, locationLevels, useLocationView } from '../../../shared/customGrouping'
 import {
   getMonthlyLocations, monthlyFilter, monthlyParameters,
   type MonthlyLocation, type MonthlyLocationItem, type MonthlyTab,
@@ -17,6 +19,8 @@ import {
 type Metric = 'admissions' | 'discharges' | 'net_change'
 type Result = { locations: MonthlyLocation[]; items: MonthlyLocationItem[] }
 type Row = { key: string; name: string; months: number[]; isTotal?: boolean
+  // The location's full name path, on drilldown rows: drilling sets it.
+  path?: string[]
   // State, portfolio and region, on facility rows only.
   place?: readonly [string, string, string] }
 const levels = ['state', 'portfolio', 'region', 'facility_name'] as const
@@ -42,6 +46,7 @@ export function MonthlyAdtLocations({ activeTab, startDate, endDate, path, setPa
   const key = JSON.stringify([query, tab, startDate, endDate, retry])
   const [response, setResponse] = useState<{ key: string; data?: Result; error?: string } | null>(null)
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
+  const { grouping, locationView } = useLocationView(() => setPath([]))
   useEffect(() => {
     if (query === null) return
     const controller = new AbortController()
@@ -59,12 +64,18 @@ export function MonthlyAdtLocations({ activeTab, startDate, endDate, path, setPa
   }
   const groups = new Map<string, Row>()
   const facilityGroups = new Map<string, Row>()
-  const depth = Math.min(path.length, 3)
+  // At the top, a custom grouping's locations are the rows; below it, the
+  // level under the path.
+  const custom = grouping && !path.length ? groupingPaths(grouping) : null
+  const depth = custom ? locationLevels.indexOf(grouping!.level) : Math.min(path.length, 3)
   for (const location of result?.data?.locations ?? []) {
-    if (!path.every((part, index) => location[levels[index]] === part)) continue
-    const name = location[levels[depth]]
-    let row = groups.get(name)
-    if (!row) { row = { key: name, name, months: months.map(() => 0) }; groups.set(name, row) }
+    const place = levels.map(level => location[level])
+    const under = (prefix: string[]) => prefix.every((part, index) => place[index] === part)
+    const rowPath = custom ? custom.find(under) : under(path) ? place.slice(0, depth + 1) : undefined
+    if (!rowPath) continue
+    const key = JSON.stringify(rowPath)
+    let row = groups.get(key)
+    if (!row) { row = { key, name: rowPath[rowPath.length - 1], path: rowPath, months: months.map(() => 0) }; groups.set(key, row) }
     facilityGroups.set(location.facility_id, row)
   }
   // Every facility, whatever the drilldown shows, for Show all facilities.
@@ -91,7 +102,7 @@ export function MonthlyAdtLocations({ activeTab, startDate, endDate, path, setPa
   const columns: TableColumn<Row>[] = [
     { id: 'location', header: labels[depth], isRowHeader: true, value: row => row.name,
       format: (_, row) => row.isTotal || path.length === 4 ? row.name : <button type="button" className="drilldown-table__link"
-        onClick={() => setPath([...path, row.name])}>{row.name}</button> },
+        onClick={() => setPath(row.path ?? [...path, row.name])}>{row.name}</button> },
     { id: 'average', header: 'Average/month', numeric: true, change,
       value: row => row.months.reduce((sum, value) => sum + value, 0) / months.length,
       format: value => formatValue(Number(value)) },
@@ -99,8 +110,7 @@ export function MonthlyAdtLocations({ activeTab, startDate, endDate, path, setPa
     { id: 'lowest', header: 'Lowest month', numeric: true, change, value: row => extreme(row, false), format: (_, row) => extremeLabel(row, false) },
   ]
   return <>
-    <DrilldownNavigation items={[
-      { id: 'root', label: 'All states', onSelect: () => setPath([]) },
+    <DrilldownNavigation locationView={locationView} items={[
       ...path.map((name, index) => ({ id: String(index), label: name, onSelect: () => setPath(path.slice(0, index + 1)) })),
     ]} level={{ current: depth + 1, total: 4, label: labels[depth] }} />
     <DrilldownTable title={`${label} by location`}
@@ -114,10 +124,11 @@ export function MonthlyAdtLocations({ activeTab, startDate, endDate, path, setPa
       loading={references.loading || result === null}
       error={references.error ?? result?.error}
       onRetry={references.error ? references.onRetry : () => setRetry(value => value + 1)}
-      headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} />}
+      headerActions={<><OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} /><CustomGroupingButton onApply={() => setPath([])} /></>}
       emptyMessage="No locations match the selected range and payers."
       csvFileName={`monthly-${activeTab}-locations-${startDate}-to-${endDate}.csv`} />
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      onSelect={path => { setPath(path); setShowFacilities(false) }}
       filters={<MonthlyAdtFilters activeTab={activeTab} />}
       title={`All facilities · ${label.toLowerCase()} by month, ${dayjs(startDate).format('MMM YYYY')} to ${dayjs(endDate).format('MMM YYYY')}`}
       subtitle="Monthly averages and highest and lowest months, per facility."

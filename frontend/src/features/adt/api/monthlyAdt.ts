@@ -1,3 +1,4 @@
+import { inView, type CustomGrouping } from '../../../shared/customGrouping'
 import { payerCode, readJson, type References } from './admissionsOverview'
 
 const base = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').replace(/\/$/, '')
@@ -33,19 +34,20 @@ export const monthlyFilter = {
     placeholder: 'All destinations', options: DESTINATION_TYPES },
 } as const
 
-export function monthlyParameters({ references, payers, path, filter, values }: {
+export function monthlyParameters({ references, payers, path, grouping = null, filter, values }: {
   references: References
   payers: string[]
   path: string[]
+  /** The app-wide custom grouping, which narrows the top level to its locations. */
+  grouping?: CustomGrouping | null
   filter?: { param: string }
   values?: string[]
 }) {
   const params = new URLSearchParams()
-  if (path.length) {
+  if (path.length || grouping) {
     // The drill-down carries location names; resolve them to saved facility ids.
     const selected = references.locations.filter(row =>
-      [row.state, row.portfolio_name, row.region_name, row.facility_name]
-        .every((part, index) => index >= path.length || part === path[index]))
+      inView([row.state, row.portfolio_name, row.region_name, row.facility_name], path, grouping))
     if (!selected.length) params.set('match_none', 'true')
     selected.forEach(row => params.append('facility_ids', row.facility_id))
   }

@@ -117,6 +117,9 @@ export type FacilityCategories = {
   pt_ot: PtOt
   slp: Slp
   nursing: Nursing
+  // PDPM residents per nursing clinical category (extensive_services, ...),
+  // the third letter of the code.
+  nursing_category: Record<string, number>
   nta: Nta
   depression: Depression
   speech: Speech
@@ -163,7 +166,7 @@ export function getCurrentMedicare(signal?: AbortSignal) {
 }
 
 /** A facility's PDPM residents and rates with their category counts. */
-export type FacilityOverview = FacilityMedicare & { primary_diagnosis: PrimaryDiagnosis; pt_ot: PtOt; slp: Slp; nursing: Nursing; nta: Nta; depression: Depression; speech: Speech; no_score: number; no_score_days: number }
+export type FacilityOverview = FacilityMedicare & { primary_diagnosis: PrimaryDiagnosis; pt_ot: PtOt; slp: Slp; nursing: Nursing; nursing_category: Record<string, number>; nta: Nta; depression: Depression; speech: Speech; no_score: number; no_score_days: number }
 export type OverviewReport = { census_date: string; items: FacilityOverview[] }
 
 const noDiagnosis: PrimaryDiagnosis = { major_joint: 0, ortho: 0, acute_neuro: 0, medical_management: 0 }
@@ -182,6 +185,7 @@ export async function getMedicareOverview(signal?: AbortSignal): Promise<Overvie
     pt_ot: counts.get(item.facility_id)?.pt_ot ?? noFunction,
     slp: counts.get(item.facility_id)?.slp ?? {},
     nursing: counts.get(item.facility_id)?.nursing ?? { score_0_5: 0, score_6_14: 0, score_15_16: 0 },
+    nursing_category: counts.get(item.facility_id)?.nursing_category ?? {},
     nta: counts.get(item.facility_id)?.nta ?? {},
     depression: counts.get(item.facility_id)?.depression ?? { yes: 0, no: 0 },
     no_score: counts.get(item.facility_id)?.no_score ?? 0,

@@ -4,9 +4,11 @@ import { useReportSearchParams as useSearchParams } from '../../../shared/compon
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { DataState } from '../../../shared/components/DataState'
 import { DrilldownNavigation, type DrilldownBreadcrumb } from '../../../shared/components/DrilldownNavigation'
+import { useLocationView } from '../../../shared/customGrouping'
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
+import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { locationPlace } from '../utils/locationPlace'
 import { DonutChart } from '../../../shared/components/charts/DonutChart'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
@@ -36,11 +38,14 @@ export function PayerChangesOverview() {
   const path = useMemo(() => JSON.parse(scopeKey) as string[], [scopeKey])
   const scope: DrilldownScope = path.length
     ? { state: path[0], portfolio: path[1], region: path[2], facility: path[3] } : null
-  const level = scope === null ? 'state'
+  // The app-wide custom grouping narrows the top level to its locations.
+  const { grouping, locationView } = useLocationView(() => setPath([]))
+  const level = scope === null ? grouping?.level ?? 'state'
     : scope.portfolio === undefined ? 'portfolio'
     : scope.region === undefined ? 'region' : 'facility'
   const detail = scope?.facility !== undefined
-  const selection: PayerChangeSelection = { scope, typeChangesOnly: true }
+  const selection: PayerChangeSelection = { scope, typeChangesOnly: true, locations: grouping?.locations,
+    groupBy: grouping?.level }
 
   const references = useAdmissionsReferences()
   const parameters = references.data
@@ -74,13 +79,15 @@ export function PayerChangesOverview() {
     const params2 = new URLSearchParams(params)
     params2.delete('payer_scope')
     next.forEach(part => params2.append('payer_scope', part))
+    // Drilling closes Show all facilities, in this same write: a second write
+    // from the same render would undo this one.
+    params2.delete('all_facilities')
     setParams(params2)
   }
   function openLogs(selections: Record<string, string[]>) {
     setParams(payerChangeLogsParams(params, selections, startDate, endDate))
   }
   const breadcrumbs: DrilldownBreadcrumb[] = [
-    { id: 'all', label: 'All states', onSelect: () => setPath([]) },
     ...path.map((name, index) => ({ id: JSON.stringify(path.slice(0, index + 1)), label: name,
       onSelect: () => setPath(path.slice(0, index + 1)) })),
   ]
@@ -123,19 +130,20 @@ export function PayerChangesOverview() {
   const incoming = (payer: string) => transitions
     .filter(row => row.new_payer_type === payer)
     .reduce((total, row) => total + row.changes, 0)
-  const scopeName = path.at(-1) ?? 'All states'
+  const scopeName = path.at(-1) ?? (grouping ? 'Custom grouping' : 'All states')
   return <>
-    <DrilldownNavigation ariaLabel="Payer changes drill-down" items={breadcrumbs} />
+    <DrilldownNavigation ariaLabel="Payer changes drill-down" items={breadcrumbs} locationView={locationView} />
     {previous.error && !status.error && <DataState label="Prior period"
       error={`Prior period: ${previous.error}`} onRetry={previous.onRetry} />}
     <Table {...status} key={scopeKey} columns={columns} rows={rows} getRowKey={row => row.id}
       getFooterRow={total} initialSort={{ columnId: 'total', direction: 'descending' }}
       title={`${level[0].toUpperCase() + level.slice(1)} payer changes`}
       subtitle="Payer-type changes by effective date; residents counted once per facility. Compared with the preceding period of equal length. Plan-only changes are available in Logs."
-      headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} />}
+      headerActions={<><OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} /><CustomGroupingButton onApply={() => setPath([])} /></>}
       csvFileName={`payer-changes-${level}-${startDate}-to-${endDate}.csv`}
       emptyMessage="No locations match this view." />
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      onSelect={path => setPath(path)}
       title={`All facilities · payer changes, ${startDate} to ${endDate}`}
       subtitle="Every facility, compared with the preceding period of equal length. Payer-type changes by effective date."
       rows={facilityRows} columns={columns.slice(1)} getRowKey={row => row.id} getName={row => row.name}

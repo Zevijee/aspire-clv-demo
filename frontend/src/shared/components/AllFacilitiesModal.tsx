@@ -21,17 +21,25 @@ type AllFacilitiesModalProps<Row> = {
   csvFileName: string
   /** The report's own filters, repeated here because the modal covers them. */
   filters?: ReactNode
+  /** Clicking a facility's name, with its full path -- state, portfolio,
+   * region, facility: the report closes this and shows that facility in its
+   * drilldown. Without it the names are plain text. */
+  onSelect?: (path: [string, string, string, string], row: Row) => void
 }
 
 /** Every facility at once, whatever level a drilldown is showing: one row per
  * facility, with the hierarchy as header filters and no total row. Every
- * drilldown opens this from its Show all facilities button. */
+ * drilldown opens this from its Show all facilities button, and passes
+ * onSelect so a facility's name takes the drilldown to that facility. */
 export function AllFacilitiesModal<Row>({ open, onClose, title, subtitle, rows, columns, getRowKey,
-  getName, getPath, loading, error, onRetry, csvFileName, filters }: AllFacilitiesModalProps<Row>) {
+  getName, getPath, loading, error, onRetry, csvFileName, filters, onSelect }: AllFacilitiesModalProps<Row>) {
   const tableColumns: TableColumn<Row>[] = [
     { id: 'facility', header: 'Facility', isRowHeader: true, value: getName,
       format: (_, row) => { const [state, portfolio, region] = getPath(row)
-        return <LocationName region={region} portfolio={portfolio} state={state}>{getName(row)}</LocationName> } },
+        const name = <LocationName region={region} portfolio={portfolio} state={state}>{getName(row)}</LocationName>
+        // The whole "Name · State" is the link, not just the name.
+        return onSelect ? <button type="button" className="drilldown-table__link all-facilities__link"
+          onClick={() => onSelect([state, portfolio, region, getName(row)], row)}>{name}</button> : name } },
     // Filters in the header rather than columns; the name shows them on hover.
     ...(['State', 'Portfolio', 'Region'] as const).map((header, index): TableColumn<Row> => ({
       id: header.toLowerCase(), header, filterable: true, hidden: true, value: row => getPath(row)[index] })),

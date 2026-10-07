@@ -1,3 +1,4 @@
+import { useCustomGrouping } from '../../../shared/customGrouping'
 import { useEffect, useState } from 'react'
 import { useAdmissionsReferences } from './useAdmissionsOverview'
 import {
@@ -24,9 +25,10 @@ export function useMonthlyAdt({ startDate, endDate, payers, path, tab, filterVal
 }) {
   const [attempt, setAttempt] = useState(0)
   const references = useAdmissionsReferences()
+  const { grouping } = useCustomGrouping()
   const filter = monthlyFilter[tab as keyof typeof monthlyFilter]
   const parameters = references.data
-    ? monthlyParameters({ references: references.data, payers, path, filter,
+    ? monthlyParameters({ references: references.data, payers, path, grouping, filter,
         values: filterValues }).toString()
     : null
   const key = JSON.stringify([startDate, endDate, parameters, tab, attempt])

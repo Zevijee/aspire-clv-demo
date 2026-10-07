@@ -46,8 +46,8 @@ MAX_RANGE_DAYS = 3660
 YES_NO = [dict(value='Yes', label='Yes'), dict(value='No', label='No')]
 PT_OT_CATEGORIES = ['Major Joint Replacement or Spinal Surgery', 'Other Orthopedic',
     'Medical Management', 'Non-Orthopedic Surgery and Acute Neurologic']
-NURSING_CATEGORIES = ['Extensive Services', 'Special Care High', 'Special Care Low', 'Clinically Complex',
-    'Behavioral Symptoms and Cognitive Performance', 'Reduced Physical Function']
+# The same names Current Medicare PDPM counts by, from shared.pdpm.
+NURSING_CATEGORIES = [name for _, name, _ in pdpm_rates.NURSING_CATEGORIES]
 # The PDPM NTA comorbidities and their points, as CMS scores them. The demo's
 # reference list: id -> (label, points).
 NTA_CONDITIONS = {

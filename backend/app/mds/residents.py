@@ -25,6 +25,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import Date, String, and_, case, cast, false, func, literal, or_, select, true
 
+from shared import pdpm as pdpm_rates
 from shared.database.schema import (
     census_logs as logs, facilities, facility_payer_rates as contracts, payers,
     pdpm_assessments as assessments, pdpm_rate_logs as pdpm,
@@ -167,6 +168,8 @@ def _category_predicates(listed):
         parts[f'Nursing: {label}'] = listed.c.nursing_function_score.between(low, high)
     for letter, label in zip(categories.NTA.values(), ('0', '1-2', '3-5', '6-8', '9-11', '12+')):
         parts[f'NTA: {label}'] = nta == letter
+    for _, name, letters in pdpm_rates.NURSING_CATEGORIES:
+        parts[f'Nursing Category: {name}'] = func.substr(code, 3, 1).in_(list(letters))
     parts['Depression: Yes'] = listed.c.depression.is_(True)
     parts['Depression: No'] = listed.c.depression.is_(False)
     return parts

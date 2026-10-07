@@ -3068,6 +3068,17 @@ h1 {
 }
 
 /* Use the cell's existing padding for the hit area without increasing row height. */
+/* A facility's name in Show all facilities: the drilldown link's look, inline
+   and only as wide as the name, inside its location tooltip. */
+.drilldown-table__link.all-facilities__link {
+  display: inline;
+  width: auto;
+}
+
+.drilldown-table__link.all-facilities__link::after {
+  content: none;
+}
+
 .admissions-explorer__drill::after,
 .drilldown-table__link::after {
   content: '';
@@ -4021,6 +4032,19 @@ h1 {
   font-size: 0.75rem;
 }
 
+/* A segment's value inside it: white, with a faint dark edge so it reads on
+   light colours too. Not a click target: the segment under it is. */
+.stacked-ranking-chart__value {
+  fill: var(--color-surface);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  paint-order: stroke;
+  pointer-events: none;
+  stroke: var(--color-text);
+  stroke-opacity: 0.35;
+  stroke-width: 2px;
+}
+
 .stacked-ranking-chart__actions {
   display: flex;
   justify-content: flex-end;
@@ -4477,4 +4501,39 @@ button.bed-card:focus-visible {
     margin-left: 0;
     padding: 0;
   }
+}
+
+/* Custom grouping: the drilldown bar's button and its picker. */
+/* Neutral grey, so it never reads as one of the blue view buttons beside it;
+   solid accent while a grouping is on, the same as the category buttons. */
+.report-table__view-action.custom-grouping__button {
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.report-table__view-action.custom-grouping__button:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-text-muted);
+  color: var(--color-text);
+}
+
+.report-table__view-action.custom-grouping__button[aria-pressed='true'],
+.report-table__view-action.custom-grouping__button[aria-pressed='true']:hover {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-surface);
+}
+
+.custom-grouping__picker {
+  /* As tall as the window allows, less the modal's title, footer and margins. */
+  height: calc(100vh - 220px);
+  max-height: 900px;
+  min-height: 360px;
+}
+
+.custom-grouping__hint {
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  margin: 0;
 }

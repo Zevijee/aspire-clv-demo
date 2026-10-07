@@ -3,10 +3,12 @@ import { SegmentedControl } from '../../../shared/components/SegmentedControl'
 import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
 import { DrilldownTable } from '../../../shared/components/DrilldownTable'
 import { DrilldownNavigation } from '../../../shared/components/DrilldownNavigation'
+import { locationLevels, useCustomGrouping, useLocationView } from '../../../shared/customGrouping'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { FullScreenModal } from '../../../shared/components/FullScreenModal'
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
+import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { StackedRankingChart } from '../../../shared/components/charts/StackedRankingChart'
 import { Kpis } from '../../../shared/components/Kpis'
@@ -19,6 +21,7 @@ const categories = [
   { id: 'slp', label: 'SLP' },
   { id: 'speech-comorbidity', label: 'Speech Comorbidity' },
   { id: 'nursing', label: 'Nursing' },
+  { id: 'nursing-category', label: 'Nursing Category' },
   { id: 'nta', label: 'NTA' },
   { id: 'depression', label: 'Depression' },
 ] as const
@@ -66,7 +69,7 @@ function formatMetric(value: number | string, kind: 'count' | 'rate' | 'days') {
  * reads, and the parts in the order the report shows them, each with the one
  * colour it has wherever it appears. */
 type Breakdown = {
-  field: 'primary_diagnosis' | 'pt_ot' | 'slp' | 'nursing' | 'nta' | 'depression' | 'speech'
+  field: 'primary_diagnosis' | 'pt_ot' | 'slp' | 'nursing' | 'nursing_category' | 'nta' | 'depression' | 'speech'
   /** Chart and table titles, e.g. "Primary diagnosis by state". */
   name: string
   /** What the bars are split by, for the chart's subtitle. */
@@ -116,6 +119,20 @@ const slp: Breakdown = {
 
 // The nursing function score band, from the score stored on the assessment,
 // lowest function first.
+// The nursing clinical category, from the nursing letter: the same six names
+// the PDPM Worksheet's Nursing offers. Colours as NTA's six bands.
+const nursingCategory: Breakdown = {
+  field: 'nursing_category', name: 'Nursing category', splitBy: 'nursing clinical category', slug: 'nursing-category',
+  parts: [
+    ['extensive_services', 'Extensive Services', 'var(--color-pdpm-major-joint)'],
+    ['special_care_high', 'Special Care High', 'var(--color-pdpm-ortho)'],
+    ['special_care_low', 'Special Care Low', 'var(--color-pdpm-acute-neuro)'],
+    ['clinically_complex', 'Clinically Complex', 'var(--color-pdpm-medical-management)'],
+    ['behavioral', 'Behavioral Symptoms and Cognitive Performance', 'var(--color-chart-series-secondary)'],
+    ['reduced_physical_function', 'Reduced Physical Function', 'var(--color-chart-series-quaternary)'],
+  ],
+}
+
 const nursing: Breakdown = {
   field: 'nursing', name: 'Nursing function score', splitBy: 'nursing function score', slug: 'nursing-function-score',
   parts: [
@@ -163,7 +180,7 @@ const speech: Breakdown = {
 
 // Every category button has one; the type makes a new button bring its breakdown.
 const breakdowns: Record<(typeof categories)[number]['id'], Breakdown> = {
-  'primary-diagnosis': primaryDiagnosis, 'pt-ot': ptOt, slp, 'speech-comorbidity': speech, nursing, nta, depression,
+  'primary-diagnosis': primaryDiagnosis, 'pt-ot': ptOt, slp, 'speech-comorbidity': speech, nursing, 'nursing-category': nursingCategory, nta, depression,
 }
 
 /** The drilldown bar every category shares: its breadcrumbs follow the one
@@ -171,12 +188,9 @@ const breakdowns: Record<(typeof categories)[number]['id'], Breakdown> = {
 function CategoryNavigation({ path, setPath, controls }: {
   path: string[]; setPath: (path: string[]) => void; controls: ReactNode
 }) {
-  const depth = Math.min(path.length, 3)
-  return <DrilldownNavigation locationView={{
-    groupBy: 'state', selectedCount: 0,
-    onReturn: () => setPath([]),
-    onClear: () => setPath([]),
-  }} items={path.map((name, index) => ({ id: JSON.stringify(path.slice(0, index + 1)), label: name,
+  const { grouping, locationView } = useLocationView(() => setPath([]))
+  const depth = path.length ? Math.min(path.length, 3) : grouping ? locationLevels.indexOf(grouping.level) : 0
+  return <DrilldownNavigation locationView={locationView} items={path.map((name, index) => ({ id: JSON.stringify(path.slice(0, index + 1)), label: name,
     onSelect: () => setPath(path.slice(0, index + 1)) }))}
     level={{ current: depth + 1, total: 4, label: levels[depth] }} controls={controls} />
 }
@@ -204,7 +218,8 @@ function CategoryDrilldown({ breakdown, categoryLabel, onOpenResidents, path, se
     return () => controller.abort()
   }, [retry])
 
-  const { depth, rows } = groupByLocation(data?.items ?? [], path)
+  const { grouping } = useCustomGrouping()
+  const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
   const count = (row: Row, field: string) => row.facilities.reduce((total, facility) =>
     total + ((facility[breakdown.field] as Record<string, number>)[field] ?? 0), 0)
   const nameColumn: TableColumn<Row> = { id: 'name', header: levels[depth], isRowHeader: true, value: row => row.name,
@@ -236,7 +251,7 @@ function CategoryDrilldown({ breakdown, categoryLabel, onOpenResidents, path, se
   // row: everyone at the top, one state or region once drilled in.
   const scope: Row = { key: 'scope', name: '', path, facilities: rows.flatMap(row => row.facilities) }
   const scopeTotal = total(scope)
-  const scopeName = path.length ? path[path.length - 1] : 'All locations'
+  const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
   const share = (value: number) => scopeTotal > 0
     ? `${(value / scopeTotal * 100).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : '—'
   const kpis = [
@@ -262,11 +277,12 @@ function CategoryDrilldown({ breakdown, categoryLabel, onOpenResidents, path, se
       getFooterRow={visible => ({ key: 'total', name: 'Total', path: [], isTotal: true,
         facilities: visible.flatMap(row => row.facilities) })}
       subtitle={subtitle}
-      headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} />}
+      headerActions={<><OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} /><CustomGroupingButton onApply={() => setPath([])} /></>}
       emptyMessage="No facilities match this view."
       csvFileName={`current-medicare-${data?.census_date ?? 'today'}.csv`} />
     <Kpis stack items={kpis} loading={loading} error={error} onRetry={() => setRetry(value => value + 1)} />
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      onSelect={path => setPath(path)}
       title={data ? `All facilities · PDPM residents on ${data.census_date}` : 'All facilities'} subtitle={subtitle}
       rows={facilityRows(data?.items ?? [])} columns={columns.slice(1)} getRowKey={row => row.key}
       getName={row => row.name} getPath={row => [row.path[0], row.path[1], row.path[2]]}
@@ -280,7 +296,7 @@ function CategoryDrilldown({ breakdown, categoryLabel, onOpenResidents, path, se
           + 'Comorbidity an SLP-related comorbidity.'
           : `split by ${breakdown.splitBy}, the most residents first.`) : undefined}
       // The KPI cards above key every colour, so the chart needs no legend.
-      hideLegend series={breakdown.parts.map(([id, label, color]) => ({ id, label, color }))} items={ranking}
+      hideLegend showValues series={breakdown.parts.map(([id, label, color]) => ({ id, label, color }))} items={ranking}
       // A segment opens its residents: this location, this part, as the
       // Residents tab's "Category: part" filter names it.
       onSegmentSelect={(label, partId) => {
@@ -314,9 +330,20 @@ function CategoryDrilldown({ breakdown, categoryLabel, onOpenResidents, path, se
 export function CategoryBreakdown() {
   const [params, setParams] = useReportSearchParams()
   const selected = categories.find(category => category.id === params.get('category')) ?? categories[0]
-  // Held here, above the categories, so switching category keeps the location:
-  // drilled into Florida on Primary Diagnosis, Nursing opens on Florida too.
-  const [path, setPath] = useState<string[]>([])
+  // The drilldown location, kept in the URL (one drill= per level, in order):
+  // switching category keeps it -- drilled into Florida on Primary Diagnosis,
+  // Nursing opens on Florida too -- and so does going to the Residents tab and
+  // back, a refresh, or a shared link.
+  const path = params.getAll('drill')
+  const setPath = (next: string[]) => {
+    const updated = new URLSearchParams(params)
+    updated.delete('drill')
+    next.forEach(name => updated.append('drill', name))
+    // Drilling closes Show all facilities, in this same write: a second write
+    // from the same render would undo this one.
+    updated.delete('all_facilities')
+    setParams(updated)
+  }
   // The category buttons live in the drilldown bar, which is sticky, so they
   // stay in reach however far the page scrolls.
   const control = <SegmentedControl fullWidth separate tone="accent" label="PDPM category" options={categories} value={selected.id}

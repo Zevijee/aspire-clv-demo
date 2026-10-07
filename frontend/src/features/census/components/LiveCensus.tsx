@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { CensusPayerFilter } from './CensusPayerFilter'
 import { DrilldownTable } from '../../../shared/components/DrilldownTable'
 import { DrilldownNavigation } from '../../../shared/components/DrilldownNavigation'
+import { groupLocations, useLocationView } from '../../../shared/customGrouping'
 import type { TableColumn } from '../../../shared/components/Table'
 import { DonutChart } from '../../../shared/components/charts/DonutChart'
 import { BarChartRanking } from '../../../shared/components/charts/BarChartRanking'
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
+import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { payerCode, payerLabel } from '../../adt/api/admissionsOverview'
 import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
 import { tableChange } from '../../../shared/utils/tableChange'
@@ -80,6 +82,7 @@ export function LiveCensus() {
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
   const [path, setPath] = useState<string[]>([])
+  const { grouping, locationView } = useLocationView(() => setPath([]))
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
   const [showHistoryFacilities, setShowHistoryFacilities] = useSearchParamFlag('all_facilities_history')
   // The header's Payers filter, which the payer mix donut also sets.
@@ -110,17 +113,7 @@ export function LiveCensus() {
       .catch((failure: Error) => { if (!controller.signal.aborted) setError(failure.message) })
     return () => controller.abort()
   }, [retry, requestKey])
-  const depth = Math.min(path.length, 3)
-  const groups = new Map<string, Row>()
-  for (const facility of data?.items ?? []) {
-    const parts = location(facility)
-    if (!path.every((value, index) => parts[index] === value)) continue
-    const nextPath = parts.slice(0, depth + 1)
-    const key = JSON.stringify(nextPath)
-    const row = groups.get(key) ?? { key, name: parts[depth], path: nextPath, facilities: [] }
-    row.facilities.push(facility)
-    groups.set(key, row)
-  }
+  const { depth, rows: groupRows } = groupLocations(data?.items ?? [], path, grouping)
   const nameColumn: TableColumn<Row> = { id: 'name', header: levels[depth], isRowHeader: true, value: row => row.name,
     format: (_, row) => row.isTotal || path.length === 4 ? row.name :
       <button type="button" className="drilldown-table__link" onClick={() => setPath(row.path)}>{row.name}</button> }
@@ -162,7 +155,7 @@ export function LiveCensus() {
   // The payer charts cover the same facilities as the table at its current level.
   const payerMix = new Map<string, number>()
   const payerRates = new Map<string, number>()
-  for (const facility of [...groups.values()].flatMap(row => row.facilities)) {
+  for (const facility of groupRows.flatMap(row => row.facilities)) {
     for (const [payer, census] of Object.entries(facility.payer_census)) {
       payerMix.set(payer, (payerMix.get(payer) ?? 0) + census)
     }
@@ -180,7 +173,7 @@ export function LiveCensus() {
   const residents = [...payerMix.values()].reduce((total, value) => total + value, 0)
   const blendedRate = residents > 0
     ? [...payerRates.values()].reduce((total, value) => total + value, 0) / residents : null
-  const scopeName = path.length ? path[path.length - 1] : 'All locations'
+  const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
   // One row per facility, whatever the drilldown above is showing.
   const facilityRows: Row[] = (data?.items ?? []).map(facility => ({
     key: facility.facility_id, name: facility.facility_name, path: location(facility), facilities: [facility] }))
@@ -197,6 +190,7 @@ export function LiveCensus() {
     + data.lookback.map(entry => `${entry.label.toLowerCase()}: ${shortDate(entry.date)}`).join('; ')
     + `. Last year avg. is the average daily census from ${shortDate(data.year_start)} to ${shortDate(data.year_end)}.` : ''
   const facilitiesModal = <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+    onSelect={path => { setPath(path); setShowFacilities(false) }}
     filters={<CensusPayerFilter param="live_payer" />}
     title={data ? `All facilities · census as of ${data.census_date}` : 'All facilities'} subtitle={subtitle}
     rows={facilityRows} columns={columns.slice(1)} getRowKey={row => row.key} getName={row => row.name}
@@ -205,21 +199,17 @@ export function LiveCensus() {
     csvFileName={`live-census-facilities-${data?.census_date ?? 'today'}.csv`} />
 
   return <>
-    <DrilldownNavigation locationView={{
-      groupBy: 'state', selectedCount: 0,
-      onReturn: () => setPath([]),
-      onClear: () => setPath([]),
-    }} items={[
+    <DrilldownNavigation locationView={locationView} items={[
       ...path.map((name, index) => ({ id: JSON.stringify(path.slice(0, index + 1)), label: name,
         onSelect: () => setPath(path.slice(0, index + 1)) })),
     ]} level={{ current: depth + 1, total: 4, label: levels[depth] }} />
-    <DrilldownTable<Row> title={`${levels[depth]} census`} columns={columns} rows={[...groups.values()]}
+    <DrilldownTable<Row> title={`${levels[depth]} census`} columns={columns} rows={groupRows}
       getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
       loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}
       getFooterRow={rows => ({ key: 'total', name: 'Total', path: [], isTotal: true,
         facilities: rows.flatMap(row => row.facilities) })}
       subtitle={subtitle}
-      headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} />}
+      headerActions={<><OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} /><CustomGroupingButton onApply={() => setPath([])} /></>}
       emptyMessage="No facilities match this view."
       csvFileName={`live-census-${data?.census_date ?? 'today'}.csv`} />
     {facilitiesModal}
@@ -239,16 +229,17 @@ export function LiveCensus() {
         subtitle={`${scopeName}, residents in a bed that day${blendedRate === null ? ''
           : `. All payers: ${dollars(blendedRate)}`}`} />
     </div>
-    <DrilldownTable<Row> title={`${levels[depth]} census history`} columns={historyColumns} rows={[...groups.values()]}
+    <DrilldownTable<Row> title={`${levels[depth]} census history`} columns={historyColumns} rows={groupRows}
       getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
       loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}
       getFooterRow={rows => ({ key: 'total', name: 'Total', path: [], isTotal: true,
         facilities: rows.flatMap(row => row.facilities) })}
       subtitle={historySubtitle}
-      headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowHistoryFacilities(true)} />}
+      headerActions={<><OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowHistoryFacilities(true)} /><CustomGroupingButton onApply={() => setPath([])} /></>}
       emptyMessage="No facilities match this view."
       csvFileName={`census-history-${data?.census_date ?? 'today'}.csv`} />
     <AllFacilitiesModal<Row> open={showHistoryFacilities} onClose={() => setShowHistoryFacilities(false)}
+      onSelect={path => { setPath(path); setShowHistoryFacilities(false) }}
       filters={<CensusPayerFilter param="live_payer" />}
       title={data ? `All facilities · census history as of ${data.census_date}` : 'All facilities · census history'}
       subtitle={historySubtitle}

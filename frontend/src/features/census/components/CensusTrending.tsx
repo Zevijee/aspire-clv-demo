@@ -5,12 +5,14 @@ import { DrilldownNavigation } from '../../../shared/components/DrilldownNavigat
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
+import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import type { TableColumn } from '../../../shared/components/Table'
 import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import { LineChart } from '../../../shared/components/charts/LineChart'
 import { FullScreenModal } from '../../../shared/components/FullScreenModal'
 import { Table } from '../../../shared/components/Table'
+import { groupLocations, inView, useLocationView } from '../../../shared/customGrouping'
 import {
   getCensusTrending, getCensusTrendingDaily,
   type CensusDailyTrend, type CensusTrendingReport, type FacilityTrend,
@@ -41,6 +43,7 @@ export function CensusTrending() {
   const [path, setPath] = useState<string[]>([])
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
   const [showTrendTable, setShowTrendTable] = useState(false)
+  const { grouping, locationView } = useLocationView(() => setPath([]))
 
   useEffect(() => {
     const controller = new AbortController()
@@ -55,17 +58,7 @@ export function CensusTrending() {
   const data = response?.key === requestKey ? response.data : null
   const error = failure?.key === requestKey ? failure.message : null
   const days = data?.range.days ?? 1
-  const depth = Math.min(path.length, 3)
-  const groups = new Map<string, Row>()
-  for (const facility of data?.items ?? []) {
-    const parts = location(facility)
-    if (!path.every((value, index) => parts[index] === value)) continue
-    const nextPath = parts.slice(0, depth + 1)
-    const key = JSON.stringify(nextPath)
-    const row = groups.get(key) ?? { key, name: parts[depth], path: nextPath, facilities: [] }
-    row.facilities.push(facility)
-    groups.set(key, row)
-  }
+  const { depth, rows: groupRows } = groupLocations(data?.items ?? [], path, grouping)
 
   const whole = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 0 })
   const tenths = (value: number) => value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
@@ -95,8 +88,8 @@ export function CensusTrending() {
     + 'census the end of the last.' : ''
   // The trend follows the drilldown: every facility at the top, the ones under
   // the current path below it. Empty means all, so the top needs no id list.
-  const scopedIds = path.length ? (data?.items ?? [])
-    .filter(facility => path.every((value, index) => location(facility)[index] === value))
+  const scopedIds = path.length || grouping ? (data?.items ?? [])
+    .filter(facility => inView(location(facility), path, grouping))
     .map(facility => facility.facility_id) : []
   const trendKey = JSON.stringify([startDate, endDate, scopedIds, retry, payers])
   const [trend, setTrend] = useState<{ key: string; data?: CensusDailyTrend; error?: string } | null>(null)
@@ -115,7 +108,7 @@ export function CensusTrending() {
   const trendRows: TrendRow[] = trendDays.map(day => ({ date: day.date, census: day.census, opening: day.opening_census }))
   // Beds of the facilities the chart covers, for each day's occupancy.
   const scopeBeds = (data?.items ?? [])
-    .filter(facility => path.every((value, index) => location(facility)[index] === value))
+    .filter(facility => inView(location(facility), path, grouping))
     .reduce((total, facility) => total + facility.capacity, 0)
   const dayFormat = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
   const trendColumns: TableColumn<TrendRow>[] = [
@@ -135,26 +128,22 @@ export function CensusTrending() {
       change: { favorable: 'increase' },
       format: value => Number(value).toLocaleString(undefined, { signDisplay: 'exceptZero' }) },
   ]
-  const scopeName = path.length ? path[path.length - 1] : 'All locations'
+  const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
 
   const facilityRows: Row[] = (data?.items ?? []).map(facility => ({
     key: facility.facility_id, name: facility.facility_name, path: location(facility), facilities: [facility] }))
 
   return <>
-    <DrilldownNavigation locationView={{
-      groupBy: 'state', selectedCount: 0,
-      onReturn: () => setPath([]),
-      onClear: () => setPath([]),
-    }} items={path.map((name, index) => ({ id: JSON.stringify(path.slice(0, index + 1)), label: name,
+    <DrilldownNavigation locationView={locationView} items={path.map((name, index) => ({ id: JSON.stringify(path.slice(0, index + 1)), label: name,
       onSelect: () => setPath(path.slice(0, index + 1)) }))}
       level={{ current: depth + 1, total: 4, label: levels[depth] }} />
-    <DrilldownTable<Row> title={`${levels[depth]} census`} columns={columns} rows={[...groups.values()]}
+    <DrilldownTable<Row> title={`${levels[depth]} census`} columns={columns} rows={groupRows}
       getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
       loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}
       getFooterRow={rows => ({ key: 'total', name: 'Total', path: [], isTotal: true,
         facilities: rows.flatMap(row => row.facilities) })}
       subtitle={subtitle}
-      headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} />}
+      headerActions={<><OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} /><CustomGroupingButton onApply={() => setPath([])} /></>}
       emptyMessage="No facilities match this view."
       csvFileName={`census-trending-${startDate}-to-${endDate}.csv`} />
     <LineChart title="Daily Census Trending" valueLabel="Census" variant="line" height={480}
@@ -175,6 +164,7 @@ export function CensusTrending() {
       </div>
     </FullScreenModal>
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      onSelect={path => { setPath(path); setShowFacilities(false) }}
       filters={<CensusPayerFilter param="trending_payer" />}
       title={`All facilities · ${startDate} to ${endDate}`} subtitle={subtitle}
       rows={facilityRows} columns={columns.slice(1)} getRowKey={row => row.key} getName={row => row.name}

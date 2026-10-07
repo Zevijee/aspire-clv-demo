@@ -7,9 +7,11 @@ import { useReportSearchParams as useSearchParams } from '../../../shared/compon
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { DataState } from '../../../shared/components/DataState'
 import { DrilldownNavigation, type DrilldownBreadcrumb } from '../../../shared/components/DrilldownNavigation'
+import { useCustomGrouping } from '../../../shared/customGrouping'
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
+import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { locationPlace } from '../utils/locationPlace'
 import { BarChartRanking } from '../../../shared/components/charts/BarChartRanking'
 import { DonutChart } from '../../../shared/components/charts/DonutChart'
@@ -23,10 +25,15 @@ import type { DrilldownScope } from '../utils/admissionsDrilldown'
 
 type Row = SummaryLocation & { prior: number | null; change: number | null; isTotal?: boolean }
 
-export function AdmissionsOverview({ selection, onChangeSelection }: {
+export function AdmissionsOverview({ selection: given, onChangeSelection }: {
   selection: OverviewSelection
   onChangeSelection: (selection: OverviewSelection) => void
 }) {
+  // The app-wide custom grouping stands in for the selection's own locations.
+  // Changes are written onto the given selection, so clearing the grouping
+  // leaves nothing of it behind.
+  const { grouping, setGrouping } = useCustomGrouping()
+  const selection: OverviewSelection = grouping ? { ...given, locations: grouping.locations, groupBy: grouping.level } : given
   const [searchParams, setSearchParams] = useSearchParams()
   const defaults = getDefaultReportDateRange()
   const startDate = searchParams.get('start_date') ?? defaults.startDate
@@ -68,9 +75,9 @@ export function AdmissionsOverview({ selection, onChangeSelection }: {
   const rows = withPrior(current.data?.locations ?? [], previous.data?.locations)
   const facilityRows = withPrior(allCurrent.data?.locations ?? [], allPrevious.data?.locations)
   const scopeName = scope?.facility ?? scope?.region ?? scope?.portfolio ?? scope?.state ?? 'All selected locations'
-  const navigate = (next: DrilldownScope) => onChangeSelection({ ...selection, scope: next })
-  const setPayers = (values: string[]) => onChangeSelection({ ...selection, payers: values })
-  const setSources = (values: string[]) => onChangeSelection({ ...selection, sources: values })
+  const navigate = (next: DrilldownScope) => onChangeSelection({ ...given, scope: next })
+  const setPayers = (values: string[]) => onChangeSelection({ ...given, payers: values })
+  const setSources = (values: string[]) => onChangeSelection({ ...given, sources: values })
   const breadcrumbs: DrilldownBreadcrumb[] = []
   if (scope) {
     breadcrumbs.push({ id: 'state', label: scope.state, onSelect: () => navigate({ state: scope.state }) })
@@ -165,7 +172,7 @@ export function AdmissionsOverview({ selection, onChangeSelection }: {
     <DrilldownNavigation ariaLabel="Admissions drill-down" items={breadcrumbs}
       locationView={{ groupBy: customLevel ?? 'state', selectedCount: selection.locations?.length ?? 0,
         selectionLevel: getLocationLevel(selection.locations ?? []), onReturn: () => navigate(null),
-        onClear: () => onChangeSelection({ ...selection, scope: null, locations: [], groupBy: 'state' }) }}
+        onClear: () => { setGrouping(null); onChangeSelection({ ...given, scope: null, locations: [], groupBy: 'state' }) } }}
       activeFilters={[...(payers.length ? ['payer'] : []), ...(sources.length ? ['source'] : [])]}
       onClearFilter={filter => { if (filter === 'payer') setPayers([]); if (filter === 'source') setSources([]) }} />
     {previous.error && !status.error && <DataState label="Prior period" error={`Prior period: ${previous.error}`} onRetry={previous.onRetry} />}
@@ -173,9 +180,11 @@ export function AdmissionsOverview({ selection, onChangeSelection }: {
       getRowKey={row => row.id} getFooterRow={total} initialSort={{ columnId: 'admissions', direction: 'descending' }}
       title={`${level[0].toUpperCase() + level.slice(1)} Admissions Metrics`}
       subtitle={`${scopeName} · ${detail ? 'Metrics and charts for this facility.' : 'Select a location to explore its admissions.'}`}
-      headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} />}
+      headerActions={<><OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} /><CustomGroupingButton onApply={() => navigate(null)} /></>}
       csvFileName={`admissions-${level}-${startDate}-to-${endDate}.csv`} emptyMessage="No locations match this view." />
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      onSelect={([state, portfolio, region, facility]) => {
+        navigate({ state, portfolio, region, facility }); setShowFacilities(false) }}
       filters={<><AdmissionsPayerFilter values={selection.payers} onChange={setPayers} />
         <AdmissionSourceFilter values={sources} onChange={setSources} /></>}
       title={`All facilities · admissions, ${startDate} to ${endDate}`}

@@ -3,9 +3,11 @@ import { NetChangePayerFilter } from './NetChangePayerFilter'
 import { useReportSearchParams as useSearchParams } from '../../../shared/components/ReportSearchContext'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { DrilldownNavigation, type DrilldownBreadcrumb } from '../../../shared/components/DrilldownNavigation'
+import { useCustomGrouping } from '../../../shared/customGrouping'
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
+import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { locationPlace } from '../utils/locationPlace'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import { useAdmissionsReferences } from '../hooks/useAdmissionsOverview'
@@ -29,9 +31,12 @@ export function NetChangeOverview() {
   const scopeKey = JSON.stringify(params.getAll('net_scope').slice(0, 4))
   const path = useMemo(() => JSON.parse(scopeKey) as string[], [scopeKey])
   const locationKey = JSON.stringify(params.getAll('net_location'))
-  const locations = useMemo(() => JSON.parse(locationKey) as string[], [locationKey])
+  // The app-wide custom grouping, when set, stands in for the URL's own locations.
+  const { grouping, setGrouping } = useCustomGrouping()
+  const urlLocations = useMemo(() => JSON.parse(locationKey) as string[], [locationKey])
+  const locations = grouping?.locations ?? urlLocations
   const requested = params.get('net_level')
-  const customLevel = locationLevels.find(value => value === requested)
+  const customLevel = grouping?.level ?? locationLevels.find(value => value === requested)
     ?? getLocationLevel(locations) ?? 'state'
 
   const scope: DrilldownScope = path.length
@@ -64,6 +69,9 @@ export function NetChangeOverview() {
     const params2 = new URLSearchParams(params)
     params2.delete('net_scope')
     next.forEach(part => params2.append('net_scope', part))
+    // Drilling closes Show all facilities, in this same write: a second write
+    // from the same render would undo this one.
+    params2.delete('all_facilities')
     setParams(params2)
   }
   function setPayer(payer?: string) {
@@ -129,6 +137,7 @@ export function NetChangeOverview() {
       locationView={{ groupBy: customLevel, selectedCount: locations.length,
         selectionLevel: getLocationLevel(locations),
         onReturn: () => setPath([]), onClear: () => {
+          setGrouping(null)
           const next = new URLSearchParams(params)
           for (const key of ['net_scope', 'net_location', 'net_level']) next.delete(key)
           setParams(next)
@@ -144,10 +153,11 @@ export function NetChangeOverview() {
       columns={columns} rows={rows} getRowKey={row => row.id} getFooterRow={total}
       stickyFirstColumn retainRowsWhileLoading
       initialSort={{ columnId: 'net_change', direction: 'descending' }}
-      headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} />}
+      headerActions={<><OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} /><CustomGroupingButton onApply={() => setPath([])} /></>}
       csvFileName={`net-change-${level}-${startDate}-to-${endDate}.csv`}
       emptyMessage="No locations match this view." />
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      onSelect={path => setPath(path)}
       filters={<NetChangePayerFilter />}
       title={`All facilities · net change, ${startDate} to ${endDate}`}
       subtitle="Every facility in the selection, with the same payer filter. Net change is close census minus open census."

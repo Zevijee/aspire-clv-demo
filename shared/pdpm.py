@@ -39,6 +39,16 @@ SLP_CMI = dict(zip('ABCDEFGHIJKL', (0.68, 1.82, 2.66, 1.46, 2.33, 2.97, 2.04, 2.
 NURSING_CMI = dict(zip('ABCDEFGHIJKLMNOPQRSTUVWXY', (4.04, 3.06, 2.91, 2.39, 1.99, 2.23, 1.85, 2.07,
     1.72, 1.71, 1.43, 1.86, 1.62, 1.54, 1.08, 1.34, 0.94, 1.04, 0.99, 1.57, 1.47, 1.21, 0.70, 1.13, 0.66)))
 NTA_CMI = dict(zip('ABCDEF', (3.24, 2.53, 1.84, 1.33, 0.96, 0.72)))
+# Nursing clinical categories by nursing letter: (field, name, letters). The
+# PDPM Worksheet offers these names and Current Medicare PDPM counts by them.
+NURSING_CATEGORIES = (
+    ('extensive_services', 'Extensive Services', 'ABC'),
+    ('special_care_high', 'Special Care High', 'DEFG'),
+    ('special_care_low', 'Special Care Low', 'HIJK'),
+    ('clinically_complex', 'Clinically Complex', 'LMNOPQ'),
+    ('behavioral', 'Behavioral Symptoms and Cognitive Performance', 'RS'),
+    ('reduced_physical_function', 'Reduced Physical Function', 'TUVWXY'),
+)
 # The variable per diem adjustment.
 THERAPY_FULL_THROUGH, THERAPY_STEP_DAYS, THERAPY_STEP = 20, 7, Decimal('0.02')
 NTA_BOOST_THROUGH, NTA_BOOST = 3, Decimal(3)

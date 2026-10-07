@@ -3,8 +3,10 @@ import dayjs from 'dayjs'
 import { CensusPayerFilter } from './CensusPayerFilter'
 import { DrilldownTable } from '../../../shared/components/DrilldownTable'
 import { DrilldownNavigation } from '../../../shared/components/DrilldownNavigation'
+import { groupLocations, inView, useLocationView } from '../../../shared/customGrouping'
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
+import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { LineChart } from '../../../shared/components/charts/LineChart'
 import { FullScreenModal } from '../../../shared/components/FullScreenModal'
@@ -57,6 +59,7 @@ export function MonthlyCensusTrending() {
   const [response, setResponse] = useState<{ key: string; data: MonthlyCensusReport } | null>(null)
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null)
   const [path, setPath] = useState<string[]>([])
+  const { grouping, locationView } = useLocationView(() => setPath([]))
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
   const [showTrendTable, setShowTrendTable] = useState(false)
 
@@ -76,17 +79,7 @@ export function MonthlyCensusTrending() {
   // A month in progress counts as the share of it covered, so the average per
   // month is per whole month.
   const monthEquivalents = months.reduce((total, month) => total + month.days / month.month_days, 0)
-  const depth = Math.min(path.length, 3)
-  const groups = new Map<string, Row>()
-  for (const facility of data?.items ?? []) {
-    const parts = location(facility)
-    if (!path.every((value, index) => parts[index] === value)) continue
-    const nextPath = parts.slice(0, depth + 1)
-    const key = JSON.stringify(nextPath)
-    const row = groups.get(key) ?? { key, name: parts[depth], path: nextPath, facilities: [] }
-    row.facilities.push(facility)
-    groups.set(key, row)
-  }
+  const { depth, rows: groupRows } = groupLocations(data?.items ?? [], path, grouping)
 
   const total = (row: Row) => months.reduce((sum, month) => sum + monthDays(row, month.month), 0)
   const extremeColumn = (pick: 'highest' | 'lowest'): TableColumn<Row> => ({
@@ -118,8 +111,8 @@ export function MonthlyCensusTrending() {
   // The trend follows the drilldown: every facility at the top, the ones under
   // the current path below it, summed before dividing by the month's days.
   const scope: Row = { key: 'scope', name: '', path, facilities: (data?.items ?? [])
-    .filter(facility => path.every((value, index) => location(facility)[index] === value)) }
-  const scopeName = path.length ? path[path.length - 1] : 'All locations'
+    .filter(facility => inView(location(facility), path, grouping)) }
+  const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
   const scopeBeds = scope.facilities.reduce((total, facility) => total + facility.capacity, 0)
   const trendRows: TrendRow[] = months.map(month => {
     const censusDays = monthDays(scope, month.month)
@@ -150,20 +143,16 @@ export function MonthlyCensusTrending() {
     key: facility.facility_id, name: facility.facility_name, path: location(facility), facilities: [facility] }))
 
   return <>
-    <DrilldownNavigation locationView={{
-      groupBy: 'state', selectedCount: 0,
-      onReturn: () => setPath([]),
-      onClear: () => setPath([]),
-    }} items={path.map((name, index) => ({ id: JSON.stringify(path.slice(0, index + 1)), label: name,
+    <DrilldownNavigation locationView={locationView} items={path.map((name, index) => ({ id: JSON.stringify(path.slice(0, index + 1)), label: name,
       onSelect: () => setPath(path.slice(0, index + 1)) }))}
       level={{ current: depth + 1, total: 4, label: levels[depth] }} />
-    <DrilldownTable<Row> title={`${levels[depth]} monthly census`} columns={columns} rows={[...groups.values()]}
+    <DrilldownTable<Row> title={`${levels[depth]} monthly census`} columns={columns} rows={groupRows}
       getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
       loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}
       getFooterRow={rows => ({ key: 'total', name: 'Total', path: [], isTotal: true,
         facilities: rows.flatMap(row => row.facilities) })}
       subtitle={subtitle}
-      headerActions={<OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} />}
+      headerActions={<><OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} /><CustomGroupingButton onApply={() => setPath([])} /></>}
       emptyMessage="No facilities match this view."
       csvFileName={`monthly-census-${startMonth}-to-${endMonth}.csv`} />
     {/* Census moves a few points on a base of a hundred or more, so bars from
@@ -187,6 +176,7 @@ export function MonthlyCensusTrending() {
       </div>
     </FullScreenModal>
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      onSelect={path => { setPath(path); setShowFacilities(false) }}
       filters={<CensusPayerFilter param="monthly_census_payer" />}
       title={`All facilities · ${monthLabel(startMonth)} to ${monthLabel(endMonth)}`} subtitle={subtitle}
       rows={facilityRows} columns={columns.slice(1)} getRowKey={row => row.key} getName={row => row.name}

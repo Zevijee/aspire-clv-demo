@@ -11,7 +11,8 @@ type DrilldownNavigationProps = {
   activeFilters?: readonly string[]
   onClearFilter?: (filter: string) => void
   clearAction?: { label: string; onClick: () => void }
-  /** Builds the shared location-view root and reset action before the supplied path. */
+  /** Builds the shared location-view root and reset action before the supplied
+   * path. useLocationView supplies it from the app-wide grouping. */
   locationView?: {
     groupBy: 'state' | 'portfolio' | 'region' | 'facility'
     selectedCount: number

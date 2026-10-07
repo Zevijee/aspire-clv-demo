@@ -1,3 +1,5 @@
+import { groupLocations, type CustomGrouping } from '../../../shared/customGrouping'
+
 /** The state -> portfolio -> region -> facility drilldown both Current Medicare
  * PDPM tabs use: facility rows grouped at the level below the current path,
  * each group keeping its facilities so any measure can be summed for it. */
@@ -10,19 +12,8 @@ export function locationPath(item: Located) {
   return [item.state, item.portfolio, item.region, item.facility_name]
 }
 
-export function groupByLocation<Item extends Located>(items: Item[], path: string[]) {
-  const depth = Math.min(path.length, 3)
-  const groups = new Map<string, DrilldownRow<Item>>()
-  for (const item of items) {
-    const parts = locationPath(item)
-    if (!path.every((value, index) => parts[index] === value)) continue
-    const nextPath = parts.slice(0, depth + 1)
-    const key = JSON.stringify(nextPath)
-    const row = groups.get(key) ?? { key, name: parts[depth], path: nextPath, facilities: [] }
-    row.facilities.push(item)
-    groups.set(key, row)
-  }
-  return { depth, rows: [...groups.values()] }
+export function groupByLocation<Item extends Located>(items: Item[], path: string[], grouping: CustomGrouping | null) {
+  return groupLocations(items, path, grouping)
 }
 
 /** One row per facility, for the Show all facilities view. */
