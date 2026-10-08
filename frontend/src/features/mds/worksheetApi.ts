@@ -2,7 +2,9 @@ import { readJson } from '../adt/api/admissionsOverview'
 import { authorizedFetch } from '../auth/api'
 import { medicareBase } from './api'
 
-const worksheetBase = medicareBase.replace(/current-medicare$/, 'pdpm-worksheet')
+export const worksheetBase = medicareBase.replace(/current-medicare$/, 'pdpm-worksheet')
+/** The Medicaid PDPM Worksheet's API: the same log, its own stays and cells. */
+export const medicaidWorksheetBase = medicareBase.replace(/current-medicare$/, 'medicaid-worksheet')
 
 /** Which date the page's range applies to: each stay's start, or its ARD. */
 export type WorksheetDateBasis = 'start' | 'ard'
@@ -12,11 +14,12 @@ export const worksheetDateBasis = (params: URLSearchParams): WorksheetDateBasis 
   params.get('date_basis') === 'ard' ? 'ard' : 'start'
 
 /** The filter-options endpoint for one date basis, so menus match the table. */
-export const worksheetFilterOptions = (dateBasis: WorksheetDateBasis) =>
-  `${worksheetBase}/filter-options?${new URLSearchParams({ date_basis: dateBasis })}`
+export const worksheetFilterOptions = (dateBasis: WorksheetDateBasis, base = worksheetBase) =>
+  `${base}/filter-options?${new URLSearchParams({ date_basis: dateBasis })}`
 
-// text is a group's Reply: free text, saved as the entry's note.
-export type WorksheetFieldKind = 'choice' | 'score' | 'diagnoses' | 'hipps' | 'text'
+// text is a group's Reply: free text, saved as the entry's note. code is a
+// Medicaid code, typed in as a HIPPS code is.
+export type WorksheetFieldKind = 'choice' | 'score' | 'diagnoses' | 'hipps' | 'code' | 'text'
 
 /** One worksheet cell: what it is called, its group (column), what it accepts. */
 export type WorksheetField = {
@@ -27,6 +30,9 @@ export type WorksheetField = {
   options?: { value: string; label: string; points?: number }[]
   min?: number
   max?: number
+  // A code's length and an example of one.
+  length?: number
+  example?: string
 }
 
 export type WorksheetCatalog = { fields: WorksheetField[]; mds_due_days: number }
@@ -78,6 +84,10 @@ export type WorksheetRow = {
   activity: Record<string, number>
 }
 
+/** What a worksheet's cells and editor read from a row, on either worksheet. */
+export type SheetRow = Pick<WorksheetRow, 'payer_stay_id' | 'resident_name' | 'cells' | 'nta' | 'activity'>
+  & { projected_rates?: StayRates | null }
+
 export type WorksheetPage = { items: WorksheetRow[]; total: number; census_date: string }
 
 export type WorksheetQuery = {
@@ -106,8 +116,8 @@ export type NewWorksheetEntry = {
   reply_to?: string | null
 }
 
-export function getWorksheetCatalog(signal?: AbortSignal) {
-  return readJson<WorksheetCatalog>(`${worksheetBase}/catalog`, signal)
+export function getWorksheetCatalog(signal?: AbortSignal, base = worksheetBase) {
+  return readJson<WorksheetCatalog>(`${base}/catalog`, signal)
 }
 
 /** Medicare PDPM stays whose start (or ARD) falls from startDate to endDate, inclusive. */
@@ -121,18 +131,42 @@ export function getWorksheet(startDate: string, endDate: string, dateBasis: Work
   return readJson<WorksheetPage>(`${worksheetBase}?${params}`, signal)
 }
 
-export function getWorksheetLog(payerStayId: string, field: string, signal?: AbortSignal) {
+export function getWorksheetLog(payerStayId: string, field: string, signal?: AbortSignal, base = worksheetBase) {
   return readJson<WorksheetEntry[]>(
-    `${worksheetBase}/${payerStayId}/entries?${new URLSearchParams({ field })}`, signal)
+    `${base}/${payerStayId}/entries?${new URLSearchParams({ field })}`, signal)
 }
 
 /** Append one entry to a cell's log; the API validates it and records who wrote it. */
-export async function addWorksheetEntry(payerStayId: string, entry: NewWorksheetEntry) {
-  const response = await authorizedFetch(`${worksheetBase}/${payerStayId}/entries`, {
+export async function addWorksheetEntry(payerStayId: string, entry: NewWorksheetEntry, base = worksheetBase) {
+  const response = await authorizedFetch(`${base}/${payerStayId}/entries`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry) })
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as { detail?: string }
     throw new Error(typeof body.detail === 'string' ? body.detail : `Could not save (${response.status}).`)
   }
   return await response.json() as WorksheetEntry
+}
+
+/** One Texas Medicaid stay on the Medicaid PDPM Worksheet. */
+export type MedicaidWorksheetRow = Omit<WorksheetRow, 'payer_label' | 'medicare_start' | 'start_reason'
+    | 'final_hipps' | 'final_rates' | 'projected_rates'> & {
+  payer_name: string
+  // First day of this Medicaid payer period.
+  medicaid_start: string
+  // How it began: at admission, or by a payer change, as from Medicare.
+  start_reason: 'Admission' | 'Payer change'
+  // The first assessment's two-letter code, nursing then NTA; null until coded.
+  final_code: string | null
+}
+
+/** Texas Medicaid stays whose start (or first ARD) falls from startDate to endDate, inclusive. */
+export function getMedicaidWorksheet(startDate: string, endDate: string, dateBasis: WorksheetDateBasis,
+    offset: number, query: WorksheetQuery, signal?: AbortSignal) {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate, date_basis: dateBasis,
+    limit: '50', offset: String(offset),
+    filters: JSON.stringify(query.filters), search: query.search?.trim() ?? '',
+    sort: query.sort?.columnId ?? 'resident',
+    direction: query.sort?.direction === 'descending' ? 'desc' : 'asc' })
+  return readJson<{ items: MedicaidWorksheetRow[]; total: number; census_date: string }>(
+    `${medicaidWorksheetBase}?${params}`, signal)
 }

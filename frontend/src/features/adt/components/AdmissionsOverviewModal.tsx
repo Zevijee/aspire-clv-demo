@@ -9,16 +9,18 @@ import { formatPayerType } from '../api/admissions'
 import type { OverviewSelection } from '../utils/admissionsOverviewFilters'
 import { ReportSearchProvider, useReportSearchParams } from '../../../shared/components/ReportSearchContext'
 
-export type AdmissionsMonthSelection = { start: string; end: string; path: string[]; payers: string[]; report?: 'admissions' | 'discharges' | 'net-change' }
+// The month carries every filter its chart applied, so the overview opens on the same numbers.
+export type AdmissionsMonthSelection = { start: string; end: string; path: string[]; payers: string[]
+  sources: string[]; destinations: string[]; report?: 'admissions' | 'discharges' | 'net-change' }
 
 function Content({ month }: { month: AdmissionsMonthSelection }) {
   const [params, setParams] = useReportSearchParams()
-  const [selection, setSelection] = useState<OverviewSelection>({ payers: month.payers, sources: [],
+  const [selection, setSelection] = useState<OverviewSelection>({ payers: month.payers, sources: month.sources,
     scope: month.path.length ? { state: month.path[0], portfolio: month.path[1], region: month.path[2], facility: month.path[3] } : null })
   const [dischargeSelection, setDischargeSelection] = useState<DischargeSelection>({
     scope: month.path.length ? { state: month.path[0], portfolio: month.path[1],
       region: month.path[2], facility: month.path[3] } : null,
-    payers: month.payers.map(formatPayerType), destinations: [],
+    payers: month.payers.map(formatPayerType), destinations: month.destinations,
   })
   if (month.report === 'net-change') return <NetChangeOverview />
   return params.get('view') === 'logs' ? <>

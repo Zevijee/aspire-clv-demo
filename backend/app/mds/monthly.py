@@ -67,18 +67,11 @@ class MonthlyMedicare(BaseModel):
     items: list[FacilityMonthly]
 
 
-def monthly(connection: Connection, query: MonthlyQuery, today: date):
-    census_date = census_day(connection, today)
-    built = connection.scalar(select(func.max(daily_runs.c.simulation_date))
-        .where(daily_runs.c.generator == ROLLUP))
-    if built is None or built < census_date:
-        raise ApiError('summary_unavailable', 'PDPM census facts are behind the census logs. '
-            'Run the seeder update.', 409)
+def month_list(connection: Connection, query: MonthlyQuery, census_date: date):
+    """Each month of the range that has census, and its days with census: never
+    before the first generated day, never after the census day."""
     first_day = connection.scalar(select(func.min(daily_runs.c.simulation_date))
         .where(daily_runs.c.generator == GENERATOR))
-
-    # Each month of the range that has census, and its days with census: never
-    # before the first generated day, never after the census day.
     year, month = map(int, query.start_month.split('-'))
     end_year, end_month = map(int, query.end_month.split('-'))
     months = []
@@ -88,6 +81,17 @@ def monthly(connection: Connection, query: MonthlyQuery, today: date):
         if start <= end:
             months.append(dict(month=date(year, month, 1).isoformat(), days=(end - start).days + 1))
         year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+    return months
+
+
+def monthly(connection: Connection, query: MonthlyQuery, today: date):
+    census_date = census_day(connection, today)
+    built = connection.scalar(select(func.max(daily_runs.c.simulation_date))
+        .where(daily_runs.c.generator == ROLLUP))
+    if built is None or built < census_date:
+        raise ApiError('summary_unavailable', 'PDPM census facts are behind the census logs. '
+            'Run the seeder update.', 409)
+    months = month_list(connection, query, census_date)
 
     totals = {}
     if months:

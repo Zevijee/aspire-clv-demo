@@ -39,13 +39,16 @@ type LineChartProps = DataStateProps & {
   /** How a value reads on the axis and in the tooltip, such as a currency.
    * Without it the axis shows plain numbers and the tooltip grouped ones. */
   formatValue?: (value: number) => string
+  /** How a value reads on the axis alone, when formatValue is too wide for it,
+   * such as $3.18M for a daily revenue the tooltip shows in full. */
+  formatAxis?: (value: number) => string
   /** Bars normally start at zero. `fit` starts them just below the lowest
    * value, for a level such as census that moves a few points on a large
    * base, where zero would flatten every bar to the same height. */
   baseline?: 'zero' | 'fit'
 }
 
-export function LineChart({ items, title, subtitle, loading, error, onRetry, signed = false, valueLabel = 'Admissions', variant = 'line', height, barColor = 'var(--color-table-change-favorable)', lineColor = 'var(--color-chart-series-primary)', interval = 'day', showDailyAverage = false, headerActions, onSelect, baseline = 'zero', formatValue }: LineChartProps) {
+export function LineChart({ items, title, subtitle, loading, error, onRetry, signed = false, valueLabel = 'Admissions', variant = 'line', height, barColor = 'var(--color-table-change-favorable)', lineColor = 'var(--color-chart-series-primary)', interval = 'day', showDailyAverage = false, headerActions, onSelect, baseline = 'zero', formatValue, formatAxis = formatValue }: LineChartProps) {
   const Chart = variant === 'bar' ? BarChart : RechartsLineChart
   const values = items.map((item) => item.value)
   const minimumValue = Math.min(...(values.length ? values : [0]))
@@ -102,7 +105,7 @@ export function LineChart({ items, title, subtitle, loading, error, onRetry, sig
               axisLine={false}
               domain={yAxisDomain}
               tick={{ fill: 'var(--color-chart-axis)', fontSize: 10 }}
-              tickFormatter={formatValue}
+              tickFormatter={formatAxis}
               tickLine={false}
               width={52}
             />
@@ -119,7 +122,9 @@ export function LineChart({ items, title, subtitle, loading, error, onRetry, sig
                   <dt>{valueLabel}</dt><dd>{formatValue ? formatValue(item.value) : item.value.toLocaleString()}</dd>
                 </div>
                   {showDailyAverage && <div><dt>Average per day</dt>
-                    <dd>{(item.value / days).toLocaleString(undefined, { maximumFractionDigits: 1 })}</dd>
+                    {/* In the chart's own format when it has one, such as dollars. */}
+                    <dd>{formatValue ? formatValue(item.value / days)
+                      : (item.value / days).toLocaleString(undefined, { maximumFractionDigits: 1 })}</dd>
                   </div>}
                 </dl>
               </div>

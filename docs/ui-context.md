@@ -27,6 +27,19 @@ Shared UI engineering and design conventions belong in [STYLE_GUIDE.md](../front
 - Monthly ADT overview modals matched the corresponding standalone report for the selected month, location, and payers, with modal filter state isolated from the parent page.
 - Hospital detail placed receiving facilities on the left at 25% and the trend on the right at 75% on wide screens. That split belonged to the hospital composition, not to every modal.
 
+## PDPM Calculator outside the report template (2026-10-08)
+
+The PDPM Calculator is the only report rendered without `ReportLayout`: no report
+header, title, filters or tabs, just one card floating in the middle of the page
+with its own title. The product owner chose this for the calculator alone, after a
+full-page report version and a centred card under the report header both read
+poorly. The branch is in `App.tsx`, styled by `.pdpm-calculator-page`; it keeps the
+small-screen navigation button the header would otherwise carry.
+
+This is a single, named exception, not a pattern. Every other report, and every
+report built after it, uses the report template; see "Report template" in
+`frontend/STYLE_GUIDE.md`.
+
 ## Maintenance
 
 Record a new dated snapshot when material product context changes; identify superseded choices clearly. Keep standing engineering rules in the style guide and verify current behavior from code instead of applying this snapshot as a checklist. The absence of a module or workflow here imposes no limitation on building it.

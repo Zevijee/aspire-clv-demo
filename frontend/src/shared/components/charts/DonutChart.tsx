@@ -17,6 +17,12 @@ type DonutChartProps = DataStateProps & {
   selectedLabels?: string[]
   onClear?: () => void
   onSelect?: (label: string) => void
+  /** How a value reads in the centre and the legend, such as dollars. */
+  formatValue?: (value: number) => string
+  /** What a selection filters, for "Clear reason filter" and "2 reasons
+   * selected". Payers by default, which every donut filtered until a second
+   * kind was added. */
+  filterName?: { one: string; many: string }
 }
 
 const chartColors = [
@@ -29,12 +35,13 @@ const chartColors = [
   'var(--color-chart-series-septenary)',
 ]
 
-export function DonutChart({ items, subtitle, title, titleContent, loading, error, onRetry, selectedLabels = [], onClear, onSelect, valueLabel = 'Admissions', centerMode = 'active' }: DonutChartProps) {
+export function DonutChart({ items, subtitle, title, titleContent, loading, error, onRetry, selectedLabels = [], onClear, onSelect, valueLabel = 'Admissions', centerMode = 'active', formatValue = (value: number) => value.toLocaleString(),
+  filterName = { one: 'payer', many: 'payers' } }: DonutChartProps) {
   const titleId = useId()
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const total = items.reduce((sum, item) => sum + item.value, 0)
   const hasSelection = selectedLabels.length > 0
-  const selectionLabel = selectedLabels.length === 1 ? selectedLabels[0] : `${selectedLabels.length} payers selected`
+  const selectionLabel = selectedLabels.length === 1 ? selectedLabels[0] : `${selectedLabels.length} ${filterName.many} selected`
   const activeItem = hasSelection
     ? { label: selectionLabel, value: items.filter((item) => selectedLabels.includes(item.label)).reduce((sum, item) => sum + item.value, 0) }
     : activeIndex === null ? null : (items[activeIndex] ?? null)
@@ -45,8 +52,8 @@ export function DonutChart({ items, subtitle, title, titleContent, loading, erro
         {titleContent ?? title}
       </h2>
       <p className="donut-chart__subtitle">{subtitle}
-        {hasSelection && onClear && <> ? <button className="donut-chart__legend-select donut-chart__clear-filter" type="button"
-          onClick={onClear}>Clear payer filter</button></>}
+        {hasSelection && onClear && <> · <button className="donut-chart__legend-select donut-chart__clear-filter" type="button"
+          onClick={onClear}>Clear {filterName.one} filter</button></>}
       </p>
       {loading || error || total === 0 ? (
         <div className="donut-chart__content data-state-container">
@@ -96,13 +103,13 @@ export function DonutChart({ items, subtitle, title, titleContent, loading, erro
           </ResponsiveContainer>
           {hasSelection && onClear ? (
             <button className="donut-chart__center donut-chart__center--clear" type="button"
-              aria-label={`Clear payer filter`} onClick={onClear}>
-              <strong>{(activeItem?.value ?? total).toLocaleString()}</strong>
+              aria-label={`Clear ${filterName.one} filter`} onClick={onClear}>
+              <strong>{formatValue(activeItem?.value ?? total)}</strong>
               <span>{selectionLabel}</span>
             </button>
           ) : (
             <div className="donut-chart__center" aria-hidden="true">
-              <strong>{(centerMode === 'total' ? total : activeItem?.value ?? total).toLocaleString()}</strong>
+              <strong>{formatValue(centerMode === 'total' ? total : activeItem?.value ?? total)}</strong>
               <span>{centerMode === 'total' ? 'Total' : activeItem?.label ?? 'Total'}</span>
             </div>
           )}
@@ -138,7 +145,7 @@ export function DonutChart({ items, subtitle, title, titleContent, loading, erro
                   {item.label}
                 </button> : item.label}
               </td>
-              <td>{item.value.toLocaleString()}</td>
+              <td>{formatValue(item.value)}</td>
               <td>{total === 0 ? 0 : Math.round((item.value / total) * 100)}%</td>
             </tr>
           ))}

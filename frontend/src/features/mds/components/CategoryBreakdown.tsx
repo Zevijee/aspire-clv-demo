@@ -3,7 +3,7 @@ import { SegmentedControl } from '../../../shared/components/SegmentedControl'
 import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
 import { DrilldownTable } from '../../../shared/components/DrilldownTable'
 import { useCustomGrouping } from '../../../shared/customGrouping'
-import { LocationNavigation } from './LocationNavigation'
+import { LocationNavigation } from '../../../shared/components/LocationNavigation'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { FullScreenModal } from '../../../shared/components/FullScreenModal'
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
@@ -12,7 +12,7 @@ import { CustomGroupingButton } from '../../../shared/components/CustomGroupingB
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { StackedRankingChart } from '../../../shared/components/charts/StackedRankingChart'
 import { getMedicareCategories, type CategoriesReport, type CategoryCounts, type FacilityCategories } from '../api'
-import { drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow, type Located } from '../utils/locationDrilldown'
+import { drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow, type Located } from '../../../shared/utils/locationDrilldown'
 
 export const categories = [
   { id: 'primary-diagnosis', label: 'Primary Diagnosis' },
@@ -147,15 +147,22 @@ export const breakdowns: Record<(typeof categories)[number]['id'], Breakdown> = 
   'primary-diagnosis': primaryDiagnosis, 'pt-ot': ptOt, slp, 'speech-comorbidity': speech, nursing, 'nursing-category': nursingCategory, nta, depression,
 }
 
-/** How many in each part of one category at a location, summed over its facilities. */
-export function categoryCount<Item extends CategoryCounts>(row: DrilldownRow<Item>, breakdown: Breakdown, field: string) {
+/** A facility's category counts: every category Medicare PDPM has, or only the
+ * nursing and NTA ones Medicaid's two-letter code has. Every code has a nursing
+ * letter, so the nursing categories always sum to the residents with a code. */
+export type CategoryFacility = Partial<CategoryCounts> & { nursing_category: Record<string, number> }
+export type CategoryId = (typeof categories)[number]['id']
+
+/** How many in each part of one category at a location, summed over its
+ * facilities; a category a facility does not carry counts as zero. */
+export function categoryCount<Item extends Partial<CategoryCounts>>(row: DrilldownRow<Item>, breakdown: Breakdown, field: string) {
   return row.facilities.reduce((total, facility) =>
-    total + ((facility[breakdown.field] as Record<string, number>)[field] ?? 0), 0)
+    total + ((facility[breakdown.field] as Record<string, number> | undefined)?.[field] ?? 0), 0)
 }
 
 /** One table column per part of the category, counting each location. Each
  * header carries its part's chart colour, so the table keys the chart. */
-export function categoryColumns<Item extends CategoryCounts>(breakdown: Breakdown): TableColumn<DrilldownRow<Item>>[] {
+export function categoryColumns<Item extends Partial<CategoryCounts>>(breakdown: Breakdown): TableColumn<DrilldownRow<Item>>[] {
   return breakdown.parts.map(([field, header, color]): TableColumn<DrilldownRow<Item>> => ({
     id: field, header, marker: color, numeric: true, value: row => categoryCount(row, breakdown, field),
     format: value => typeof value === 'number' ? value.toLocaleString() : value,
@@ -169,7 +176,7 @@ export type CategoryUnit = { one: string; many: string }
  * locations a drilldown shows; the drilldown table's headers key its colours. Every share is of those with a care code --
  * the only ones a category can count -- which the exclusive parts sum to and
  * the overlapping ones do not. Shared by every report that counts PDPM codes. */
-export function CategoryCharts<Item extends Located & CategoryCounts>({ breakdown, rows, depth, scopeName, unit,
+export function CategoryCharts<Item extends Located & CategoryFacility>({ breakdown, rows, depth, scopeName, unit,
     population, fileSuffix, loading, error, onRetry, onSegmentSelect }: {
   breakdown: Breakdown
   /** The drilldown table's rows, one per location at this level. */
@@ -190,9 +197,9 @@ export function CategoryCharts<Item extends Located & CategoryCounts>({ breakdow
   type Row = DrilldownRow<Item>
   const [showRankingTable, setShowRankingTable] = useState(false)
   const count = (row: Row, field: string) => categoryCount(row, breakdown, field)
-  // With a care code: everyone in one primary diagnosis, which every code has.
+  // With a care code: everyone in one nursing category, which every code has.
   const total = (row: Row) => row.facilities.reduce((sum, facility) =>
-    sum + Object.values(facility.primary_diagnosis).reduce((a, b) => a + b, 0), 0)
+    sum + Object.values(facility.nursing_category).reduce((a, b) => a + b, 0), 0)
   const level = levels[depth].toLowerCase()
   // One bar per location, split into the category's parts, the most with a
   // care code first. The same counts as the chart table.
@@ -237,13 +244,15 @@ export function CategoryCharts<Item extends Located & CategoryCounts>({ breakdow
 /** The category buttons, with the choice kept in the URL so a link or a
  * refresh keeps it. They go in the drilldown bar, which is sticky, so they stay
  * in reach however far the page scrolls. */
-export function useCategoryControl() {
+export function useCategoryControl(ids?: readonly CategoryId[], label = 'PDPM category') {
   const [params, setParams] = useReportSearchParams()
-  const selected = categories.find(category => category.id === params.get('category')) ?? categories[0]
-  const control = <SegmentedControl fullWidth separate tone="accent" label="PDPM category" options={categories} value={selected.id}
+  // A report whose code carries fewer categories offers only those, in order.
+  const offered = ids ? categories.filter(category => ids.includes(category.id)) : [...categories]
+  const selected = offered.find(category => category.id === params.get('category')) ?? offered[0]
+  const control = <SegmentedControl fullWidth separate tone="accent" label={label} options={offered} value={selected.id}
     onChange={id => {
       const next = new URLSearchParams(params)
-      if (id === categories[0].id) next.delete('category')
+      if (id === offered[0].id) next.delete('category')
       else next.set('category', id)
       setParams(next)
     }} />

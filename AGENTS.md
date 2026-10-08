@@ -43,6 +43,10 @@ before changing anything structural.
 - Before changing UI, read [frontend/STYLE_GUIDE.md](frontend/STYLE_GUIDE.md),
   including its shared interaction patterns and component map. Report-specific
   historical choices live in [docs/ui-context.md](docs/ui-context.md).
+- Every report renders inside the shared report template (`ReportLayout`). The PDPM
+  Calculator is the one deliberate exception, chosen by the product owner for that page
+  only; never extend it to another report, or treat it as a pattern, without an
+  explicit request naming that report.
 - Reuse shared components and tokens. Fix shared behaviour in its owning component
   rather than creating report-specific copies or CSS workarounds.
 - Preserve UI choices outside the requested change; verify dated implementation
@@ -86,7 +90,8 @@ Breaking one of these is a design change, not a refactor. Each was measured; see
 - **The auth routes and PDPM Worksheet entries are the API's only writers.** Every
   report request runs in a read-only transaction. Sign-in, refresh and sign-out use
   `DbWriteConnection` to store and rotate refresh tokens; `POST
-  /mds/pdpm-worksheet/{payer_stay_id}/entries` uses it to append to
+  /mds/pdpm-worksheet/{payer_stay_id}/entries` and its Medicaid twin
+  `POST /mds/medicaid-worksheet/{payer_stay_id}/entries` use it to append to
   `pdpm_worksheet_entries`, an append-only log of what people enter (never updated
   or deleted). Keep every read, the worksheet's included, on `DbConnection`.
 - **`pdpm_worksheet_entries` is user data, not generated.** `seed --reset-history`
@@ -115,6 +120,8 @@ list it in `SHARED_RULES` there, or a change to that file goes unnoticed.
 | Care levels, PDPM steps and codes, who was in a bed when | `census_logs --regenerate`, ~1 min |
 | Per-resident totals for the Residents report | `resident_summaries --regenerate`, ~3 s |
 | Monthly PDPM resident-days and rates for Current Medicare PDPM's averages | `pdpm_census_summary --regenerate`, ~5 s |
+| Monthly Texas Medicaid resident-days and rates for Monthly Medicaid Trending | `medicaid_census_summary --regenerate`, ~6 s |
+| Hospital transfers and their reasons, for the Clinical reports | `transfer_logs --regenerate`, ~2 s |
 | Room layout (wings, rooms, private share) | `facility_beds --regenerate`, ~2 s, then `bed_assignments --regenerate` |
 | Who sleeps in which bed | `bed_assignments --regenerate`, ~36 s |
 | New additive measure on a fact table | Column, backfill, `admissions_summary --regenerate` |
@@ -147,6 +154,8 @@ python manage.py payer_rates --regenerate             # daily rate per facility 
 python manage.py census_logs --regenerate             # who was in a bed, care level, PDPM rates; ~1 min
 python manage.py resident_summaries --regenerate      # every resident's totals across stays; ~3 s
 python manage.py pdpm_census_summary --regenerate     # PDPM resident-days and rates by month; ~5 s
+python manage.py medicaid_census_summary --regenerate # Texas Medicaid resident-days and rates by month; ~6 s
+python manage.py transfer_logs --regenerate           # hospital transfers with reasons; ~2 s
 python manage.py facility_beds --regenerate           # wings, rooms and beds per facility; ~2 s
 python manage.py bed_assignments --regenerate         # which stay was in which bed; ~36 s
 python manage.py admission_logs --regenerate    # rebuild one table from saved stays

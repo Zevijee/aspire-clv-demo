@@ -14,8 +14,8 @@ import {
   type FacilityHistorical, type HistoricalDailyTrend, type HistoricalMedicareReport,
 } from '../api'
 import { worksheetDateBasis } from '../worksheetApi'
-import { drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow } from '../utils/locationDrilldown'
-import { LocationNavigation } from './LocationNavigation'
+import { drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow } from '../../../shared/utils/locationDrilldown'
+import { LocationNavigation, locationColumn as nameColumn } from '../../../shared/components/LocationNavigation'
 import { CategoryCharts, categoryColumns, useCategoryControl } from './CategoryBreakdown'
 
 /** What both tabs share, all from the URL: the date range, which date it
@@ -45,7 +45,7 @@ function useHistoricalSelection() {
 
 /** One report fetched for the selection, again whenever it changes; not
  * until ready, while it waits on another. */
-function useReport<Report>(load: (signal: AbortSignal) => Promise<Report>, keys: unknown[], ready = true) {
+export function useReport<Report>(load: (signal: AbortSignal) => Promise<Report>, keys: unknown[], ready = true) {
   const [data, setData] = useState<Report | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
@@ -64,12 +64,6 @@ function useReport<Report>(load: (signal: AbortSignal) => Promise<Report>, keys:
 
 /** The location column every drilldown here starts with: a link down a level
  * until the facility. */
-function nameColumn<Item>(depth: number, path: string[], setPath: (path: string[]) => void): TableColumn<DrilldownRow<Item>> {
-  return { id: 'name', header: levels[depth], isRowHeader: true, value: row => row.name,
-    format: (_, row) => row.isTotal || path.length === 4 ? row.name :
-      <button type="button" className="drilldown-table__link" onClick={() => setPath(row.path)}>{row.name}</button> }
-}
-
 type OverviewRow = DrilldownRow<FacilityHistorical>
 type Summed = 'federal' | 'managed' | 'medicare_days' | 'actual_revenue' | 'neutral_revenue' | 'census_days'
 
@@ -129,9 +123,9 @@ export function HistoricalOverview() {
     + `Each stay counts whole, through its end or ${data.census_date} if still running. `
     + "Neutral rate is not adjusted for the facility's case mix; actual rate is what the payer paid. "
     + 'Rates are revenue per Medicare day. '
-    + 'Census days are days inside the range a PDPM resident was in a bed, whenever their stay began, '
-    + `so the date basis does not change them; average daily census divides them by the range's `
-    + `${data.census_range_days.toLocaleString()} days with census data.` : ''
+    + "Census days are these stays' days in a bed inside the range; average daily census divides them by "
+    + `the range's ${data.census_range_days.toLocaleString()} days with census data. The trends below follow `
+    + 'the same stays.' : ''
 
   // The trends follow the drilldown: every facility at the top, the ones under
   // the current path below it. Empty means all, so the top sends no id list.
@@ -139,8 +133,8 @@ export function HistoricalOverview() {
   const scopedIds = (path.length || grouping ? rows.flatMap(row => row.facilities.map(facility => facility.facility_id)) : [])
     .join(',')
   const trend = useReport<HistoricalDailyTrend>(
-    signal => getHistoricalDaily(startDate, endDate, scopedIds ? scopedIds.split(',') : [], signal),
-    [startDate, endDate, scopedIds], Boolean(data))
+    signal => getHistoricalDaily(startDate, endDate, dateBasis, scopedIds ? scopedIds.split(',') : [], signal),
+    [startDate, endDate, dateBasis, scopedIds], Boolean(data))
   const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
   // It waits for the drilldown's facilities: before they load, a drilled path
   // has no ids yet and would fetch everyone's.
@@ -148,7 +142,8 @@ export function HistoricalOverview() {
   const trendDays = trend.data?.days ?? []
   const money = (value: number) => value.toLocaleString(undefined, { style: 'currency', currency: 'USD',
     maximumFractionDigits: 0 })
-  const days = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 1 })
+  const millions = (value: number) => `$${(value / 1e6).toLocaleString(undefined,
+    { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`
 
   return <>
     <LocationNavigation path={path} setPath={setPath} />
@@ -172,12 +167,11 @@ export function HistoricalOverview() {
         each in its own colour so they are told apart at a glance. */}
     <div className="report-chart-grid">
       <LineChart title="PDPM census trending" valueLabel="PDPM census" variant="line" height={320}
-        subtitle={`${scopeName}. PDPM residents in a bed each day, whenever their stay began; `
-          + 'the date basis does not change it.'}
+        subtitle={`${scopeName}. The PDPM stays ${basis} from ${range}: how many were in a bed each day.`}
         items={trendDays.map(day => ({ date: day.date, value: day.census }))}
         loading={trendLoading} error={error ?? trend.error} onRetry={error ? retry : trend.retry} />
       <LineChart title="Neutral rate trending" valueLabel="Neutral rate" variant="line" height={320}
-        subtitle={`${scopeName}. Average case-mix-neutral daily rate of those residents: the national `
+        subtitle={`${scopeName}. Average case-mix-neutral daily rate of those stays: the national `
           + 'per diem times their PDPM day factor.'}
         items={trendDays.filter(day => day.census > 0).map(day => ({ date: day.date, value: day.neutral_rates / day.census }))}
         // Its own colour, the accent the category buttons use, so the two charts
@@ -185,15 +179,14 @@ export function HistoricalOverview() {
         formatValue={money} lineColor="var(--color-accent)"
         loading={trendLoading} error={error ?? trend.error} onRetry={error ? retry : trend.retry} />
       <LineChart title="Actual rate trending" valueLabel="Actual rate" variant="line" height={320}
-        subtitle={`${scopeName}. Average actual daily rate of those residents: what the payer paid.`}
+        subtitle={`${scopeName}. Average actual daily rate of those stays: what the payer paid.`}
         items={trendDays.filter(day => day.census > 0).map(day => ({ date: day.date, value: day.actual_rates / day.census }))}
         formatValue={money} lineColor="var(--color-chart-series-senary)"
         loading={trendLoading} error={error ?? trend.error} onRetry={error ? retry : trend.retry} />
-      <LineChart title="Average length of stay trending" valueLabel="Avg. length of stay" variant="line" height={320}
-        subtitle={`${scopeName}. Average days since admission of the PDPM residents in a bed each day, `
-          + 'as Current Medicare PDPM counts length of stay.'}
-        items={trendDays.filter(day => day.census > 0).map(day => ({ date: day.date, value: day.stay_days / day.census }))}
-        formatValue={days} lineColor="var(--color-chart-series-quinary)"
+      <LineChart title="Daily revenue trending" valueLabel="Revenue" variant="line" height={320}
+        subtitle={`${scopeName}. Total revenue each day from those stays: each one in a bed that day at its actual daily rate.`}
+        items={trendDays.map(day => ({ date: day.date, value: day.actual_rates }))}
+        formatValue={money} formatAxis={millions} lineColor="var(--color-chart-series-quinary)"
         loading={trendLoading} error={error ?? trend.error} onRetry={error ? retry : trend.retry} />
     </div>
   </>

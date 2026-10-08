@@ -36,7 +36,10 @@ ROOT = Path(__file__).resolve().parents[1]
 def report_paths():
     """Report paths in navigation order, from each feature's reports.ts."""
     paths = []
-    for feature in ('adt', 'census', 'mds'):
+    # The modules the navigation imports, in its order, so a new module is
+    # checked without editing this list.
+    catalog = (ROOT / 'frontend' / 'src' / 'features' / 'navigation' / 'reportCatalog.ts').read_text(encoding='utf-8')
+    for feature in re.findall(r"from '\.\./([\w-]+)/reports'", catalog):
         source = (ROOT / 'frontend' / 'src' / 'features' / feature / 'reports.ts').read_text(encoding='utf-8')
         paths += re.findall(r"path:\s*'([^']+)'", source)
     return paths

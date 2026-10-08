@@ -412,17 +412,18 @@ def options(connection: Connection, query: WorksheetFilterQuery, today: date):
         result.with_only_columns(cast(column, String).label('option')).distinct())))
 
 
-def log(connection: Connection, payer_stay_id: UUID, field: str):
-    """Every entry and reply on one cell, oldest first."""
-    if field not in FIELDS:
+def log(connection: Connection, payer_stay_id: UUID, field: str, fields=None):
+    """Every entry and reply on one cell, oldest first. fields is the
+    worksheet's catalogue: Medicare's unless another worksheet passes its own."""
+    if field not in (fields or FIELDS):
         raise ApiError('invalid_field', 'Unknown worksheet cell.')
     return [dict(entry, label=_label(field, entry['value'])) for entry in connection.execute(
         select(entries).where(entries.c.payer_stay_id == payer_stay_id, entries.c.field == field)
         .order_by(entries.c.created_at, entries.c.entry_id)).mappings()]
 
 
-def _check_value(field: str, value: str | None):
-    spec = FIELDS[field]
+def _check_value(field: str, value: str | None, fields=None):
+    spec = (fields or FIELDS)[field]
     if value is None or not value.strip():
         raise ApiError('invalid_value', f'{spec["label"]} needs a value.')
     if spec['kind'] == 'choice' and value not in {option['value'] for option in spec['options']}:
@@ -432,20 +433,26 @@ def _check_value(field: str, value: str | None):
     if spec['kind'] == 'hipps' and not HIPPS.match(value):
         raise ApiError('invalid_value', 'A HIPPS code is five characters: PT/OT A-P, SLP A-L, nursing A-Y, '
             'NTA A-F, then the assessment indicator.')
+    if spec['kind'] == 'code' and not re.match(spec['pattern'], value):
+        raise ApiError('invalid_value', spec['hint'])
     if spec['kind'] == 'diagnoses' and value not in NTA_CONDITIONS:
         raise ApiError('invalid_value', 'Unknown NTA diagnosis.')
 
 
-def add_entry(connection: Connection, payer_stay_id: UUID, new: NewEntry, author: str):
-    """Validate and append one entry. The write connection commits on return."""
-    if new.field not in FIELDS:
+def add_entry(connection: Connection, payer_stay_id: UUID, new: NewEntry, author: str, fields=None, exists=None):
+    """Validate and append one entry. The write connection commits on return.
+    Another worksheet passes its catalogue, and a query that finds the payer
+    period only if it belongs on that worksheet."""
+    fields = fields or FIELDS
+    if new.field not in fields:
         raise ApiError('invalid_field', 'Unknown worksheet cell.')
-    if connection.scalar(select(assessments.c.payer_stay_id)
-            .where(assessments.c.payer_stay_id == payer_stay_id)) is None:
-        raise ApiError('not_found', 'No PDPM assessment for that Medicare stay.', 404)
-    kind = FIELDS[new.field]['kind']
+    found = exists(payer_stay_id) if exists is not None else (select(assessments.c.payer_stay_id)
+        .where(assessments.c.payer_stay_id == payer_stay_id))
+    if connection.scalar(found) is None:
+        raise ApiError('not_found', 'That stay is not on this worksheet.', 404)
+    kind = fields[new.field]['kind']
     note = new.note.strip() if new.note and new.note.strip() else None
-    value = new.value.strip().upper() if kind == 'hipps' and new.value else new.value
+    value = new.value.strip().upper() if kind in ('hipps', 'code') and new.value else new.value
     if new.action == 'reply':
         if note is None or new.reply_to is None:
             raise ApiError('invalid_reply', 'A reply needs the entry it answers and some text.')
@@ -456,7 +463,7 @@ def add_entry(connection: Connection, payer_stay_id: UUID, new: NewEntry, author
     elif kind == 'diagnoses':
         if new.action not in ('add', 'remove'):
             raise ApiError('invalid_action', 'NTA diagnoses are added or removed.')
-        _check_value(new.field, value)
+        _check_value(new.field, value, fields)
     elif kind == 'text':
         # Notes is its text alone, kept as the note.
         if new.action != 'set' or note is None:
@@ -465,7 +472,7 @@ def add_entry(connection: Connection, payer_stay_id: UUID, new: NewEntry, author
     else:
         if new.action != 'set':
             raise ApiError('invalid_action', 'This cell is set, not added to.')
-        _check_value(new.field, value)
+        _check_value(new.field, value, fields)
     row = dict(entry_id=uuid4(), payer_stay_id=payer_stay_id, field=new.field, action=new.action,
         value=value, note=note, reply_to=new.reply_to if new.action == 'reply' else None, author=author)
     # The wall clock, not now(): now() is the transaction's start, so entries in

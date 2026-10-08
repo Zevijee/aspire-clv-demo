@@ -51,9 +51,11 @@ From `sandbox-data`:
 | `python manage.py payer_change_logs --regenerate` | Flatten payer changes from saved periods. Also rebuilt by every `update`, ~5 s. |
 | `python manage.py referring_hospitals --regenerate` | Rebuild the 384-hospital catalogue from hospitals.json. |
 | `python manage.py payer_rates --regenerate` | Rebuild the daily rate per facility and payer plan. ~3 s. |
-| `python manage.py census_logs --regenerate` | Rebuild who was in a bed, at what care level and rate, and every Medicare period's PDPM code, for all history. ~1 min. |
+| `python manage.py census_logs --regenerate` | Rebuild who was in a bed, at what care level and rate, every Medicare period's PDPM code, and every Texas Medicaid census segment's two-letter case-mix code (`medicaid_assessments`), for all history. ~2.5 min. |
 | `python manage.py resident_summaries --regenerate` | Rebuild every resident's totals across their stays. ~3 s. |
 | `python manage.py pdpm_census_summary --regenerate` | Roll the PDPM rate steps up into resident-days, rates and day factors per facility, month and Medicare payer type, for Current Medicare PDPM's averages. Rebuilt whole after `census_logs` on every update. ~5 s. |
+| `python manage.py medicaid_census_summary --regenerate` | Roll Texas Medicaid census segments up into resident-days and summed rates per facility and month, for Monthly Medicaid Trending. Rebuilt whole after `census_logs` on every update. ~6 s. |
+| `python manage.py transfer_logs --regenerate` | One row per discharge to a hospital with its facility, payer, days since admission, admission source and a clinical reason, for the Clinical reports. The reason is drawn from the stay id's hash with odds that depend on the stay (rehospitalization, other early transfer, long stay), so a rebuild gives every transfer the same reason. Rebuilt whole after the ADT simulation on every update. ~2 s. |
 | `python manage.py facility_beds --regenerate` | Rebuild each facility's wings, rooms and beds from its bed count. ~2 s. Follow with `bed_assignments`. |
 | `python manage.py bed_assignments --regenerate` | Replay every stay into a bed, keeping semi-private rooms single-gender where possible. ~36 s. |
 | `python manage.py referrals_summary --regenerate` | Roll the daily facts up into referral months. ~1 s. |

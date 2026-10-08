@@ -103,6 +103,10 @@ DEPRESSION_SHARE = 0.30
 ARD_DAYS = (0, 7)
 CODING_DAYS = (2, 4)
 NURSING_BANDS = {'Complex': 'ABCDEFG', 'High': 'DEFGHIJK', 'Moderate': 'HIJKLMNOPQ', 'Low': 'RSTUVWXY'}
+# States whose Medicaid pays on the PDPM nursing and NTA components, so their
+# Medicaid residents carry a two-letter code. Florida and Pennsylvania use
+# other systems.
+MEDICAID_CASE_MIX_STATES = ('TX',)
 
 THROUGH = "SELECT max(simulation_date) AS day FROM sandbox_daily_runs WHERE generator = 'adt'"
 
@@ -186,6 +190,43 @@ FROM (
     WHERE c.segment = 1 AND p.payer_type IN ({types})
   ) drawn
 ) flagged
+"""
+
+
+def medicaid_sql(table, census):
+    """One two-letter case-mix code -- nursing and NTA -- per census segment of a
+    Medicaid payer period in a state that pays on them. A segment is one care
+    level, and a change of care level is a reassessment, so each gets its own
+    code: the nursing letter drawn from that care level as Medicare's is, the
+    NTA band once per payer period, since comorbidities persist. The first
+    segment's ARD falls in its first week, as an admission assessment's does;
+    a later one's on the day its care level changed. Coding takes 2-4 days."""
+    segment = "c.payer_stay_id::text || ':' || c.segment"
+    nursing = 'CASE c.care_level ' + ' '.join(
+        f"WHEN '{level}' THEN substr('{letters}', 1 + floor({_draw(segment, 'medicaid-nursing')} * {len(letters)})::int, 1)"
+        for level, letters in NURSING_BANDS.items()) + ' END'
+    nta = _letter(_index(_draw('c.payer_stay_id', 'medicaid-nta'), NTA_SHARES))
+    states = ', '.join(f"'{state}'" for state in MEDICAID_CASE_MIX_STATES)
+    low, high = (('CASE nursing ' + ' '.join(f"WHEN '{letter}' THEN {bounds[end]}"
+        for letter, bounds in NURSING_FUNCTION_RANGES.items()) + ' END') for end in (0, 1))
+    return f"""
+INSERT INTO {table} (payer_stay_id, segment, code, nursing_function_score, ard, coded_date)
+SELECT payer_stay_id, segment, nursing || nta,
+       {low} + floor({_draw("payer_stay_id::text || ':' || segment", 'medicaid-nursing-function')} * ({high} - {low} + 1))::int,
+       ard, ard + {CODING_DAYS[0]}
+         + floor({_draw("payer_stay_id::text || ':' || segment", 'medicaid-coding')} * {CODING_DAYS[1] - CODING_DAYS[0] + 1})::int
+FROM (
+  SELECT c.payer_stay_id, c.segment, {nursing} AS nursing, {nta} AS nta,
+         CASE WHEN c.segment = 1 THEN lower(c.in_bed) + {ARD_DAYS[0]}
+              + floor({_draw(segment, 'medicaid-ard')} * {ARD_DAYS[1] - ARD_DAYS[0] + 1})::int
+              ELSE lower(c.in_bed) END AS ard
+  FROM {census} c
+  JOIN payers p ON p.payer_id = c.payer_id
+  JOIN facilities f ON f.facility_id = c.facility_id
+  JOIN regions g ON g.region_id = f.region_id
+  JOIN portfolios o ON o.portfolio_id = g.portfolio_id
+  WHERE p.payer_type = 'medicaid' AND o.state IN ({states})
+) drawn
 """
 
 
@@ -288,7 +329,7 @@ ORDER BY coalesce(o.next_start, o.end_date, 'infinity'), o.step_start
 class CensusLogGenerator(BaseGenerator):
     name = 'census_logs'
     table = schema.census_logs
-    related_tables = (schema.pdpm_rate_logs, schema.pdpm_assessments)
+    related_tables = (schema.pdpm_rate_logs, schema.pdpm_assessments, schema.medicaid_assessments)
     depends_on = ('res_stays', 'payer_rates')
     transaction_isolation = 'REPEATABLE READ'
 
@@ -333,10 +374,12 @@ class CensusLogGenerator(BaseGenerator):
         census = self._table_identifier(census_table)
         pdpm = self._table_identifier(pdpm_table)
         assessments = self._table_identifier(schema.pdpm_assessments)
+        medicaid = self._table_identifier(schema.medicaid_assessments)
         self.show_table_progress(census_table)
         if self.progress:
             self.progress.set_phase('Remove previous logs')
-        connection.exec_driver_sql(sql.SQL('TRUNCATE {}, {}, {}').format(census, pdpm, assessments).as_string(driver))
+        connection.exec_driver_sql(sql.SQL('TRUNCATE {}, {}, {}, {}').format(census, pdpm, assessments, medicaid)
+            .as_string(driver))
 
         if self.progress:
             self.progress.set_phase('Suspend keys for bulk replace')
@@ -374,7 +417,14 @@ class CensusLogGenerator(BaseGenerator):
             self.progress.set_phase('Rebuild keys', details=f'{pdpm_rows:,} PDPM rows')
         self.restore_indexes(connection, pdpm_table, suspended)
 
-        written = census_rows + pdpm_rows + assessed
+        # Medicaid codes, for the states that pay on them: one per census segment.
+        self.show_table_progress(schema.medicaid_assessments)
+        if self.progress:
+            self.progress.set_phase('Medicaid case-mix codes', details=', '.join(MEDICAID_CASE_MIX_STATES))
+        medicaid_rows = connection.exec_driver_sql(
+            medicaid_sql(medicaid.as_string(driver), census.as_string(driver))).rowcount
+
+        written = census_rows + pdpm_rows + assessed + medicaid_rows
         return GenerationResult(generated=written, changed=written)
 
 
@@ -387,7 +437,7 @@ class DailyCensusLogs(DailyGenerator):
     that day."""
     name = 'census_logs'
     table = schema.census_logs
-    owned_tables = (table, schema.pdpm_rate_logs, schema.pdpm_assessments)
+    owned_tables = (table, schema.pdpm_rate_logs, schema.pdpm_assessments, schema.medicaid_assessments)
     depends_on = ('adt',)
     bulk_dates = True
 

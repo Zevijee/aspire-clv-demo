@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { DataState } from '../../../shared/components/DataState'
 import {
   addWorksheetEntry, getWorksheetLog,
-  type NewWorksheetEntry, type WorksheetEntry, type WorksheetField, type WorksheetRow,
+  type NewWorksheetEntry, type SheetRow, type WorksheetEntry, type WorksheetField,
 } from '../worksheetApi'
 
 type TextAreaRef = GetRef<typeof Input.TextArea>
@@ -24,8 +24,10 @@ function describe(entry: WorksheetEntry) {
  * answer everything entered on it before. Opens filled with what is there now,
  * so an entry is changed rather than retyped. Every save is appended to the
  * cell's log, so everyone sees who entered what and when. */
-export function WorksheetCellEditor({ row, field, onClose, onSaved }: {
-  row: WorksheetRow; field: WorksheetField; onClose: () => void; onSaved: () => void
+export function WorksheetCellEditor({ row, field, onClose, onSaved, base }: {
+  row: SheetRow; field: WorksheetField; onClose: () => void; onSaved: () => void
+  // The worksheet's API; the Medicare worksheet's by default.
+  base?: string
 }) {
   const [log, setLog] = useState<WorksheetEntry[] | null>(null)
   const [logError, setLogError] = useState<string | null>(null)
@@ -40,17 +42,17 @@ export function WorksheetCellEditor({ row, field, onClose, onSaved }: {
 
   useEffect(() => {
     const controller = new AbortController()
-    void getWorksheetLog(row.payer_stay_id, field.id, controller.signal)
+    void getWorksheetLog(row.payer_stay_id, field.id, controller.signal, base)
       .then(entries => { if (!controller.signal.aborted) { setLog(entries); setLogError(null) } })
       .catch((failure: Error) => { if (!controller.signal.aborted) setLogError(failure.message) })
     return () => controller.abort()
-  }, [row.payer_stay_id, field.id, reload])
+  }, [row.payer_stay_id, field.id, reload, base])
 
   const save = async (entry: NewWorksheetEntry, after: () => void) => {
     setSaving(true)
     setSaveError(null)
     try {
-      await addWorksheetEntry(row.payer_stay_id, entry)
+      await addWorksheetEntry(row.payer_stay_id, entry, base)
       after()
       setReload(count => count + 1)
       onSaved()
@@ -108,7 +110,7 @@ export function WorksheetCellEditor({ row, field, onClose, onSaved }: {
             .map(option => ({ value: option.value, label: `${option.label} (${option.points})` }))} />
       </section> : field.kind === 'text' ? null : <section aria-label="Value" className="worksheet-editor__section">
         <p className="worksheet-editor__current">
-          {current ? <>Now <strong className={field.kind === 'hipps' ? 'care-code' : undefined}>{current.label}</strong>
+          {current ? <>Now <strong className={field.kind === 'hipps' || field.kind === 'code' ? 'care-code' : undefined}>{current.label}</strong>
             , by {current.author}, {when(current.created_at)}</> : 'Nothing entered yet.'}
         </p>
         <label className="worksheet-editor__label" htmlFor="worksheet-value">
@@ -119,7 +121,8 @@ export function WorksheetCellEditor({ row, field, onClose, onSaved }: {
           : field.kind === 'score' ? <InputNumber id="worksheet-value" min={field.min} max={field.max} precision={0}
             value={value === null ? null : Number(value)} style={{ width: '100%' }}
             onChange={next => setValue(next === null ? null : String(next))} />
-          : <Input id="worksheet-value" maxLength={5} className="care-code" placeholder="e.g. KBCD1"
+          : <Input id="worksheet-value" maxLength={field.length ?? 5} className="care-code"
+            placeholder={field.example ?? 'e.g. KBCD1'}
             value={value ?? ''} onChange={event => setValue(event.target.value.toUpperCase() || null)} />}
       </section>}
       {/* Notes is only this text box; every other cell's note is optional. */}

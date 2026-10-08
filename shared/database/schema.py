@@ -362,6 +362,37 @@ pdpm_assessments = Table('pdpm_assessments', metadata,
     CheckConstraint('nursing_function_score BETWEEN 0 AND 16', name='ck_pdpm_assessments_nursing_function_score'),
 )
 
+medicaid_assessments = Table('medicaid_assessments', metadata,
+    # The case-mix code of every Texas Medicaid resident, for Current Medicaid.
+    # Texas pays Medicaid on the PDPM nursing and NTA components alone, so the
+    # code is two letters: nursing (A-Y) and NTA (A-F), with the same meanings
+    # as letters three and four of a Medicare PDPM code. Florida and
+    # Pennsylvania use other systems and have no rows here.
+    #
+    # One row per census_logs segment of a Medicaid payer period: a segment is a
+    # stretch at one care level, and a change of care level is a reassessment
+    # with a new code. The nursing letter is drawn from the segment's care
+    # level, as Medicare's is; the NTA band from the payer period, since
+    # comorbidities persist. Rates are unchanged: Medicaid still pays the
+    # census_logs rate. Rebuilt with census_logs, from it.
+    Column('payer_stay_id', Uuid, nullable=False),
+    Column('segment', SmallInteger, nullable=False),
+    Column('code', String(2), nullable=False),
+    # The nursing function score (0-16) behind the nursing letter, as on
+    # pdpm_assessments: the letter alone cannot place every report band.
+    Column('nursing_function_score', SmallInteger, nullable=False),
+    # The assessment reference date: within a week of the payer period's start
+    # for its first segment, the day the care level changed for the others.
+    Column('ard', Date, nullable=False),
+    # The day the code became available, a few days after the ARD. Before it
+    # the resident has no code and reports count them as not coded.
+    Column('coded_date', Date, nullable=False),
+    PrimaryKeyConstraint('payer_stay_id', 'segment'),
+    CheckConstraint("code ~ '^[A-Y][A-F]$'"),
+    CheckConstraint('nursing_function_score BETWEEN 0 AND 16', name='ck_medicaid_assessments_nursing_function_score'),
+    CheckConstraint('coded_date >= ard'),
+)
+
 pdpm_worksheet_entries = Table('pdpm_worksheet_entries', metadata,
     # What people enter on the PDPM Worksheet, one row per entry, never updated
     # or deleted: the log everyone sees. A cell shows its latest set entry;
@@ -505,6 +536,45 @@ discharge_logs = Table('discharge_logs', metadata,
     # transfers, deaths and AMA never counts one discharge twice.
     CheckConstraint("NOT (is_ama AND (is_deceased OR destination_type = 'Hospital'))"),
     CheckConstraint('los > 0'),
+)
+
+# The clinical reasons a resident is sent to hospital, in the generator's order.
+TRANSFER_REASONS = ('Respiratory', 'Cardiac', 'Infection or sepsis', 'Urinary tract infection', 'Fall or injury',
+    'Change in mental status', 'Gastrointestinal', 'Dehydration or electrolytes', 'Surgical complication',
+    'Planned procedure', 'Other')
+
+transfer_logs = Table('transfer_logs', metadata,
+    # One hospital transfer per row: every discharge to a hospital, with what
+    # the clinical reports cut it by -- reason, payer, place, how long after
+    # admission, where the resident had come from. The same event as its
+    # discharge_logs row, which records only where the resident went; this is
+    # its clinical record, so transfer reports read one table and can cross any
+    # of its columns (reason by payer, by facility, by days since admission).
+    #
+    # Built from saved stays and logs on every update; the reason is drawn from
+    # the stay id, so a rebuild gives every transfer the same reason again.
+    # Keyed to the stay, as discharge_logs is, so rebuilding discharge_logs never
+    # meets a key pointing into it; a stay has at most one discharge.
+    Column('stay_id', Uuid, ForeignKey('res_stays.stay_id'), primary_key=True),
+    # The stay's facility, copied in so a range of transfers is read from this
+    # table alone, as resident_summaries copies places in.
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('transfer_date', Date, nullable=False),
+    # The payer on the day of the transfer: the discharge's.
+    Column('payer_id', Uuid, ForeignKey('payers.payer_id'), nullable=False),
+    Column('admission_date', Date, nullable=False),
+    # transfer_date - admission_date: length of stay from admission, unlike
+    # discharge_logs.los, which counts only the final payer period.
+    Column('days_since_admission', Integer, nullable=False),
+    # Where the resident was admitted from. Admitted from a hospital and sent
+    # back within 30 days is a rehospitalization.
+    Column('admission_source_type', String, nullable=False),
+    Column('reason', String, nullable=False),
+    CheckConstraint('days_since_admission >= 0'),
+    CheckConstraint('transfer_date >= admission_date'),
+    CheckConstraint("reason IN (" + ", ".join(f"'{reason}'" for reason in TRANSFER_REASONS) + ")",
+        name='ck_transfer_logs_reason'),
+    Index('ix_transfer_logs_date', 'transfer_date', 'facility_id'),
 )
 
 daily_admission_facts = Table('daily_admission_facts', metadata,
@@ -785,6 +855,31 @@ monthly_pdpm_census_facts = Table('monthly_pdpm_census_facts', metadata,
     CheckConstraint("date_trunc('month', month_start) = month_start"),
 )
 
+monthly_medicaid_census_facts = Table('monthly_medicaid_census_facts', metadata,
+    # A calendar-month rollup of census_logs for the residents Historical and
+    # Monthly Medicaid count: Medicaid in a state whose Medicaid pays on PDPM
+    # case mix, Texas today. Monthly Medicaid Trending read from census_logs
+    # took 1.3 s for 24 months and 3.6 s for every month since 2023, splitting
+    # 161,419 census segments between the months they span on every load.
+    #
+    # Flows, not census: each column sums resident-days, so any set of months
+    # adds up and an average divides once. A segment crossing a month boundary
+    # is split between the two; the latest simulated day cuts an open one.
+    #
+    # Rebuilt whole after census_logs on every update, because census_logs is:
+    # payer periods are edited after the fact, so any month may change.
+    Column('month_start', Date, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    # Medicaid residents in a bed, summed over the month's days.
+    Column('resident_days', Integer, nullable=False),
+    # Each day's Medicaid rate, summed over the same days.
+    Column('actual_rates', Numeric(14, 2), nullable=False),
+    PrimaryKeyConstraint('month_start', 'facility_id'),
+    CheckConstraint('resident_days > 0'),
+    CheckConstraint('actual_rates >= 0'),
+    CheckConstraint("date_trunc('month', month_start) = month_start"),
+)
+
 daily_runs = Table('sandbox_daily_runs', metadata,
     Column('generator', String, primary_key=True),
     Column('simulation_date', Date, primary_key=True),
@@ -856,6 +951,7 @@ _descriptions = {
     'admission_logs': 'One actual admission event per episode, including referring source and readmission flags.',
     'medicaid_applications': 'Admissions that started pending Medicaid. Preserves application/approval metrics after payer records are retroactively corrected.',
     'discharge_logs': 'One actual discharge event per closed episode. LOS measures the final payer period.',
+    'transfer_logs': 'One hospital transfer per row: each discharge to a hospital with its reason, payer, facility, days since admission and admission source, so clinical reports can cross any of them.',
     'payer_change_logs': 'One row per payer change, flattened with the period it moved from. Derived from res_payer_stays to spare every report the self-join on period_number - 1.',
     'daily_admission_facts': 'Additive daily admission measures at facility/payer/source grain. Reports group these rows; parent scopes are not stored.',
     'daily_discharge_facts': 'Additive daily discharge measures at facility/payer/destination/disposition grain. Length of stay is a sum beside its count so any grouping divides correctly.',

@@ -12,8 +12,8 @@ import {
   getMedicareLookback, getMedicareOverview, type FacilityLookback, type FacilityOverview,
   type MedicareLookbackReport, type OverviewReport,
 } from '../api'
-import { drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow } from '../utils/locationDrilldown'
-import { LocationNavigation } from './LocationNavigation'
+import { drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow } from '../../../shared/utils/locationDrilldown'
+import { LocationNavigation } from '../../../shared/components/LocationNavigation'
 
 type Row = DrilldownRow<FacilityOverview>
 type Summed = 'federal' | 'managed' | 'actual_rates' | 'neutral_rates' | 'resident_days' | 'no_score'

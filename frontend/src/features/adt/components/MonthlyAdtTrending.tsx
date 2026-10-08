@@ -28,7 +28,9 @@ export function MonthlyAdtTrending() {
   const lastDay = end.isSame(dayjs(), 'month') ? dayjs() : end.endOf('month')
   const range = { startDate: start.format('YYYY-MM-DD'), endDate: lastDay.format('YYYY-MM-DD') }
   const openMonth = (tab: MonthlyTab) => (item: { date: string; end_date?: string }) => setAdmissionsMonth({
-    start: item.date, end: item.end_date ?? item.date, path, payers: params.getAll('monthly_payer'), report: tab })
+    start: item.date, end: item.end_date ?? item.date, path, payers: params.getAll('monthly_payer'),
+    sources: params.getAll(monthlyFilter.admissions.search),
+    destinations: params.getAll(monthlyFilter.discharges.search), report: tab })
   return <>
     <AdmissionsOverviewModal month={admissionsMonth} onClose={() => setAdmissionsMonth(null)} />
     <MonthlyAdtLocations {...range} path={path} setPath={setPath} />

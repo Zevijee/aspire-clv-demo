@@ -9,9 +9,17 @@ import { MonthlyCensusTrending } from '../features/census/components/MonthlyCens
 import { MedicareResidents } from '../features/mds/components/MedicareResidents'
 import { CategoryBreakdown } from '../features/mds/components/CategoryBreakdown'
 import { CurrentMedicareOverview } from '../features/mds/components/CurrentMedicareOverview'
+import { MedicaidCategoryBreakdown, MedicaidOverview, MedicaidResidents } from '../features/mds/components/CurrentMedicaid'
 import { PdpmWorksheet, WorksheetDateBasisToggle } from '../features/mds/components/PdpmWorksheet'
 import { HistoricalCategoryBreakdown, HistoricalOverview } from '../features/mds/components/HistoricalMedicare'
 import { MonthlyMedicare } from '../features/mds/components/MonthlyMedicare'
+import {
+  HistoricalMedicaidCategoryBreakdown, HistoricalMedicaidOverview, HistoricalMedicaidResidents,
+} from '../features/mds/components/HistoricalMedicaid'
+import { MonthlyMedicaid } from '../features/mds/components/MonthlyMedicaid'
+import { MedicaidWorksheet } from '../features/mds/components/MedicaidWorksheet'
+import { PdpmCalculator } from '../features/mds/components/PdpmCalculator'
+import { HospitalTransfers } from '../features/clinical/components/HospitalTransfers'
 import { HistoricalResidents } from '../features/mds/components/HistoricalResidents'
 import { worksheetDateBasis } from '../features/mds/worksheetApi'
 import { Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
@@ -100,6 +108,14 @@ function ModuleIcon({ module }: { module: AnalyticsModule }) {
     )
   }
 
+  if (module === 'Clinical') {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+      </svg>
+    )
+  }
+
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
       <rect width="8" height="4" x="8" y="2" rx="1" />
@@ -132,6 +148,13 @@ function App() {
   const isMonthlyCensusReport = currentReport.path === '/census/monthly-trending'
   // Reports that pick whole calendar months rather than days.
   const isMonthlyReport = isMonthlyAdtReport || isMonthlyCensusReport || currentReport.path === '/mds/monthly-medicare'
+    || currentReport.path === '/mds/monthly-medicaid'
+  // The Medicare and Medicaid PDPM worksheets: a full-height table and a date basis.
+  const isWorksheetReport = currentReport.path === '/mds/pdpm-worksheet'
+    || currentReport.path === '/mds/medicaid-pdpm-worksheet'
+  // Historical Medicare PDPM and Historical Medicaid share their tabs and date basis.
+  const isHistoricalMdsReport = currentReport.path === '/mds/historical-medicare'
+    || currentReport.path === '/mds/historical-medicaid'
   const admissionsView = searchParams.get('view')
   const activeAdmissionsTab = admissionsTabs.find((tab) => tab.id === admissionsView)?.id ?? 'testing'
   const activeDischargesTab = dischargesTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
@@ -216,6 +239,7 @@ function App() {
                 </button>
                 {isExpanded && (
                   <div>
+                    {reportsByModule[module].length === 0 && <p className="module-empty">No reports yet</p>}
                     {reportsByModule[module].map((report) => (
                       <NavLink
                         className={({ isActive }) =>
@@ -294,10 +318,30 @@ function App() {
         >
           {pathname !== '/' && <Navigate replace to="/" />}
         </ReportLayout>
+      ) : currentReport.path === '/mds/pdpm-calculator' ? (
+        // The one report outside the report template, by explicit decision: the
+        // calculator is a card floating in the page, with no report header. Every
+        // other report, and every report added later, uses ReportLayout. See
+        // "Report template" in frontend/STYLE_GUIDE.md before changing this.
+        <div className="main-panel">
+          <main className="content-area pdpm-calculator-page" id="main-content">
+            <button
+              className="mobile-menu-button pdpm-calculator-page__menu"
+              type="button"
+              aria-label="Open navigation"
+              aria-expanded={isMobileMenuOpen}
+              aria-controls="primary-navigation"
+              onClick={() => setIsMobileMenuOpen((isOpen) => !isOpen)}
+            >
+              <span /><span /><span />
+            </button>
+            <PdpmCalculator />
+          </main>
+        </div>
       ) : (
       <ReportLayout
         internalScroll={currentReport.path === '/adt/referring-hospital' || currentReport.path === '/census/residents'
-          || currentReport.path === '/mds/pdpm-worksheet'}
+          || isWorksheetReport}
         filters={
           <ReportFilters>
             {isAdmissionsReport && <AdmissionsPayerFilter
@@ -364,11 +408,11 @@ function App() {
               }} />}
             {isMonthlyAdtReport && <MonthlyAdtFilters />}
             {/* Left of the date range: which date the range applies to. */}
-            {(currentReport.path === '/mds/pdpm-worksheet' || currentReport.path === '/mds/historical-medicare')
-              && <WorksheetDateBasisToggle />}
+            {(isWorksheetReport || isHistoricalMdsReport) && <WorksheetDateBasisToggle />}
             {isMonthlyReport ? <ReportMonthRangeFilter /> : currentReport.path !== '/adt/referring-hospital' && currentReport.path !== '/census/daily-census'
               && currentReport.path !== '/census/residents' && currentReport.path !== '/census/bed-board'
-              && currentReport.path !== '/mds/current-medicare' ? <ReportDateRangeFilter /> : null}
+              && currentReport.path !== '/mds/current-medicare' && currentReport.path !== '/mds/current-medicaid'
+              ? <ReportDateRangeFilter /> : null}
           </ReportFilters>
         }
         tabFilters={
@@ -398,7 +442,7 @@ function App() {
                   else next.set('view', id)
                   setSearchParams(next)
                 },
-              } : currentReport.path === '/mds/monthly-medicare' ? {
+              } : currentReport.path === '/mds/monthly-medicare' || currentReport.path === '/mds/monthly-medicaid' ? {
                 activeTabId: activeMonthlyMedicareTab,
                 tabs: monthlyMedicareTabs,
                 onTabChange: (id: string) => {
@@ -407,7 +451,7 @@ function App() {
                   else next.set('view', id)
                   setSearchParams(next)
                 },
-              } : currentReport.path === '/mds/historical-medicare' ? {
+              } : isHistoricalMdsReport ? {
                 activeTabId: activeHistoricalMedicareTab,
                 tabs: historicalMedicareTabs,
                 onTabChange: (id: string) => {
@@ -416,7 +460,7 @@ function App() {
                   else next.set('view', id)
                   setSearchParams(next)
                 },
-              } : currentReport.path === '/mds/current-medicare' ? {
+              } : currentReport.path === '/mds/current-medicare' || currentReport.path === '/mds/current-medicaid' ? {
                 activeTabId: activeMedicareTab,
                 tabs: medicareTabs,
                 onTabChange: (id: string) => {
@@ -428,10 +472,11 @@ function App() {
               } : undefined
         }
         title={currentReport.title}
-        titleDetail={currentReport.path === '/census/daily-census' ? `Census on ${dayjs(searchParams.get('date') ?? undefined).format('dddd, MMMM D, YYYY')}` : currentReport.path === '/census/bed-board' ? 'Current beds, one facility at a time' : currentReport.path === '/mds/current-medicare' ? 'PDPM residents in a bed today' :currentReport.path === '/census/residents' ? 'Every resident ever admitted' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyReport
+        titleDetail={currentReport.path === '/census/daily-census' ? `Census on ${dayjs(searchParams.get('date') ?? undefined).format('dddd, MMMM D, YYYY')}` : currentReport.path === '/census/bed-board' ? 'Current beds, one facility at a time' : currentReport.path === '/mds/current-medicare' ? 'PDPM residents in a bed today' : currentReport.path === '/mds/current-medicaid' ? 'Texas Medicaid residents in a bed today' :currentReport.path === '/census/residents' ? 'Every resident ever admitted' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyReport
           ? `${monthRange.start.format('MMMM YYYY')} to ${monthRange.end.format('MMMM YYYY')} (${monthRange.end.diff(monthRange.start, 'month') + 1} months)`
-          : currentReport.path === '/mds/pdpm-worksheet' || currentReport.path === '/mds/historical-medicare'
-            ? `Medicare stays by ${worksheetDateBasis(searchParams) === 'ard' ? 'ARD' : 'stay start'} · ${formatReportDateRange(startDate, endDate)}`
+          : isWorksheetReport || isHistoricalMdsReport
+            ? `${currentReport.path === '/mds/historical-medicaid' || currentReport.path === '/mds/medicaid-pdpm-worksheet'
+              ? 'Texas Medicaid' : 'Medicare'} stays by ${worksheetDateBasis(searchParams) === 'ard' ? 'ARD' : 'stay start'} · ${formatReportDateRange(startDate, endDate)}`
           : formatReportDateRange(startDate, endDate)}
         leadingControl={
           <button
@@ -452,11 +497,22 @@ function App() {
           {reports.map((report) => (
             <Route
               element={
+                report.path === '/mds/current-medicaid' ? (activeMedicareTab === 'residents' ? <MedicaidResidents />
+                  : activeMedicareTab === 'categories' ? <MedicaidCategoryBreakdown /> : <MedicaidOverview />) :
                 report.path === '/mds/current-medicare' ? (activeMedicareTab === 'residents' ? <MedicareResidents />
                   : activeMedicareTab === 'categories' ? <CategoryBreakdown /> : <CurrentMedicareOverview />) : report.path === '/mds/monthly-medicare' ? (activeMonthlyMedicareTab === 'categories'
                     // Not built yet: an empty page, as the other unbuilt reports have.
                     ? <section className="report-placeholder" aria-label="Category breakdown content" />
-                    : <MonthlyMedicare />) : report.path === '/mds/pdpm-worksheet' ? <PdpmWorksheet />
+                    : <MonthlyMedicare />) : report.path === '/mds/monthly-medicaid' ? (activeMonthlyMedicareTab === 'categories'
+                    // Empty, as Monthly Medicare PDPM Trending's is.
+                    ? <section className="report-placeholder" aria-label="Category breakdown content" />
+                    : <MonthlyMedicaid />)
+                  : report.path === '/mds/historical-medicaid' ? (activeHistoricalMedicareTab === 'categories'
+                    ? <HistoricalMedicaidCategoryBreakdown /> : activeHistoricalMedicareTab === 'residents'
+                    ? <HistoricalMedicaidResidents /> : <HistoricalMedicaidOverview />)
+                  : report.path === '/mds/pdpm-worksheet' ? <PdpmWorksheet />
+                  : report.path === '/mds/medicaid-pdpm-worksheet' ? <MedicaidWorksheet />
+                  : report.path === '/clinical/hospital-transfers' ? <HospitalTransfers />
                   : report.path === '/mds/historical-medicare' ? (activeHistoricalMedicareTab === 'categories'
                     ? <HistoricalCategoryBreakdown /> : activeHistoricalMedicareTab === 'residents'
                     ? <HistoricalResidents /> : <HistoricalOverview />) : report.path === '/census/residents' ? <ResidentsReport /> :report.path === '/census/bed-board' ? <BedBoard /> : report.path === '/census/monthly-trending' ? <MonthlyCensusTrending /> : report.path === '/census/trending' ? <CensusTrending /> : report.path === '/census/daily-census' ? (

@@ -14,12 +14,10 @@ Medicare PDPM Residents tab sums it; neutral revenue is the national per diem
 times each step's PDPM day factor over the same days, as Current Medicare PDPM
 prices its neutral rate.
 
-Census days are different: a level, not a stay measure. They are the days
-inside the range on which a PDPM resident was in a bed -- anyone, whenever
-their stay began -- from census_logs, as Current Medicare PDPM and Daily
-Census count them, so the date basis does not change them. The selected stays
-cannot give them: a stay counts whole, so its days run outside the range, and
-stays begun before the range would be missing from it. Average daily census
+Census days and the daily trend follow the same selection: the selected
+stays' days in a bed inside the range, from their PDPM rate steps, so every
+number on the page is about the same stays and the date basis changes them
+all. Census days are the trend's daily census summed. Average daily census
 divides them by the range's days with census logs.
 
 Facility rows carry sums, never averages. The page divides once, at whatever
@@ -36,11 +34,11 @@ from sqlalchemy.dialects.postgresql import DATERANGE
 from sqlalchemy.engine import Connection
 
 from shared.database.schema import (
-    census_logs as logs, daily_runs, facility_payer_rates as contracts, payers,
+    daily_runs, facility_payer_rates as contracts, payers,
     pdpm_assessments as assessments, pdpm_rate_logs as pdpm, res_payer_stays as periods, res_stays as stays)
 from ..common.locations import LocationSelection, facility_locations
 from . import categories as category_counts
-from .service import GENERATOR, MEDICARE, NATIONAL_PER_DIEM, census_day, pdpm_contract
+from .service import GENERATOR, MEDICARE, NATIONAL_PER_DIEM, census_day
 
 # The longest range one request may ask for, as the worksheet allows.
 MAX_RANGE_DAYS = 3660
@@ -78,8 +76,8 @@ class FacilityHistorical(BaseModel):
         'times its days.')
     neutral_revenue: float = Field(description='The same days at the case-mix-neutral rate: the national per '
         'diem times each step\'s PDPM day factor, with no care level or facility case-mix index.')
-    census_days: int = Field(description='Days inside the range on which a PDPM resident was in a bed, '
-        'whenever their stay began. Divide by `census_range_days` for the average daily census.')
+    census_days: int = Field(description="The selected stays' days in a bed inside the range. Divide by "
+        '`census_range_days` for the average daily census.')
 
 
 class HistoricalMedicare(BaseModel):
@@ -110,7 +108,7 @@ def _selected(query: HistoricalQuery, census_date: date):
         .join(stays, stays.c.stay_id == periods.c.stay_id)
         .join(contracts, (contracts.c.facility_id == stays.c.facility_id)
             & (contracts.c.payer_id == periods.c.payer_id) & (contracts.c.payment_method == 'pdpm')))
-    return (select(periods.c.payer_stay_id, stays.c.facility_id, payers.c.payer_type,
+    return (select(periods.c.payer_stay_id, stays.c.facility_id, payers.c.payer_type, stays.c.admission_date,
             (func.least(func.coalesce(periods.c.end_date, through), through) - periods.c.start_date)
                 .label('medicare_days'))
         .select_from(source)
@@ -157,20 +155,20 @@ def historical(connection: Connection, query: HistoricalQuery, today: date):
         facility['actual_revenue'] += float(row['actual_revenue'])
         facility['neutral_revenue'] += float(row['neutral_revenue'])
 
-    # Census days: every PDPM resident's days in a bed inside the range, found
-    # through the in_bed range index, ending at the census day.
+    # Census days: the selected stays' days inside the range, from the same
+    # rate steps, which cover each Medicare day once -- the trend's daily census
+    # summed, so the two always agree.
     last = min(query.end_date, census_date)
     census = {}
     if query.start_date <= last:
         window = func.daterange(literal(query.start_date, Date), literal(last + timedelta(days=1), Date),
             type_=DATERANGE)
-        overlap = logs.c.in_bed * window
+        overlap = pdpm.c.in_effect * window
         census = dict(connection.execute(select(
-                logs.c.facility_id, func.sum(func.upper(overlap) - func.lower(overlap)))
-                .select_from(logs.join(payers, payers.c.payer_id == logs.c.payer_id)
-                    .join(contracts, pdpm_contract(logs)))
-                .where(logs.c.in_bed.overlaps(window), payers.c.payer_type.in_(MEDICARE))
-                .group_by(logs.c.facility_id)).all())
+                selected.c.facility_id, func.sum(func.upper(overlap) - func.lower(overlap)))
+                .select_from(selected.join(pdpm, pdpm.c.payer_stay_id == selected.c.payer_stay_id))
+                .where(pdpm.c.in_effect.overlaps(window))
+                .group_by(selected.c.facility_id)).all())
     range_days = connection.scalar(select(func.count()).where(daily_runs.c.generator == GENERATOR,
         daily_runs.c.simulation_date.between(query.start_date, last)))
 
@@ -210,9 +208,10 @@ class DailyTrend(BaseModel):
 
 
 def daily(connection: Connection, query: DailyQuery, today: date):
-    """Each day's PDPM census, summed neutral and actual rates and summed days
-    since admission over the range, for the trend charts. A level each day, like census days: everyone in a bed on the
-    day, whenever their stay began, so the date basis does not change it.
+    """Each day's census of the selected stays -- the stays the table counts,
+    by stay start or ARD -- with their summed neutral and actual rates and days
+    since admission, for the trend charts. The date basis changes it as it
+    changes the table.
 
     Read from the PDPM rate steps, which cover each Medicare stay's days exactly
     once with the day factor in effect. Rather than listing every resident on
@@ -229,29 +228,22 @@ def daily(connection: Connection, query: DailyQuery, today: date):
         return dict(census_date=census_date, days=[])
     window = func.daterange(literal(query.start_date, Date), literal(last + timedelta(days=1), Date),
         type_=DATERANGE)
-    # The steps in the range first, through the in_effect range index, and only
-    # then their stays. Given facility ids, PostgreSQL otherwise started from
-    # every stay those facilities ever had and probed each one's steps: 157k
-    # lookups and 380 ms for one state's 30 days.
-    in_range = (select(pdpm.c.payer_stay_id, (pdpm.c.in_effect * window).label('clipped'), pdpm.c.pdpm_factor,
-            pdpm.c.daily_rate)
-        .where(pdpm.c.in_effect.overlaps(window)).cte('in_range').prefix_with('MATERIALIZED'))
-    factor = NATIONAL_PER_DIEM * in_range.c.pdpm_factor
-    conditions = [payers.c.payer_type.in_(MEDICARE)]
+    # The table's stays first, by the same date and date basis, then only
+    # their own steps through the primary key. Scanning every step in the range
+    # and keeping the selected stays' took 4.9-8.7 s for a year.
+    selected = _selected(query, census_date)
+    chosen = select(selected.c.payer_stay_id, selected.c.admission_date)
     if query.facility_ids:
-        conditions.append(stays.c.facility_id.in_(query.facility_ids))
+        chosen = chosen.where(selected.c.facility_id.in_(query.facility_ids))
+    chosen = chosen.cte('chosen').prefix_with('MATERIALIZED')
+    clipped = pdpm.c.in_effect * window
     # Admission dates as days since a fixed day, so they can be summed.
     epoch = date(2000, 1, 1)
-    steps = (select(func.lower(in_range.c.clipped).label('starts'), func.upper(in_range.c.clipped).label('ends'),
-            factor.label('rate'), in_range.c.daily_rate.label('actual'),
-            (stays.c.admission_date - literal(epoch, Date)).label('admitted'))
-        .select_from(in_range
-            .join(periods, periods.c.payer_stay_id == in_range.c.payer_stay_id)
-            .join(payers, payers.c.payer_id == periods.c.payer_id)
-            .join(stays, stays.c.stay_id == periods.c.stay_id)
-            .join(contracts, (contracts.c.facility_id == stays.c.facility_id)
-                & (contracts.c.payer_id == periods.c.payer_id) & (contracts.c.payment_method == 'pdpm')))
-        .where(*conditions).cte('steps'))
+    steps = (select(func.lower(clipped).label('starts'), func.upper(clipped).label('ends'),
+            (NATIONAL_PER_DIEM * pdpm.c.pdpm_factor).label('rate'), pdpm.c.daily_rate.label('actual'),
+            (chosen.c.admission_date - literal(epoch, Date)).label('admitted'))
+        .select_from(chosen.join(pdpm, pdpm.c.payer_stay_id == chosen.c.payer_stay_id))
+        .where(pdpm.c.in_effect.overlaps(window)).cte('steps'))
     changes = select(steps.c.starts.label('day'), literal(1).label('residents'), steps.c.rate, steps.c.actual,
             steps.c.admitted).union_all(
         select(steps.c.ends, literal(-1), -steps.c.rate, -steps.c.actual, -steps.c.admitted)

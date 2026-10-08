@@ -31,6 +31,7 @@ Inspect these owners before adding another implementation. Paths and component n
 | Tables, sorting, search, export, column filters, pinned columns | `src/shared/components/Table.tsx` |
 | Hierarchical tables with default totals | `src/shared/components/DrilldownTable.tsx` |
 | Breadcrumbs and custom location-view context | `src/shared/components/DrilldownNavigation.tsx` |
+| Location drilldown done in the browser: grouping facility rows by path or custom grouping, its navigation bar and name column | `src/shared/utils/locationDrilldown.ts` (`groupByLocation`, `facilityRows`), `src/shared/components/LocationNavigation.tsx` (`LocationNavigation`, `locationColumn`) |
 | Header filter placement | `src/shared/components/filters/ReportFilters.tsx` |
 | Standard multi-select dropdown | `FilterDropdown.tsx`, composing `MultiSelectFilterOptions.tsx` or `FilterValuePicker.tsx` in the shared filters directory |
 | Single-choice dropdown with search, same trigger and panel | `src/shared/components/filters/FilterSelect.tsx` |
@@ -171,6 +172,8 @@ Use a 4 px base spacing scale only:
 ### Report template
 
 Reports use the shared `ReportLayout` component. It owns the report title, short description, padded divider, internally scrollable body, standard content padding, and header filter area. Reports supply content and controls through its supported slots; extend the shared shell when a new report needs a capability instead of duplicating page headers or shell layout rules. Use `ReportDateRangeFilter` for day ranges and `ReportMonthRangeFilter` for month ranges. Choose date, month, fixed-period or no picker according to the report contract. These report conventions do not require non-report workflows to imitate an analytics page.
+
+**Every report uses the report template.** There is exactly one exception: the PDPM Calculator (`/mds/pdpm-calculator`) renders as a single card floating in the page, with no report header, because the product owner asked for that page alone on 2026-10-08. It is not a precedent and not a layout option. Do not render any other report outside `ReportLayout`, do not turn the calculator's page into a reusable variant, and do not cite it as a reason for a new report -- calculator, form or otherwise -- to skip the template. Another exception needs the product owner's explicit request naming that report.
 
 Use the shared `ReportTabs` component through `ReportLayout` when a report has multiple views. Keep report-specific view content separate while preserving the same header, filters, responsive spacing, and tab treatment. A dense view can opt into `noScroll` so its shared `Table` uses internal scrolling instead of scrolling the report page.
 

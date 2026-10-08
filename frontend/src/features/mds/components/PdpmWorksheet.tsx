@@ -8,12 +8,12 @@ import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange
 import { Toggle } from '../../../shared/components/Toggle'
 import {
   getWorksheet, getWorksheetCatalog, worksheetDateBasis, worksheetFilterOptions,
-  type StayRates, type WorksheetCatalog, type WorksheetField, type WorksheetQuery, type WorksheetRow,
+  type SheetRow, type StayRates, type WorksheetCatalog, type WorksheetField, type WorksheetQuery, type WorksheetRow,
 } from '../worksheetApi'
 import { WorksheetCellEditor } from './WorksheetCellEditor'
 
 const pageSize = 50
-const dateLabel = (value: string | null) => value
+export const dateLabel = (value: string | null) => value
   ? new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
 
 const entered = (value: string) => new Date(value).toLocaleString(undefined,
@@ -34,10 +34,10 @@ function HippsRates({ rates }: { rates: StayRates }) {
 }
 
 // Opens a part's editor. Only a part's title does; its value and note are text.
-type OpenEditor = (field: WorksheetField) => void
+export type OpenEditor = (field: WorksheetField) => void
 
-function CellPart({ field, row, onOpen }: {
-  field: WorksheetField; row: WorksheetRow; onOpen: OpenEditor
+export function CellPart({ field, row, onOpen }: {
+  field: WorksheetField; row: SheetRow; onOpen: OpenEditor
 }) {
   const cell = row.cells[field.id]
   const activity = row.activity[field.id] ?? 0
@@ -49,7 +49,7 @@ function CellPart({ field, row, onOpen }: {
   const details = <div className="worksheet-tooltip">
     <p className="worksheet-tooltip__title">{name}</p>
     {cell ? <>
-      {!text && <p><strong className={field.kind === 'hipps' ? 'care-code' : undefined}>{cell.label}</strong></p>}
+      {!text && <p><strong className={field.kind === 'hipps' || field.kind === 'code' ? 'care-code' : undefined}>{cell.label}</strong></p>}
       {cell.note && <p className="worksheet-tooltip__note">{cell.note}</p>}
       <p className="worksheet-tooltip__meta">{cell.author}, {entered(cell.created_at)} · {entriesLabel(activity)}</p>
     </> : <p className="worksheet-tooltip__meta">Nothing entered yet.</p>}
@@ -63,7 +63,7 @@ function CellPart({ field, row, onOpen }: {
         aria-label={`${name}: ${shown ?? 'not entered'}. Edit`}>{field.label}:</button>
     </Tooltip>
     {shown ? <span className={text ? 'worksheet-cell__notes'
-      : `worksheet-cell__value${field.kind === 'hipps' ? ' care-code' : ''}`}>{shown}</span>
+      : `worksheet-cell__value${field.kind === 'hipps' || field.kind === 'code' ? ' care-code' : ''}`}>{shown}</span>
       : <span className="worksheet-cell__empty-tag">Empty</span>}
     {activity > 1 && <span className="worksheet-cell__activity" aria-label={entriesLabel(activity)}>{activity}</span>}
     {/* A projected HIPPS, once entered, is priced like the final one. */}
@@ -74,8 +74,8 @@ function CellPart({ field, row, onOpen }: {
 
 /** The NTA cell, "Diagnoses: points and band" then each diagnosis; hovering
  * lists them with their points and notes. */
-function NtaCell({ field, row, onOpen }: {
-  field: WorksheetField; row: WorksheetRow; onOpen: OpenEditor
+export function NtaCell({ field, row, onOpen }: {
+  field: WorksheetField; row: SheetRow; onOpen: OpenEditor
 }) {
   const activity = row.activity[field.id] ?? 0
   const details = <div className="worksheet-tooltip">
@@ -104,7 +104,7 @@ function NtaCell({ field, row, onOpen }: {
   </div>
 }
 
-/** PDPM Worksheet: today's PDPM residents, with their ARD and MDS due date, and
+/** Medicare PDPM Worksheet: today's PDPM residents, with their ARD and MDS due date, and
  * the PT/OT, SLP, nursing and NTA components and HIPPS codes people enter.
  * Every entry is saved to the API's log, so everyone sees and answers it. */
 export function PdpmWorksheet() {
@@ -239,7 +239,7 @@ export function PdpmWorksheet() {
 
   return <div className="pdpm-worksheet">
     <Table<WorksheetRow> {...status}
-      title="PDPM worksheet"
+      title="Medicare PDPM worksheet"
       subtitle={`Every Federal Medicare and Managed Medicare PDPM stay whose ${dateBasis === 'ard' ? 'ARD' : 'stay start'} `
         + `falls from ${startDate} to ${endDate}, `
         + 'including stays that have since ended. Stay start is the first day on this Medicare payer. '
@@ -255,7 +255,7 @@ export function PdpmWorksheet() {
         endpoint: worksheetFilterOptions(dateBasis) }}
       onQueryChange={onQueryChange} totalRows={result?.total}
       emptyMessage="No residents match these filters."
-      csvFileName={`pdpm-worksheet-${censusDate || 'today'}.csv`}
+      csvFileName={`medicare-pdpm-worksheet-${censusDate || 'today'}.csv`}
       footer={<nav aria-label="Worksheet pagination" className="report-table__pagination">
         <span className="report-table__pagination-summary" role="status" aria-live="polite">
           {result ? `Page ${pageIndex + 1} of ${pageCount} — ${result.total.toLocaleString()} residents`

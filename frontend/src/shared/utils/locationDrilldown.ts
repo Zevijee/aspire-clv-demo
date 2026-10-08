@@ -1,4 +1,4 @@
-import { groupLocations, type CustomGrouping } from '../../../shared/customGrouping'
+import { groupLocations, type CustomGrouping } from '../customGrouping'
 
 /** The state -> portfolio -> region -> facility drilldown both Current Medicare
  * PDPM tabs use: facility rows grouped at the level below the current path,

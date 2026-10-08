@@ -173,6 +173,14 @@
   text-decoration: none;
 }
 
+/* An expanded module with no reports yet, set where its first link would be. */
+.module-empty {
+  color: var(--color-text-subtle);
+  font-size: 0.8125rem;
+  margin: 0;
+  padding: 6px var(--space-2);
+}
+
 .report-link:hover {
   background: var(--color-surface-hover);
   color: var(--color-text);
@@ -4745,4 +4753,378 @@ button.bed-card:focus-visible {
   color: var(--color-text-muted);
   font-size: 0.8125rem;
   margin: 0;
+}
+
+/* The PDPM Calculator's page: the one report outside the report template (see
+   the Report template section of STYLE_GUIDE.md). No header; the card floats
+   in the middle of the page, and from the top when taller than the window. */
+.pdpm-calculator-page {
+  display: flex;
+  flex-direction: column;
+  /* Both rows of the panel's grid: with no header the first row is the only
+     one, sized to its content, and the card would have no height to centre in. */
+  grid-row: 1 / -1;
+  padding: var(--space-6);
+}
+
+.pdpm-calculator-page > .pdpm-calc {
+  margin: auto;
+  width: 100%;
+}
+
+/* The navigation button the report header carries on small screens. */
+.pdpm-calculator-page__menu {
+  align-self: flex-start;
+  margin-bottom: var(--space-3);
+}
+
+/* PDPM Calculator: one card. The inputs in a bar across the top, then one
+   table whose columns are the codes, the same for one code or three. One type
+   scale: 24 px for the total, 14 px for values, 12 px for labels and detail. */
+.pdpm-calc {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-report-card);
+  max-width: 640px;
+  min-width: 0;
+}
+
+.pdpm-calc--codes-2 {
+  max-width: 800px;
+}
+
+.pdpm-calc--codes-3 {
+  max-width: 960px;
+}
+
+.pdpm-calc__header {
+  padding: var(--space-4) var(--space-6) 0;
+}
+
+.pdpm-calc__header h1 {
+  color: var(--color-text);
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.pdpm-calc__header p {
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  margin: 2px 0 0;
+}
+
+.pdpm-calc__inputs {
+  align-items: start;
+  border-bottom: 1px solid var(--color-border);
+  display: grid;
+  gap: var(--space-4) var(--space-6);
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+  padding: var(--space-4) var(--space-6);
+}
+
+.pdpm-calc__facility,
+.pdpm-calc__codes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.pdpm-calc__facility .filter-dropdown__trigger {
+  width: 100%;
+}
+
+.pdpm-calc__codes {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.pdpm-calc__codes legend {
+  float: left;
+  margin-bottom: var(--space-1);
+  /* Level with the facility picker's label beside it. */
+  padding: 3px 0 0;
+  width: 100%;
+}
+
+.pdpm-calc__help {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.pdpm-calc__help strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.pdpm-calc__problem {
+  color: var(--color-danger);
+}
+
+/* The code chips and the add button: one height, one border, one radius. */
+.pdpm-calc__chips {
+  clear: both;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pdpm-calc__chip {
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  display: flex;
+  height: 32px;
+  padding-left: var(--space-2);
+}
+
+.pdpm-calc__chip:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-subtle);
+}
+
+.pdpm-calc__chip--invalid,
+.pdpm-calc__chip--invalid:focus-within {
+  border-color: var(--color-danger);
+}
+
+.pdpm-calc__chip input {
+  background: none;
+  border: 0;
+  color: var(--color-text);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  outline: none;
+  padding: 0 var(--space-2);
+  text-transform: uppercase;
+  width: 72px;
+}
+
+.pdpm-calc__chip input::placeholder {
+  color: var(--color-text-subtle);
+  font-weight: 400;
+}
+
+.pdpm-calc__swatch {
+  border-radius: 50%;
+  flex: 0 0 auto;
+  height: 8px;
+  width: 8px;
+}
+
+.pdpm-calc__remove {
+  align-items: center;
+  align-self: stretch;
+  background: none;
+  border: 0;
+  border-left: 1px solid var(--color-border);
+  border-radius: 0 5px 5px 0;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  width: 30px;
+}
+
+.pdpm-calc__remove:hover,
+.pdpm-calc__remove:focus-visible {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.pdpm-calc__add {
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 6px;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  height: 32px;
+  padding: 0 var(--space-3);
+}
+
+.pdpm-calc__add:hover:not(:disabled) {
+  background: var(--color-primary-subtle);
+  border-color: var(--color-primary);
+}
+
+.pdpm-calc__add:disabled {
+  color: var(--color-text-subtle);
+  cursor: default;
+}
+
+.pdpm-calc__state {
+  min-height: 360px;
+}
+
+.pdpm-calc__results {
+  padding: var(--space-2) var(--space-6) var(--space-4);
+  transition: opacity 120ms;
+}
+
+.pdpm-calc__results--refreshing {
+  opacity: 0.55;
+}
+
+.pdpm-calc__stale {
+  background: var(--color-surface-subtle);
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+}
+
+.pdpm-calc__table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  table-layout: fixed;
+  width: 100%;
+}
+
+/* The labels a fixed width; the codes share the rest equally. */
+.pdpm-calc__label-column {
+  width: 240px;
+}
+
+.pdpm-calc__table th,
+.pdpm-calc__table td {
+  border-bottom: 1px solid var(--color-border-subtle);
+  padding: 10px var(--space-3);
+  text-align: right;
+  vertical-align: top;
+}
+
+.pdpm-calc__table tbody th {
+  color: var(--color-text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding-left: 0;
+  text-align: left;
+}
+
+.pdpm-calc__table thead th {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--space-2);
+  padding-top: var(--space-3);
+  vertical-align: bottom;
+}
+
+.pdpm-calc__code {
+  align-items: center;
+  display: inline-flex;
+  font-size: 0.875rem;
+  gap: 6px;
+}
+
+.pdpm-calc__role {
+  color: var(--color-text-muted);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.pdpm-calc__detail,
+.pdpm-calc__secondary,
+.pdpm-calc__difference {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.pdpm-calc__detail,
+.pdpm-calc__secondary {
+  color: var(--color-text-muted);
+}
+
+.pdpm-calc__value {
+  color: var(--color-text);
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.pdpm-calc__unit {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.pdpm-calc__difference {
+  color: var(--color-text-muted);
+}
+
+.pdpm-calc__difference--up {
+  color: var(--color-success);
+}
+
+.pdpm-calc__difference--down {
+  color: var(--color-danger);
+}
+
+/* The answer: the stay's total, the one large number. */
+.pdpm-calc__total .pdpm-calc__value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.pdpm-calc__table tbody tr:not(.pdpm-calc__section):hover {
+  background: var(--color-primary-active-subtle);
+}
+
+.pdpm-calc__section th {
+  border-bottom: 1px solid var(--color-border);
+  padding-top: var(--space-6);
+}
+
+.pdpm-calc__section-bar {
+  align-items: baseline;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.pdpm-calc__section-bar > span {
+  color: var(--color-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.pdpm-calc__phases tr:last-child th,
+.pdpm-calc__phases tr:last-child td {
+  border-bottom: 0;
+}
+
+@media (max-width: 720px) {
+  .pdpm-calculator-page {
+    padding: var(--space-4);
+  }
+  .pdpm-calc__header {
+    padding: var(--space-4) var(--space-4) 0;
+  }
+  .pdpm-calc__inputs {
+    grid-template-columns: 1fr;
+    padding: var(--space-4);
+  }
+  .pdpm-calc__results {
+    overflow-x: auto;
+    padding: var(--space-2) var(--space-4) var(--space-4);
+  }
+  .pdpm-calc__label-column {
+    width: 140px;
+  }
+  .pdpm-calc--codes-2 .pdpm-calc__table,
+  .pdpm-calc--codes-3 .pdpm-calc__table {
+    min-width: 520px;
+  }
 }

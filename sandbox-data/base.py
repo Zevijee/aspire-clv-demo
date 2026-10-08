@@ -67,6 +67,7 @@ class BaseGenerator(ABC):
         'source_data_generators.aspire-census-logs',
         'source_data_generators.aspire-resident-summaries',
         'source_data_generators.aspire-bed-assignments',
+        'source_data_generators.aspire-transfer-logs',
         'summary_generators.aspire-admissions',
         'summary_generators.aspire-discharges',
         'summary_generators.aspire-payer-changes',
@@ -75,10 +76,11 @@ class BaseGenerator(ABC):
         'summary_generators.aspire-referrals',
         'summary_generators.aspire-monthly-admissions',
         'summary_generators.aspire-pdpm-census',
+        'summary_generators.aspire-medicaid-census',
     )
     RUN_ORDER = ('states', 'portfolios', 'regions', 'facilities', 'payers',
         'payer_rates', 'facility_beds', 'referring_hospitals', 'admin_user', 'residents',
-        'res_stays', 'admission_logs', 'discharge_logs', 'payer_change_logs', 'census_logs', 'pdpm_census_summary', 'resident_summaries', 'bed_assignments',
+        'res_stays', 'admission_logs', 'discharge_logs', 'payer_change_logs', 'census_logs', 'pdpm_census_summary', 'medicaid_census_summary', 'resident_summaries', 'bed_assignments', 'transfer_logs',
         'admissions_summary',
         'discharges_summary', 'payer_changes_summary', 'net_change_summary',
         'monthly_adt_summary', 'referrals_summary', 'monthly_adt_facts')

@@ -16,6 +16,10 @@ erDiagram
     database_migration_checksums {
         String revision PK
     }
+    medicaid_assessments {
+        Uuid payer_stay_id PK
+        SmallInteger segment PK
+    }
     payers {
         Uuid payer_id PK
     }
@@ -135,6 +139,11 @@ erDiagram
         String destination_type PK
     }
     facilities ||--o{ monthly_discharge_facts : "facility_id"
+    monthly_medicaid_census_facts {
+        Date month_start PK
+        Uuid facility_id PK
+    }
+    facilities ||--o{ monthly_medicaid_census_facts : "facility_id"
     monthly_payer_census_facts {
         Date month_start PK
         Uuid facility_id PK
@@ -198,6 +207,12 @@ erDiagram
         Uuid stay_id PK
     }
     res_stays ||--o| sandbox_adt_active_stays : "stay_id"
+    transfer_logs {
+        Uuid stay_id PK
+    }
+    facilities ||--o{ transfer_logs : "facility_id"
+    payers ||--o{ transfer_logs : "payer_id"
+    res_stays ||--o| transfer_logs : "stay_id"
     medicaid_applications {
         Uuid stay_id PK
     }
@@ -241,6 +256,23 @@ Checksums of applied Alembic revisions and their frozen artifacts.
 | revision | VARCHAR(64) | no | PK |  |  |
 | checksum | VARCHAR(64) | no |  |  |  |
 | applied_at | TIMESTAMP WITH TIME ZONE | no |  | now() |  |
+
+## medicaid_assessments
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| payer_stay_id | UUID | no | PK |  |  |
+| segment | SMALLINT | no | PK |  |  |
+| code | VARCHAR(2) | no |  |  |  |
+| nursing_function_score | SMALLINT | no |  |  |  |
+| ard | DATE | no |  |  |  |
+| coded_date | DATE | no |  |  |  |
+
+- CHECK: `code ~ '^[A-Y][A-F]$'`
+- CHECK: `coded_date >= ard`
+- CHECK: `nursing_function_score BETWEEN 0 AND 16`
 
 ## payers
 
@@ -650,6 +682,21 @@ Calendar-month rollup of daily_discharge_facts at facility/payer-type/destinatio
 - CHECK: `length_of_stay_days >= discharges`
 - INDEX `ix_monthly_discharge_facts_facility`: facility_id, month_start
 
+## monthly_medicaid_census_facts
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| month_start | DATE | no | PK |  |  |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| resident_days | INTEGER | no |  |  |  |
+| actual_rates | NUMERIC(14, 2) | no |  |  |  |
+
+- CHECK: `actual_rates >= 0`
+- CHECK: `date_trunc('month', month_start) = month_start`
+- CHECK: `resident_days > 0`
+
 ## monthly_payer_census_facts
 
 Calendar-month rollup of daily_payer_census_facts for monthly trending. Flows are summed; census is taken from the first and last day of each month.
@@ -890,6 +937,26 @@ Internal future simulation plans. These are not completed clinical events.
 | payer_plan | JSONB | no |  |  |  |
 | skilled_days | INTEGER | no |  |  |  |
 | medicaid_approval | JSONB | yes |  |  | Private planned approval date and payer ID; not a completed approval event. |
+
+## transfer_logs
+
+One hospital transfer per row: each discharge to a hospital with its reason, payer, facility, days since admission and admission source, so clinical reports can cross any of them.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| stay_id | UUID | no | PK, FK → res_stays.stay_id |  |  |
+| facility_id | UUID | no | FK → facilities.facility_id |  |  |
+| transfer_date | DATE | no |  |  |  |
+| payer_id | UUID | no | FK → payers.payer_id |  |  |
+| admission_date | DATE | no |  |  |  |
+| days_since_admission | INTEGER | no |  |  |  |
+| admission_source_type | VARCHAR | no |  |  |  |
+| reason | VARCHAR | no |  |  |  |
+
+- CHECK: `days_since_admission >= 0`
+- CHECK: `reason IN ('Respiratory', 'Cardiac', 'Infection or sepsis', 'Urinary tract infection', 'Fall or injury', 'Change in mental status', 'Gastrointestinal', 'Dehydration or electrolytes', 'Surgical complication', 'Planned procedure', 'Other')`
+- CHECK: `transfer_date >= admission_date`
+- INDEX `ix_transfer_logs_date`: transfer_date, facility_id
 
 ## medicaid_applications
 

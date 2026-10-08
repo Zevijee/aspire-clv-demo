@@ -169,7 +169,8 @@ export function PayerChangesOverview() {
           onSelect={label => openLogs({
             'new-payer': [payerLabel(payer)], 'previous-payer': [label],
             category: ['Payer type'],
-            ...(scope ? { 'facility-id': rows.flatMap(row => row.facility_ids) } : {}),
+            // The donut's own facilities: a drilled scope or the custom grouping.
+            ...(scope || grouping ? { 'facility-id': rows.flatMap(row => row.facility_ids) } : {}),
           })} />
       })}
     </div>
