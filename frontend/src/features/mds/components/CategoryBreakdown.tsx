@@ -2,8 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { SegmentedControl } from '../../../shared/components/SegmentedControl'
 import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
 import { DrilldownTable } from '../../../shared/components/DrilldownTable'
-import { DrilldownNavigation } from '../../../shared/components/DrilldownNavigation'
-import { locationLevels, useCustomGrouping, useLocationView } from '../../../shared/customGrouping'
+import { useCustomGrouping } from '../../../shared/customGrouping'
+import { LocationNavigation } from './LocationNavigation'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { FullScreenModal } from '../../../shared/components/FullScreenModal'
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
@@ -11,11 +11,10 @@ import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { StackedRankingChart } from '../../../shared/components/charts/StackedRankingChart'
-import { Kpis } from '../../../shared/components/Kpis'
-import { getMedicareOverview, type FacilityOverview, type OverviewReport } from '../api'
-import { drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow } from '../utils/locationDrilldown'
+import { getMedicareCategories, type CategoriesReport, type CategoryCounts, type FacilityCategories } from '../api'
+import { drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow, type Located } from '../utils/locationDrilldown'
 
-const categories = [
+export const categories = [
   { id: 'primary-diagnosis', label: 'Primary Diagnosis' },
   { id: 'pt-ot', label: 'PT/OT' },
   { id: 'slp', label: 'SLP' },
@@ -26,49 +25,14 @@ const categories = [
   { id: 'depression', label: 'Depression' },
 ] as const
 
-type Row = DrilldownRow<FacilityOverview>
+type Row = DrilldownRow<FacilityCategories>
 // The Residents tab's filter for each level of a location path, in path order.
 const residentLocationFilters = ['state', 'portfolio', 'region', 'facility']
-type Summed = 'federal' | 'managed' | 'actual_rates' | 'neutral_rates' | 'resident_days' | 'no_score'
-  | 'no_score_days'
-
-function sum(row: Row, field: Summed) {
-  return row.facilities.reduce((total, facility) => total + facility[field], 0)
-}
-// Sums at this scope divided once by its residents: never an average of
-// facility averages.
-function metric(row: Row, field: string): number | null {
-  const residents = sum(row, 'federal') + sum(row, 'managed')
-  if (field === 'residents') return residents
-  if (field === 'neutral_rate') return residents > 0 ? sum(row, 'neutral_rates') / residents : null
-  if (field === 'actual_rate') return residents > 0 ? sum(row, 'actual_rates') / residents : null
-  if (field === 'los') return residents > 0 ? sum(row, 'resident_days') / residents : null
-  if (field === 'missing_los') {
-    const missing = sum(row, 'no_score')
-    return missing > 0 ? sum(row, 'no_score_days') / missing : null
-  }
-  return sum(row, field as Summed)
-}
-
-// The location table's columns, after the location itself.
-const metrics: [id: string, header: string, kind: 'count' | 'rate' | 'days'][] = [
-  ['residents', 'PDPM residents', 'count'], ['federal', 'Federal Medicare', 'count'],
-  ['managed', 'Managed Medicare PDPM', 'count'], ['no_score', 'Missing care code', 'count'],
-  ['missing_los', 'Avg. LOS, missing care code', 'days'],
-  ['neutral_rate', 'Neutral rate', 'rate'], ['actual_rate', 'Actual rate', 'rate'],
-  ['los', 'Avg. length of stay', 'days'],
-]
-function formatMetric(value: number | string, kind: 'count' | 'rate' | 'days') {
-  if (typeof value !== 'number') return value
-  if (kind === 'rate') return value.toLocaleString(undefined, { style: 'currency', currency: 'USD' })
-  const digits = kind === 'days' ? 1 : 0
-  return value.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })
-}
 
 /** One category's split of PDPM residents: which counts on each facility it
  * reads, and the parts in the order the report shows them, each with the one
  * colour it has wherever it appears. */
-type Breakdown = {
+export type Breakdown = {
   field: 'primary_diagnosis' | 'pt_ot' | 'slp' | 'nursing' | 'nursing_category' | 'nta' | 'depression' | 'speech'
   /** Chart and table titles, e.g. "Primary diagnosis by state". */
   name: string
@@ -179,40 +143,129 @@ const speech: Breakdown = {
 }
 
 // Every category button has one; the type makes a new button bring its breakdown.
-const breakdowns: Record<(typeof categories)[number]['id'], Breakdown> = {
+export const breakdowns: Record<(typeof categories)[number]['id'], Breakdown> = {
   'primary-diagnosis': primaryDiagnosis, 'pt-ot': ptOt, slp, 'speech-comorbidity': speech, nursing, 'nursing-category': nursingCategory, nta, depression,
 }
 
-/** The drilldown bar every category shares: its breadcrumbs follow the one
- * location path, so switching category keeps where you are. */
-function CategoryNavigation({ path, setPath, controls }: {
-  path: string[]; setPath: (path: string[]) => void; controls: ReactNode
-}) {
-  const { grouping, locationView } = useLocationView(() => setPath([]))
-  const depth = path.length ? Math.min(path.length, 3) : grouping ? locationLevels.indexOf(grouping.level) : 0
-  return <DrilldownNavigation locationView={locationView} items={path.map((name, index) => ({ id: JSON.stringify(path.slice(0, index + 1)), label: name,
-    onSelect: () => setPath(path.slice(0, index + 1)) }))}
-    level={{ current: depth + 1, total: 4, label: levels[depth] }} controls={controls} />
+/** How many in each part of one category at a location, summed over its facilities. */
+export function categoryCount<Item extends CategoryCounts>(row: DrilldownRow<Item>, breakdown: Breakdown, field: string) {
+  return row.facilities.reduce((total, facility) =>
+    total + ((facility[breakdown.field] as Record<string, number>)[field] ?? 0), 0)
 }
 
-/** PDPM residents split by one category, drilled from state to facility. The
- * location table is the same for every category; the cards, chart and chart
- * table follow the category. */
+/** One table column per part of the category, counting each location. Each
+ * header carries its part's chart colour, so the table keys the chart. */
+export function categoryColumns<Item extends CategoryCounts>(breakdown: Breakdown): TableColumn<DrilldownRow<Item>>[] {
+  return breakdown.parts.map(([field, header, color]): TableColumn<DrilldownRow<Item>> => ({
+    id: field, header, marker: color, numeric: true, value: row => categoryCount(row, breakdown, field),
+    format: value => typeof value === 'number' ? value.toLocaleString() : value,
+  }))
+}
+
+/** Who a category view counts: residents in a bed, or stays in a range. */
+export type CategoryUnit = { one: string; many: string }
+
+/** One category's ranking chart and the chart's table view, over the
+ * locations a drilldown shows; the drilldown table's headers key its colours. Every share is of those with a care code --
+ * the only ones a category can count -- which the exclusive parts sum to and
+ * the overlapping ones do not. Shared by every report that counts PDPM codes. */
+export function CategoryCharts<Item extends Located & CategoryCounts>({ breakdown, rows, depth, scopeName, unit,
+    population, fileSuffix, loading, error, onRetry, onSegmentSelect }: {
+  breakdown: Breakdown
+  /** The drilldown table's rows, one per location at this level. */
+  rows: DrilldownRow<Item>[]
+  depth: number
+  /** Where the drilldown is, for the table view's title. */
+  scopeName: string
+  unit: CategoryUnit
+  /** Whom the chart counts, ahead of "in each state": "PDPM residents with a care code on 2026-10-07". */
+  population: string
+  fileSuffix: string
+  loading: boolean
+  error: string | null
+  onRetry: () => void
+  /** A click on one location's part of a bar; leave out where there is nothing to open. */
+  onSegmentSelect?: (row: DrilldownRow<Item>, partId: string) => void
+}) {
+  type Row = DrilldownRow<Item>
+  const [showRankingTable, setShowRankingTable] = useState(false)
+  const count = (row: Row, field: string) => categoryCount(row, breakdown, field)
+  // With a care code: everyone in one primary diagnosis, which every code has.
+  const total = (row: Row) => row.facilities.reduce((sum, facility) =>
+    sum + Object.values(facility.primary_diagnosis).reduce((a, b) => a + b, 0), 0)
+  const level = levels[depth].toLowerCase()
+  // One bar per location, split into the category's parts, the most with a
+  // care code first. The same counts as the chart table.
+  const ranking = [...rows].sort((a, b) => total(b) - total(a) || a.name.localeCompare(b.name))
+    .map(row => ({ label: row.name, total: total(row),
+      values: Object.fromEntries(breakdown.parts.map(([field]) => [field, count(row, field)])) }))
+  const split = breakdown.overlapping ? `with each ${breakdown.splitBy}` : `split by ${breakdown.splitBy}`
+  const overlap = breakdown.overlapping ? `; one ${unit.one} can have several` : ''
+
+  return <>
+    <StackedRankingChart loading={loading} error={error} onRetry={onRetry}
+      title={`${breakdown.name} by ${level}`} totalLabel={`${unit.many} with a care code`}
+      subtitle={loading ? undefined : `${population} in each ${level}, ${split}, the most ${unit.many} first${overlap}.`
+        + (breakdown.overlapping ? ' MAD is a mechanically altered diet, SD a swallowing disorder, '
+          + 'Comorbidity an SLP-related comorbidity.' : '')}
+      // The table above keys every colour in its column headers, so the chart
+      // needs no legend: with twelve SLP groups one crowded the chart's header.
+      hideLegend showValues series={breakdown.parts.map(([id, label, color]) => ({ id, label, color }))} items={ranking}
+      onSegmentSelect={onSegmentSelect && ((label, partId) => {
+        const row = rows.find(group => group.name === label)
+        if (row) onSegmentSelect(row, partId)
+      })}
+      headerActions={<OpenViewButton kind="table" label="See in table view" onClick={() => setShowRankingTable(true)} />} />
+    <FullScreenModal open={showRankingTable} onClose={() => setShowRankingTable(false)} destroyOnHidden
+      title={`${breakdown.name} by ${level} · ${scopeName}`}>
+      <div className="net-change-daily-modal__table">
+        {/* The chart's numbers: the same locations, ranked by the same total. */}
+        <Table<Row> title={`${breakdown.name} by ${level}`}
+          subtitle={loading ? '' : `${population} in each ${level}, ${split}${overlap}.`}
+          columns={[{ id: 'name', header: levels[depth], isRowHeader: true, value: row => row.name }, ...categoryColumns<Item>(breakdown),
+            { id: 'total', header: 'With care code', numeric: true, value: total,
+              format: value => typeof value === 'number' ? value.toLocaleString() : value }]}
+          rows={rows} getRowKey={row => row.key} initialSort={{ columnId: 'total', direction: 'descending' }}
+          internalScroll stickyFirstColumn loading={loading} error={error} onRetry={onRetry}
+          emptyMessage="No locations in this view."
+          csvFileName={`${breakdown.slug}-ranking-${fileSuffix}.csv`} />
+      </div>
+    </FullScreenModal>
+  </>
+}
+
+/** The category buttons, with the choice kept in the URL so a link or a
+ * refresh keeps it. They go in the drilldown bar, which is sticky, so they stay
+ * in reach however far the page scrolls. */
+export function useCategoryControl() {
+  const [params, setParams] = useReportSearchParams()
+  const selected = categories.find(category => category.id === params.get('category')) ?? categories[0]
+  const control = <SegmentedControl fullWidth separate tone="accent" label="PDPM category" options={categories} value={selected.id}
+    onChange={id => {
+      const next = new URLSearchParams(params)
+      if (id === categories[0].id) next.delete('category')
+      else next.set('category', id)
+      setParams(next)
+    }} />
+  return { selected, breakdown: breakdowns[selected.id], control }
+}
+
+/** PDPM residents split by one category, drilled from state to facility: the
+ * table's columns, the cards and the chart all follow the category. */
 function CategoryDrilldown({ breakdown, categoryLabel, onOpenResidents, path, setPath, controls }: {
   breakdown: Breakdown; categoryLabel: string; path: string[]; setPath: (path: string[]) => void
   controls: ReactNode
   /** Open the Residents tab on one location path and one category part. */
   onOpenResidents: (locationPath: string[], part: string) => void
 }) {
-  const [data, setData] = useState<OverviewReport | null>(null)
+  const [data, setData] = useState<CategoriesReport | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
-  const [showRankingTable, setShowRankingTable] = useState(false)
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
   useEffect(() => {
     const controller = new AbortController()
     setError(null)
-    getMedicareOverview(controller.signal)
+    getMedicareCategories(controller.signal)
       .then(body => { if (!controller.signal.aborted) setData(body) })
       .catch((failure: Error) => { if (!controller.signal.aborted) setError(failure.message) })
     return () => controller.abort()
@@ -220,116 +273,60 @@ function CategoryDrilldown({ breakdown, categoryLabel, onOpenResidents, path, se
 
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
-  const count = (row: Row, field: string) => row.facilities.reduce((total, facility) =>
-    total + ((facility[breakdown.field] as Record<string, number>)[field] ?? 0), 0)
-  const nameColumn: TableColumn<Row> = { id: 'name', header: levels[depth], isRowHeader: true, value: row => row.name,
-    format: (_, row) => row.isTotal || path.length === 4 ? row.name :
-      <button type="button" className="drilldown-table__link" onClick={() => setPath(row.path)}>{row.name}</button> }
-  // The location table: residents, payer split, rates and stay length.
+  // The location, then how many residents in each part of the chosen category.
   const columns: TableColumn<Row>[] = [
-    nameColumn,
-    ...metrics.map(([id, header, kind]): TableColumn<Row> => ({
-      id, header, numeric: true, value: row => metric(row, id) ?? '—', format: value => formatMetric(value, kind),
-    })),
+    { id: 'name', header: levels[depth], isRowHeader: true, value: row => row.name,
+      format: (_, row) => row.isTotal || path.length === 4 ? row.name :
+        <button type="button" className="drilldown-table__link" onClick={() => setPath(row.path)}>{row.name}</button> },
+    ...categoryColumns<FacilityCategories>(breakdown),
   ]
-  // The chart's table: residents in each part of the category.
-  const categoryColumns: TableColumn<Row>[] = breakdown.parts.map(([field, header]): TableColumn<Row> => ({
-    id: field, header, numeric: true, value: row => count(row, field),
-    format: value => typeof value === 'number' ? value.toLocaleString() : value,
-  }))
   const loading = !data && !error
-  // One bar per location, split into the category's parts, the location with
-  // the most residents with a care code first. The same counts as the chart
-  // table. Every share is of the residents with a care code -- the only
-  // ones a category can count -- which the exclusive parts sum to and the
-  // overlapping ones do not.
-  const total = (row: Row) => (metric(row, 'residents') ?? 0) - sum(row, 'no_score')
-  const ranking = [...rows].sort((a, b) => total(b) - total(a) || a.name.localeCompare(b.name))
-    .map(row => ({ label: row.name, total: total(row),
-      values: Object.fromEntries(breakdown.parts.map(([field]) => [field, count(row, field)])) }))
-  // The totals of whatever the table shows, so the cards always equal its Total
-  // row: everyone at the top, one state or region once drilled in.
-  const scope: Row = { key: 'scope', name: '', path, facilities: rows.flatMap(row => row.facilities) }
-  const scopeTotal = total(scope)
+  const retryLoad = () => setRetry(value => value + 1)
   const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
-  const share = (value: number) => scopeTotal > 0
-    ? `${(value / scopeTotal * 100).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : '—'
-  const kpis = [
-    ...breakdown.parts.map(([field, header, color]) => ({
-      // A band's bare number ("6-9") needs its measure beside it on a card.
-      header: breakdown.field === 'pt_ot' || breakdown.field === 'nursing' ? `Function score ${header}`
-        : breakdown.field === 'nta' ? `NTA points ${header}`
-        : breakdown.field === 'depression' ? `Depression: ${header}` : header, marker: color, value: count(scope, field).toLocaleString(),
-      trend: { tone: 'neutral' as const, value: share(count(scope, field)), label: 'of residents with a care code' },
-    })),
-  ]
   const subtitle = data ? `Residents paid from their PDPM code on ${data.census_date}: Original Medicare, `
     + 'and Managed Medicare PDPM. Managed Medicare PPO pays per diem and is not included. '
-    + 'Missing care code is residents not yet assessed and coded in the first days of their Medicare stay; '
-    + 'the categories below count only residents with a care code. '
-    + "Neutral rate is not adjusted for the facility's case mix. Actual rate is what the payer pays." : ''
+    + 'Residents not yet assessed and coded in the first days of their Medicare stay are missing a care code '
+    + `and counted in no ${breakdown.name.toLowerCase()} part.`
+    + (breakdown.overlapping ? ' One resident can have several conditions, so the parts do not sum to the residents.' : '')
+    : ''
+  const day = data?.census_date ?? 'today'
 
   return <>
-    <CategoryNavigation path={path} setPath={setPath} controls={controls} />
-    <DrilldownTable<Row> title={`${levels[depth]} PDPM residents`} columns={columns} rows={rows}
+    {/* Every category shares one location path, so switching keeps where you are. */}
+    <LocationNavigation path={path} setPath={setPath} controls={controls} />
+    <DrilldownTable<Row> title={`${breakdown.name} by ${levels[depth].toLowerCase()}`} columns={columns} rows={rows}
       getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
-      loading={loading} error={error} onRetry={() => setRetry(value => value + 1)}
+      loading={loading} error={error} onRetry={retryLoad}
       getFooterRow={visible => ({ key: 'total', name: 'Total', path: [], isTotal: true,
         facilities: visible.flatMap(row => row.facilities) })}
       subtitle={subtitle}
       headerActions={<><OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowFacilities(true)} /><CustomGroupingButton onApply={() => setPath([])} /></>}
       emptyMessage="No facilities match this view."
-      csvFileName={`current-medicare-${data?.census_date ?? 'today'}.csv`} />
-    <Kpis stack items={kpis} loading={loading} error={error} onRetry={() => setRetry(value => value + 1)} />
+      csvFileName={`current-medicare-${breakdown.slug}-${day}.csv`} />
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
       onSelect={path => setPath(path)}
-      title={data ? `All facilities · PDPM residents on ${data.census_date}` : 'All facilities'} subtitle={subtitle}
+      title={`All facilities · ${breakdown.name}, PDPM residents on ${day}`} subtitle={subtitle}
       rows={facilityRows(data?.items ?? [])} columns={columns.slice(1)} getRowKey={row => row.key}
       getName={row => row.name} getPath={row => [row.path[0], row.path[1], row.path[2]]}
-      loading={loading} error={error} onRetry={() => setRetry(value => value + 1)}
-      csvFileName={`current-medicare-facilities-${data?.census_date ?? 'today'}.csv`} />
-    <StackedRankingChart loading={loading} error={error} onRetry={() => setRetry(value => value + 1)}
-      title={`${breakdown.name} by ${levels[depth].toLowerCase()}`} totalLabel="residents with a care code"
-      subtitle={data ? `PDPM residents with a care code on ${data.census_date} in each ${levels[depth].toLowerCase()}, `
-        + (breakdown.overlapping ? `with each ${breakdown.splitBy}, the most residents first; one resident `
-          + 'can have several. MAD is a mechanically altered diet, SD a swallowing disorder, '
-          + 'Comorbidity an SLP-related comorbidity.'
-          : `split by ${breakdown.splitBy}, the most residents first.`) : undefined}
-      // The KPI cards above key every colour, so the chart needs no legend.
-      hideLegend showValues series={breakdown.parts.map(([id, label, color]) => ({ id, label, color }))} items={ranking}
+      loading={loading} error={error} onRetry={retryLoad}
+      csvFileName={`current-medicare-${breakdown.slug}-facilities-${day}.csv`} />
+    <CategoryCharts<FacilityCategories> breakdown={breakdown} rows={rows} depth={depth} scopeName={scopeName}
+      unit={{ one: 'resident', many: 'residents' }}
+      population={`PDPM residents with a care code on ${data?.census_date ?? ''}`}
+      fileSuffix={day} loading={loading} error={error} onRetry={retryLoad}
       // A segment opens its residents: this location, this part, as the
       // Residents tab's "Category: part" filter names it.
-      onSegmentSelect={(label, partId) => {
-        const row = rows.find(group => group.name === label)
+      onSegmentSelect={(row, partId) => {
         const part = breakdown.parts.find(([field]) => field === partId)
-        if (row && part) onOpenResidents(row.path, `${categoryLabel}: ${part[1]}`)
-      }}
-      headerActions={<OpenViewButton kind="table" label="See in table view" onClick={() => setShowRankingTable(true)} />} />
-    <FullScreenModal open={showRankingTable} onClose={() => setShowRankingTable(false)} destroyOnHidden
-      title={`${breakdown.name} by ${levels[depth].toLowerCase()} · ${scopeName}`}>
-      <div className="net-change-daily-modal__table">
-        {/* The chart's numbers: the same locations, ranked by the same total. */}
-        <Table<Row> title={`${breakdown.name} by ${levels[depth].toLowerCase()}`}
-          subtitle={data ? `PDPM residents with a care code on ${data.census_date} in each ${levels[depth].toLowerCase()}, `
-            + (breakdown.overlapping ? `with each ${breakdown.splitBy}; one resident can have several.`
-              : `split by ${breakdown.splitBy}.`) : ''}
-          columns={[{ ...nameColumn, format: undefined }, ...categoryColumns,
-            { id: 'total', header: 'With care code', numeric: true, value: total,
-              format: value => typeof value === 'number' ? value.toLocaleString() : value }]}
-          rows={rows} getRowKey={row => row.key} initialSort={{ columnId: 'total', direction: 'descending' }}
-          internalScroll stickyFirstColumn loading={loading} error={error} onRetry={() => setRetry(value => value + 1)}
-          emptyMessage="No locations in this view."
-          csvFileName={`${breakdown.slug}-ranking-${data?.census_date ?? 'today'}.csv`} />
-      </div>
-    </FullScreenModal>
+        if (part) onOpenResidents(row.path, `${categoryLabel}: ${part[1]}`)
+      }} />
   </>
 }
 
-/** The PDPM categories, one at a time. The choice lives in the URL, so a link
- * or a refresh keeps it. */
+/** The PDPM categories, one at a time. */
 export function CategoryBreakdown() {
   const [params, setParams] = useReportSearchParams()
-  const selected = categories.find(category => category.id === params.get('category')) ?? categories[0]
+  const { selected, breakdown, control } = useCategoryControl()
   // The drilldown location, kept in the URL (one drill= per level, in order):
   // switching category keeps it -- drilled into Florida on Primary Diagnosis,
   // Nursing opens on Florida too -- and so does going to the Residents tab and
@@ -344,15 +341,6 @@ export function CategoryBreakdown() {
     updated.delete('all_facilities')
     setParams(updated)
   }
-  // The category buttons live in the drilldown bar, which is sticky, so they
-  // stay in reach however far the page scrolls.
-  const control = <SegmentedControl fullWidth separate tone="accent" label="PDPM category" options={categories} value={selected.id}
-    onChange={id => {
-      const next = new URLSearchParams(params)
-      if (id === categories[0].id) next.delete('category')
-      else next.set('category', id)
-      setParams(next)
-    }} />
   // One drilldown for every category, so switching between them keeps its
   // loaded data rather than fetching again.
   // The Residents tab reads its opening filters from residents_* parameters,
@@ -367,6 +355,6 @@ export function CategoryBreakdown() {
     next.set('residents_pdpm-category', part)
     setParams(next)
   }
-  return <CategoryDrilldown breakdown={breakdowns[selected.id]} categoryLabel={selected.label}
+  return <CategoryDrilldown breakdown={breakdown} categoryLabel={selected.label}
     onOpenResidents={openResidents} path={path} setPath={setPath} controls={control} />
 }

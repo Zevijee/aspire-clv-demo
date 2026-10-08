@@ -141,6 +141,12 @@ erDiagram
         String payer_type PK
     }
     facilities ||--o{ monthly_payer_census_facts : "facility_id"
+    monthly_pdpm_census_facts {
+        Date month_start PK
+        Uuid facility_id PK
+        String payer_type PK
+    }
+    facilities ||--o{ monthly_pdpm_census_facts : "facility_id"
     monthly_referral_facts {
         Date month_start PK
         String hospital PK
@@ -202,8 +208,8 @@ erDiagram
         Uuid payer_stay_id PK
     }
     facilities ||--o{ payer_change_logs : "facility_id"
-    payers ||--o{ payer_change_logs : "new_payer_id"
     payers ||--o{ payer_change_logs : "previous_payer_id"
+    payers ||--o{ payer_change_logs : "new_payer_id"
     res_payer_stays ||--o| payer_change_logs : "payer_stay_id"
     res_stays ||--o{ payer_change_logs : "stay_id"
     residents ||--o{ payer_change_logs : "resident_id"
@@ -665,6 +671,24 @@ Calendar-month rollup of daily_payer_census_facts for monthly trending. Flows ar
 - CHECK: `date_trunc('month', month_start) = month_start`
 - CHECK: `opening_census >= 0 AND closing_census >= 0 AND admissions >= 0 AND discharges >= 0 AND changes_in >= 0 AND changes_out >= 0`
 - INDEX `ix_monthly_payer_census_facts_facility`: facility_id, month_start
+
+## monthly_pdpm_census_facts
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| month_start | DATE | no | PK |  |  |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| payer_type | VARCHAR | no | PK |  |  |
+| resident_days | INTEGER | no |  |  |  |
+| actual_rates | NUMERIC(14, 2) | no |  |  |  |
+| factor_days | NUMERIC(12, 4) | no |  |  |  |
+
+- CHECK: `actual_rates > 0 AND factor_days > 0`
+- CHECK: `date_trunc('month', month_start) = month_start`
+- CHECK: `payer_type IN ('medicare', 'managed_medicare_pdpm')`
+- CHECK: `resident_days > 0`
 
 ## monthly_referral_facts
 

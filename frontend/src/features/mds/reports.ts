@@ -8,16 +8,22 @@ export const mdsReports: ReportDefinition[] = [
     title: 'Current Medicare PDPM',
   },
   {
+    description: 'Review Medicare PDPM stays in a date range: length of stay and actual against neutral rates and revenue.',
+    module: 'MDS',
+    path: '/mds/historical-medicare',
+    title: 'Historical Medicare PDPM',
+  },
+  {
+    description: 'Review Medicare PDPM residents and rates month by month.',
+    module: 'MDS',
+    path: '/mds/monthly-medicare',
+    title: 'Monthly Medicare PDPM Trending',
+  },
+  {
     description: 'Work through a resident\'s PDPM classification.',
     module: 'MDS',
     path: '/mds/pdpm-worksheet',
     title: 'PDPM Worksheet',
-  },
-  {
-    description: 'Review historical Medicare resident, assessment, and reimbursement trends.',
-    module: 'MDS',
-    path: '/mds/historical-medicare',
-    title: 'Historical Medicare',
   },
   {
     description: 'Review the current Medicaid resident census and assessment status.',

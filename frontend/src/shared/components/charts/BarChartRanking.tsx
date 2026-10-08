@@ -30,6 +30,10 @@ type BarChartRankingProps = DataStateProps & {
   // meaningful when the values add up to something, so it can be turned off.
   formatValue?: (value: number) => string
   showShare?: boolean
+  /** Bars normally start at zero. `fit` starts them just below the lowest
+   * value, for a level such as occupancy that differs by a few points on a
+   * large base, where zero would draw every bar the same length. */
+  baseline?: 'zero' | 'fit'
 }
 
 type RankingTooltipProps = {
@@ -72,11 +76,16 @@ export function BarChartRanking({
   clearLabel = 'Clear source filter',
   formatValue: axisFormat,
   showShare = true,
+  baseline = 'zero',
 }: BarChartRankingProps) {
   // Unique per chart: several rankings on one page each label their own section.
   const titleId = useId()
   const formatValue = axisFormat ?? ((value: number) => value.toLocaleString())
   const largestValue = Math.max(...items.map((item) => item.value), 1)
+  const smallestValue = Math.min(...items.map((item) => item.value), largestValue)
+  // As LineChart fits its bars: the shortest bar is about a third of the longest.
+  const lowestValue = baseline === 'fit'
+    ? Math.max(0, Math.floor(smallestValue - Math.max(1, (largestValue - smallestValue) / 2))) : 0
   const total = items.reduce((sum, item) => sum + item.value, 0)
 
   return (
@@ -114,7 +123,7 @@ export function BarChartRanking({
             />
             <XAxis
               axisLine={false}
-              domain={[0, largestValue]}
+              domain={[lowestValue, largestValue]}
               tick={{ fill: 'var(--color-chart-axis)', fontSize: 12 }}
               tickFormatter={axisFormat}
               tickLine={false}

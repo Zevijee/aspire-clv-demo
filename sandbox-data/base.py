@@ -74,10 +74,11 @@ class BaseGenerator(ABC):
         'summary_generators.aspire-monthly-adt',
         'summary_generators.aspire-referrals',
         'summary_generators.aspire-monthly-admissions',
+        'summary_generators.aspire-pdpm-census',
     )
     RUN_ORDER = ('states', 'portfolios', 'regions', 'facilities', 'payers',
         'payer_rates', 'facility_beds', 'referring_hospitals', 'admin_user', 'residents',
-        'res_stays', 'admission_logs', 'discharge_logs', 'payer_change_logs', 'census_logs', 'resident_summaries', 'bed_assignments',
+        'res_stays', 'admission_logs', 'discharge_logs', 'payer_change_logs', 'census_logs', 'pdpm_census_summary', 'resident_summaries', 'bed_assignments',
         'admissions_summary',
         'discharges_summary', 'payer_changes_summary', 'net_change_summary',
         'monthly_adt_summary', 'referrals_summary', 'monthly_adt_facts')

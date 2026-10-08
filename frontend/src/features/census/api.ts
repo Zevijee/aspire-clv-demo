@@ -14,15 +14,22 @@ export type FacilityCensus = {
   // Every resident, whatever payers are selected: empty beds come from this.
   all_census: number
   skilled_census: number
+  // The census day's movement on the selected payers: opening census plus
+  // admissions, less discharges, plus payer changes in, less out, is census.
+  opening_census: number
+  admissions: number
+  discharges: number
+  // Moves between payer types: with no payer filter, in equals out.
+  changes_in: number
+  changes_out: number
   // Census by payer type; types with no residents are omitted.
   payer_census: Record<string, number>
   // Every resident's daily rate summed by payer type. Sum these and the census
   // first, then divide once, so the average is weighted by residents.
   payer_daily_rates: Record<string, number>
-  // Census on each lookback day by its key; null when that day was never generated.
-  history: Record<string, number | null>
-  // Unrounded average daily census over the trailing year, or null if incomplete.
-  year_average: number | null
+  // Each average period's census days and skilled census days, by its key. Sum
+  // facilities first, then divide by the period's days once.
+  periods: Record<string, { census_days: number; skilled_days: number }>
   // Unrounded, so summing facilities gives the parent average exactly. Null when
   // the previous month is not completely generated.
   previous_average: number | null
@@ -34,9 +41,9 @@ export type LiveCensusReport = {
   census_date: string
   previous_month: string
   previous_month_days: number
-  lookback: { key: string; label: string; date: string }[]
-  year_start: string
-  year_end: string
+  // Last month, the last 6 months and the last year ending yesterday, and all
+  // time; `days` is the generated days each average divides by.
+  periods: { key: string; label: string; start: string; end: string; days: number }[]
   items: FacilityCensus[]
   data_status: { available_from: string | null; available_through: string | null; generated_at: string | null }
 }

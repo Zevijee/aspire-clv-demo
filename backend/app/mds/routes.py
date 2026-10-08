@@ -10,7 +10,7 @@ from ..auth.routes import require_user
 from ..database import DbConnection, DbWriteConnection
 from .schemas import CurrentMedicare
 from .service import current
-from . import categories, residents, worksheet
+from . import categories, historical, historical_residents, lookback, monthly, residents, worksheet
 
 router = APIRouter(prefix='/mds', tags=['MDS'])
 
@@ -30,6 +30,14 @@ def current_medicare_categories(request: Request, connection: DbConnection):
     """Every facility's PDPM residents on the latest census day, counted by PDPM
     category. Primary diagnosis is the PT/OT clinical category of the code."""
     return categories.categories(connection, today(request.app.state.settings.timezone))
+
+
+@router.get('/current-medicare/lookback', response_model=lookback.Lookback,
+    responses={409: {'model': ErrorResponse}})
+def current_medicare_lookback(request: Request, connection: DbConnection):
+    """Every facility's PDPM residents and summed actual and neutral rates on the
+    census day and on each look-back day, Daily Census's: yesterday to a year ago."""
+    return lookback.lookback(connection, today(request.app.state.settings.timezone))
 
 
 @router.get('/current-medicare/residents', response_model=residents.ResidentsPage,
@@ -57,6 +65,72 @@ def current_medicare_resident_export(request: Request,
     return StreamingResponse(residents.csv_chunks(request.app.state.database, query,
         today(request.app.state.settings.timezone)), media_type='text/csv',
         headers={'Content-Disposition': 'attachment; filename="current-medicare-residents.csv"'})
+
+
+@router.get('/historical-medicare', response_model=historical.HistoricalMedicare,
+    responses={409: {'model': ErrorResponse}})
+def historical_medicare(request: Request, connection: DbConnection,
+        query: Annotated[historical.HistoricalQuery, Query()]):
+    """Every facility's Medicare PDPM stays whose start -- or 5-day ARD, by
+    date_basis -- falls in the range, split Federal / Managed Medicare PDPM,
+    with summed Medicare days and actual and case-mix-neutral revenue for the
+    page to divide at any scope."""
+    return historical.historical(connection, query, today(request.app.state.settings.timezone))
+
+
+@router.get('/historical-medicare/daily', response_model=historical.DailyTrend,
+    responses={409: {'model': ErrorResponse}})
+def historical_medicare_daily(request: Request, connection: DbConnection,
+        query: Annotated[historical.DailyQuery, Query()]):
+    """PDPM census and summed neutral rate each day of the range, over the given
+    facilities or all of them, for the Overview's trend charts."""
+    return historical.daily(connection, query, today(request.app.state.settings.timezone))
+
+
+@router.get('/historical-medicare/residents', response_model=historical_residents.ResidentsPage,
+    responses={409: {'model': ErrorResponse}})
+def historical_medicare_residents(request: Request, connection: DbConnection,
+        query: Annotated[historical_residents.ResidentsQuery, Query()]):
+    """Every Medicare PDPM stay whose start -- or 5-day ARD -- falls in the range,
+    the stays the Overview counts, with its PDPM score, days and revenue."""
+    return historical_residents.page(connection, query, today(request.app.state.settings.timezone))
+
+
+@router.get('/historical-medicare/residents/filter-options')
+def historical_medicare_resident_options(request: Request, connection: DbConnection,
+        query: Annotated[historical_residents.FilterQuery, Query()]):
+    return historical_residents.options(connection, query, today(request.app.state.settings.timezone))
+
+
+@router.get('/historical-medicare/residents/export')
+def historical_medicare_resident_export(request: Request,
+        query: Annotated[historical_residents.ResidentsQuery, Query()]):
+    # Validate the sort before response headers are sent; the stream owns its DB
+    # connection so dependency cleanup cannot close it mid-download.
+    if not historical_residents.valid_sort(query):
+        raise ApiError('invalid_sort', 'Unsupported sort column.')
+    return StreamingResponse(historical_residents.csv_chunks(request.app.state.database, query,
+        today(request.app.state.settings.timezone)), media_type='text/csv',
+        headers={'Content-Disposition': 'attachment; filename="historical-medicare-pdpm-residents.csv"'})
+
+
+@router.get('/historical-medicare/categories', response_model=categories.Categories,
+    responses={409: {'model': ErrorResponse}})
+def historical_medicare_categories(request: Request, connection: DbConnection,
+        query: Annotated[historical.HistoricalQuery, Query()]):
+    """The same stays counted by PDPM category per facility, as Current Medicare
+    PDPM counts its residents; stays not yet coded are counted in no_score."""
+    return historical.categories(connection, query, today(request.app.state.settings.timezone))
+
+
+@router.get('/monthly-medicare', response_model=monthly.MonthlyMedicare,
+    responses={409: {'model': ErrorResponse}})
+def monthly_medicare(request: Request, connection: DbConnection,
+        query: Annotated[monthly.MonthlyQuery, Query()]):
+    """Every facility's PDPM resident-days and summed actual and neutral rates
+    in each month of the range, with each month's days, for the page to show
+    the average, highest and lowest month at any scope."""
+    return monthly.monthly(connection, query, today(request.app.state.settings.timezone))
 
 
 @router.get('/pdpm-worksheet/catalog')

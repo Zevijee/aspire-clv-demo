@@ -125,8 +125,16 @@ shows census days by calendar month, with the highest and lowest month, from
 **Current Medicare PDPM**, the first MDS report, counts today's PDPM residents --
 Federal Medicare and Managed Medicare PDPM; per diem contract residents are left
 out -- by PDPM category, drilled from state to facility, with a Residents tab
-listing each one, from `census_logs`, `pdpm_rate_logs` and `pdpm_assessments`.
-Primary diagnosis is the only category built so far.
+listing each one, from `census_logs`, `pdpm_rate_logs` and `pdpm_assessments`. Its Overview
+tab adds a card per location -- residents, neutral and actual rate today against
+last month's, the last 6 months', the last year's and the all-time average -- and its Category breakdown tab a table of
+the chosen category's parts.
+**Historical Medicare PDPM** counts the Medicare PDPM stays that started -- or
+whose 5-day ARD falls -- in a date range, drilled from state to facility. Its
+Overview tab shows stays, length of stay, census days and average daily census,
+and neutral against actual rates and revenue; its Category breakdown tab counts
+the same stays by PDPM category, one column per part of the chosen category; its
+Residents tab lists every one of those stays with its PDPM score, days and revenue.
 
 Measured response times on the full dataset, 30-day and 1-year ranges:
 

@@ -10,8 +10,8 @@ Every report in the navigation is complete end to end: Admissions, Discharges,
 Payer Changes, Net Change, Monthly ADT Trending, Referring Hospital, Daily Census,
 Census Trending, Bed Board, Monthly Census Trending and Residents. In MDS, Current
 Medicare has an Overview by PDPM category (Primary Diagnosis, PT/OT, SLP,
-Speech Comorbidity, Nursing, NTA and Depression, all built) and a Residents tab; the other four MDS
-reports are still placeholders.
+Speech Comorbidity, Nursing, NTA and Depression, all built) and a Residents tab; the PDPM Worksheet,
+Historical Medicare PDPM and Monthly Medicare PDPM Trending are built; the other three MDS reports are still placeholders.
 
 ## Dead frontend reports
 

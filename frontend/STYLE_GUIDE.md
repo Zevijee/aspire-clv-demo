@@ -37,6 +37,7 @@ Inspect these owners before adding another implementation. Paths and component n
 | Date/month selection | `ReportDateRangeFilter.tsx`, `ReportMonthRangeFilter.tsx` in the shared filters directory |
 | Side-filter drawer, when enabled | `src/shared/components/filters/TabFilterBar.tsx` |
 | KPI cards and explanations | `src/shared/components/Kpis.tsx`, `InfoDisclosure.tsx` |
+| A location's values now against past days or averages, one card per location at the drilldown level | `src/shared/components/LookbackCards.tsx` |
 | Loading, empty and retry presentation | `src/shared/components/DataState.tsx` |
 | Charts | `src/shared/components/charts/` including `LineChart` with bar variant, `DailyChangeChart`, `DonutChart`, rankings and diverging charts |
 | Equal-day trend grouping | `src/shared/utils/trendPeriods.ts` |
@@ -214,6 +215,22 @@ KPI markup that bypasses the shared owner. When a context needs a different
 layout or density, add an explicit shared variant. Change the default only
 intentionally, after reviewing affected callers; a new variant need not change
 every existing report.
+
+### Look-back cards
+
+Use the shared `LookbackCards` to compare a location's current values with past
+days or averages (Daily Census, Current Medicare PDPM). It draws one outer card
+with a `title`, holding a card per location at the drilldown level, two to a
+row, with the scope's own total card first when more than one location shows,
+always named Total (the breadcrumb says where you are), its name larger and in the orange accent (blue would read as a link). Names are plain text: the report's
+drilldown chooses the level, not the cards. Each card is a small table, a measure
+per row and a period per column, with the current value's change in brackets
+beside each past value, on a tinted background inside the white outer card. The
+location's name sits above its card, and the table fills the card edge to edge. A report supplies `rows`, `total`, `periods` and `measures`. Each
+measure gives its `value` at a row's scope, summed over its facilities and
+divided once, plus `format`, an optional `formatChange` (percentage points for a
+percentage), a rounding `step` and its `favorable` direction. The component owns
+layout, alignment and change colours; do not restyle it from a feature.
 
 ### Metric explanations
 

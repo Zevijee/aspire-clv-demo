@@ -132,6 +132,9 @@ export type FacilityCategories = {
 
 export type CategoriesReport = { census_date: string; items: FacilityCategories[] }
 
+/** A facility's PDPM category counts alone, whichever residents or stays they count. */
+export type CategoryCounts = Omit<FacilityCategories, 'facility_id' | 'facility_name' | 'state' | 'portfolio' | 'region'>
+
 export function getMedicareCategories(signal?: AbortSignal) {
   return readJson<CategoriesReport>(`${base}/api/v1/mds/current-medicare/categories`, signal)
 }
@@ -163,6 +166,186 @@ export type CurrentMedicareReport = {
 
 export function getCurrentMedicare(signal?: AbortSignal) {
   return readJson<CurrentMedicareReport>(`${base}/api/v1/mds/current-medicare`, signal)
+}
+
+export type FacilityHistorical = {
+  facility_id: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  // Medicare PDPM stays whose start (or ARD) falls in the range: Original
+  // Medicare, and Medicare Advantage on a PDPM contract.
+  federal: number
+  managed: number
+  // Sums, never averages: add them up for a scope, then divide once -- days by
+  // stays for length of stay, revenue by days for a rate.
+  medicare_days: number
+  actual_revenue: number
+  neutral_revenue: number
+  // Days inside the range a PDPM resident was in a bed, whenever their stay
+  // began; the date basis does not change them.
+  census_days: number
+}
+
+export type HistoricalMedicareReport = {
+  start_date: string
+  end_date: string
+  date_basis: 'start' | 'ard'
+  // Stays still running are counted through this day.
+  census_date: string
+  // Days in the range with census data: average daily census divides by these.
+  census_range_days: number
+  neutral_per_diem: number
+  items: FacilityHistorical[]
+}
+
+/** Medicare PDPM stays whose start, or ARD, falls from startDate to endDate, per facility. */
+export function getHistoricalMedicare(startDate: string, endDate: string, dateBasis: 'start' | 'ard',
+    signal?: AbortSignal) {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate, date_basis: dateBasis })
+  return readJson<HistoricalMedicareReport>(`${base}/api/v1/mds/historical-medicare?${params}`, signal)
+}
+
+// PDPM residents and their daily rates over a period, summed: divide at any scope.
+export type MedicarePeriodTotals = { resident_days: number; actual_rates: number; neutral_rates: number }
+
+export type FacilityLookback = {
+  facility_id: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  // Today and each average period, by key.
+  periods: Record<string, MedicarePeriodTotals>
+}
+
+export type MedicareLookbackReport = {
+  census_date: string
+  // Today first, then last month, the last 6 months, the last year and all time.
+  // days is the generated days in each: the average daily census divides by it.
+  periods: { key: string; label: string; start: string; end: string; days: number }[]
+  items: FacilityLookback[]
+}
+
+export function getMedicareLookback(signal?: AbortSignal) {
+  return readJson<MedicareLookbackReport>(`${medicareBase}/lookback`, signal)
+}
+
+export type MonthTotals = { resident_days: number; actual_rates: number; neutral_rates: number }
+
+export type FacilityMonthly = {
+  facility_id: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  // Each month with PDPM residents, keyed by its first day; a missing month is zero.
+  months: Record<string, MonthTotals>
+}
+
+export type MonthlyMedicareReport = {
+  census_date: string
+  // Every month of the range with census, oldest first; days is what its
+  // average daily census divides by.
+  months: { month: string; days: number }[]
+  items: FacilityMonthly[]
+}
+
+/** Months are YYYY-MM, inclusive. */
+export function getMonthlyMedicare(startMonth: string, endMonth: string, signal?: AbortSignal) {
+  const params = new URLSearchParams({ start_month: startMonth, end_month: endMonth })
+  return readJson<MonthlyMedicareReport>(`${base}/api/v1/mds/monthly-medicare?${params}`, signal)
+}
+
+export type HistoricalDailyTrend = {
+  census_date: string
+  // Every day of the range through the census day.
+  // Rates and days since admission are summed over the day's residents:
+  // divide by census for the day's averages.
+  days: { date: string; census: number; neutral_rates: number; actual_rates: number; stay_days: number }[]
+}
+
+/** PDPM census and summed neutral rate each day of the range, over the given
+ * facilities, or all of them when the list is empty. */
+export function getHistoricalDaily(startDate: string, endDate: string, facilityIds: string[], signal?: AbortSignal) {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate })
+  facilityIds.forEach(id => params.append('facility_ids', id))
+  return readJson<HistoricalDailyTrend>(`${base}/api/v1/mds/historical-medicare/daily?${params}`, signal)
+}
+
+const historicalBase = `${base}/api/v1/mds/historical-medicare`
+
+/** One Medicare PDPM stay in the range, as Historical Medicare PDPM counts it. */
+export type HistoricalResident = {
+  payer_stay_id: string
+  resident_name: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  // Federal Medicare or Managed Medicare PDPM.
+  payer_label: string
+  payer_name: string
+  // First day of this Medicare payer period.
+  medicare_start: string
+  // The 5-day assessment's reference date; null until it is coded.
+  ard: string | null
+  // Yes while this Medicare stay is still running on the census day.
+  active: 'Yes' | 'No'
+  // Days on this Medicare stay, through its end or the census day.
+  medicare_days: number
+  // Four-letter PDPM code, or "Missing care code" until it is coded.
+  pdpm_score: string
+  // Revenue per Medicare day, at the actual and the neutral rate.
+  average_rate: number
+  neutral_rate: number
+  total_revenue: number
+  neutral_revenue: number
+}
+
+export type HistoricalResidentsPage = {
+  items: HistoricalResident[]; total: number; limit: number; offset: number; census_date: string
+}
+
+function historicalResidentParameters(startDate: string, endDate: string, dateBasis: 'start' | 'ard',
+    query: MedicareResidentsQuery, offset = 0) {
+  return new URLSearchParams({ start_date: startDate, end_date: endDate, date_basis: dateBasis,
+    limit: '50', offset: String(offset), filters: JSON.stringify(query.filters), search: query.search?.trim() ?? '',
+    sort: query.sort?.columnId ?? 'resident', direction: query.sort?.direction === 'descending' ? 'desc' : 'asc' })
+}
+
+export function getHistoricalResidents(startDate: string, endDate: string, dateBasis: 'start' | 'ard',
+    offset: number, query: MedicareResidentsQuery, signal?: AbortSignal) {
+  return readJson<HistoricalResidentsPage>(
+    `${historicalBase}/residents?${historicalResidentParameters(startDate, endDate, dateBasis, query, offset)}`, signal)
+}
+
+/** The filter-options endpoint for one date basis, so menus match the table. */
+export const historicalResidentFilterOptions = (dateBasis: 'start' | 'ard') =>
+  `${historicalBase}/residents/filter-options?${new URLSearchParams({ date_basis: dateBasis })}`
+
+export async function downloadHistoricalResidents(startDate: string, endDate: string, dateBasis: 'start' | 'ard',
+    query: MedicareResidentsQuery) {
+  const response = await authorizedFetch(
+    `${historicalBase}/residents/export?${historicalResidentParameters(startDate, endDate, dateBasis, query)}`)
+  if (!response.ok) throw new Error('Resident export could not complete.')
+  const url = URL.createObjectURL(await response.blob())
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `historical-medicare-pdpm-residents-${startDate}-to-${endDate}-by-${dateBasis}.csv`
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+/** Medicare PDPM stays whose start, or 5-day ARD, falls from startDate to endDate,
+ * counted by PDPM category per facility. Stays not yet coded are in no_score. */
+export function getHistoricalCategories(startDate: string, endDate: string, dateBasis: 'start' | 'ard',
+    signal?: AbortSignal) {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate, date_basis: dateBasis })
+  return readJson<CategoriesReport>(`${base}/api/v1/mds/historical-medicare/categories?${params}`, signal)
 }
 
 /** A facility's PDPM residents and rates with their category counts. */

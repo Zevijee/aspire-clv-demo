@@ -114,6 +114,7 @@ list it in `SHARED_RULES` there, or a change to that file goes unnoticed.
 | Payer daily rates | `payer_rates --regenerate`, ~3 s, then `census_logs --regenerate` |
 | Care levels, PDPM steps and codes, who was in a bed when | `census_logs --regenerate`, ~1 min |
 | Per-resident totals for the Residents report | `resident_summaries --regenerate`, ~3 s |
+| Monthly PDPM resident-days and rates for Current Medicare PDPM's averages | `pdpm_census_summary --regenerate`, ~5 s |
 | Room layout (wings, rooms, private share) | `facility_beds --regenerate`, ~2 s, then `bed_assignments --regenerate` |
 | Who sleeps in which bed | `bed_assignments --regenerate`, ~36 s |
 | New additive measure on a fact table | Column, backfill, `admissions_summary --regenerate` |
@@ -145,6 +146,7 @@ python manage.py referring_hospitals --regenerate     # the 384-hospital catalog
 python manage.py payer_rates --regenerate             # daily rate per facility and payer plan
 python manage.py census_logs --regenerate             # who was in a bed, care level, PDPM rates; ~1 min
 python manage.py resident_summaries --regenerate      # every resident's totals across stays; ~3 s
+python manage.py pdpm_census_summary --regenerate     # PDPM resident-days and rates by month; ~5 s
 python manage.py facility_beds --regenerate           # wings, rooms and beds per facility; ~2 s
 python manage.py bed_assignments --regenerate         # which stay was in which bed; ~36 s
 python manage.py admission_logs --regenerate    # rebuild one table from saved stays

@@ -53,6 +53,7 @@ From `sandbox-data`:
 | `python manage.py payer_rates --regenerate` | Rebuild the daily rate per facility and payer plan. ~3 s. |
 | `python manage.py census_logs --regenerate` | Rebuild who was in a bed, at what care level and rate, and every Medicare period's PDPM code, for all history. ~1 min. |
 | `python manage.py resident_summaries --regenerate` | Rebuild every resident's totals across their stays. ~3 s. |
+| `python manage.py pdpm_census_summary --regenerate` | Roll the PDPM rate steps up into resident-days, rates and day factors per facility, month and Medicare payer type, for Current Medicare PDPM's averages. Rebuilt whole after `census_logs` on every update. ~5 s. |
 | `python manage.py facility_beds --regenerate` | Rebuild each facility's wings, rooms and beds from its bed count. ~2 s. Follow with `bed_assignments`. |
 | `python manage.py bed_assignments --regenerate` | Replay every stay into a bed, keeping semi-private rooms single-gender where possible. ~36 s. |
 | `python manage.py referrals_summary --regenerate` | Roll the daily facts up into referral months. ~1 s. |

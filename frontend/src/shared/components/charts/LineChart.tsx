@@ -30,17 +30,22 @@ type LineChartProps = DataStateProps & {
   variant?: 'line' | 'bar'
   height?: number
   barColor?: string
+  /** The line variant's colour, a chart series token; the primary series by default. */
+  lineColor?: string
   interval?: 'day' | 'month'
   showDailyAverage?: boolean
   headerActions?: ReactNode
   onSelect?: (item: LineChartItem) => void
+  /** How a value reads on the axis and in the tooltip, such as a currency.
+   * Without it the axis shows plain numbers and the tooltip grouped ones. */
+  formatValue?: (value: number) => string
   /** Bars normally start at zero. `fit` starts them just below the lowest
    * value, for a level such as census that moves a few points on a large
    * base, where zero would flatten every bar to the same height. */
   baseline?: 'zero' | 'fit'
 }
 
-export function LineChart({ items, title, subtitle, loading, error, onRetry, signed = false, valueLabel = 'Admissions', variant = 'line', height, barColor = 'var(--color-table-change-favorable)', interval = 'day', showDailyAverage = false, headerActions, onSelect, baseline = 'zero' }: LineChartProps) {
+export function LineChart({ items, title, subtitle, loading, error, onRetry, signed = false, valueLabel = 'Admissions', variant = 'line', height, barColor = 'var(--color-table-change-favorable)', lineColor = 'var(--color-chart-series-primary)', interval = 'day', showDailyAverage = false, headerActions, onSelect, baseline = 'zero', formatValue }: LineChartProps) {
   const Chart = variant === 'bar' ? BarChart : RechartsLineChart
   const values = items.map((item) => item.value)
   const minimumValue = Math.min(...(values.length ? values : [0]))
@@ -97,6 +102,7 @@ export function LineChart({ items, title, subtitle, loading, error, onRetry, sig
               axisLine={false}
               domain={yAxisDomain}
               tick={{ fill: 'var(--color-chart-axis)', fontSize: 10 }}
+              tickFormatter={formatValue}
               tickLine={false}
               width={52}
             />
@@ -110,7 +116,7 @@ export function LineChart({ items, title, subtitle, loading, error, onRetry, sig
               return <div className="daily-change-tooltip">
                 <p className="daily-change-tooltip__date">{dates} ({days} {days === 1 ? 'day' : 'days'})</p>
                 <dl className="daily-change-tooltip__metrics"><div>
-                  <dt>{valueLabel}</dt><dd>{item.value.toLocaleString()}</dd>
+                  <dt>{valueLabel}</dt><dd>{formatValue ? formatValue(item.value) : item.value.toLocaleString()}</dd>
                 </div>
                   {showDailyAverage && <div><dt>Average per day</dt>
                     <dd>{(item.value / days).toLocaleString(undefined, { maximumFractionDigits: 1 })}</dd>
@@ -129,7 +135,7 @@ export function LineChart({ items, title, subtitle, loading, error, onRetry, sig
               dataKey="value"
               dot={false}
               name={valueLabel}
-              stroke="var(--color-chart-series-primary)"
+              stroke={lineColor}
               strokeWidth={2.5}
               type="monotone"
             />}

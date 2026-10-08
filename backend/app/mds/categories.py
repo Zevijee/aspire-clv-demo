@@ -148,6 +148,16 @@ def categories(connection: Connection, today: date):
     census_date = census_day(connection, today)
     day = literal(census_date, Date)
     current = _current(day)
+    return dict(census_date=census_date,
+        items=by_facility(connection, current, day, day - current.c.admission_date))
+
+
+def by_facility(connection: Connection, stays, day, days):
+    """Every facility's stays counted by PDPM category. stays is any selectable
+    with facility_id and payer_stay_id, one row per Medicare stay; a stay counts
+    in the categories once its code is available on day, and in no_score, with
+    its days summed into no_score_days, before. Historical Medicare PDPM counts
+    its date range's stays with the same rules."""
     letter = func.substr(assessments.c.pdpm_code, 1, 1)
     slp_letter = func.substr(assessments.c.pdpm_code, 2, 1)
     diagnosis_of = {code: field for field, letters in PRIMARY_DIAGNOSIS.items() for code in letters}
@@ -165,16 +175,16 @@ def categories(connection: Connection, today: date):
     nta_letter = func.substr(assessments.c.pdpm_code, 4, 1)
     nursing_letter = func.substr(assessments.c.pdpm_code, 3, 1)
     for facility_id, code, slp_code, residents, days, *flagged in connection.execute(select(
-                current.c.facility_id, letter, slp_letter, func.count(), func.sum(day - current.c.admission_date),
+                stays.c.facility_id, letter, slp_letter, func.count(), func.sum(days),
                 *(func.count().filter(score.between(low, high)) for low, high in NURSING.values()),
                 *(func.count().filter(nta_letter == code) for code in NTA.values()),
                 func.count().filter(assessments.c.depression),
                 *(func.count().filter(flag) for flag in SPEECH.values()),
                 # Last, so the counts before keep their places.
                 *(func.count().filter(nursing_letter.in_(list(letters))) for letters in NURSING_CATEGORY.values()))
-            .select_from(current.outerjoin(assessments, and_(
-                assessments.c.payer_stay_id == current.c.payer_stay_id, assessments.c.coded_date <= day)))
-            .group_by(current.c.facility_id, letter, slp_letter)):
+            .select_from(stays.outerjoin(assessments, and_(
+                assessments.c.payer_stay_id == stays.c.payer_stay_id, assessments.c.coded_date <= day)))
+            .group_by(stays.c.facility_id, letter, slp_letter)):
         facility = counts.setdefault(facility_id, empty())
         if code is None:
             facility['no_score'] += residents
@@ -198,9 +208,8 @@ def categories(connection: Connection, today: date):
         facility['pt_ot'][PT_OT[(ord(code) - ord('A')) % 4]] += residents
         facility['slp'][SLP[ord(slp_code) - ord('A')]] += residents
     # Every facility, so one with no PDPM residents reads as zeros in its parent.
-    items = [dict(facility_id=str(location['facility_id']), facility_name=location['facility_name'],
+    return sorted([dict(facility_id=str(location['facility_id']), facility_name=location['facility_name'],
             state=location['state'], portfolio=location['portfolio_name'], region=location['region_name'],
             **counts.get(location['facility_id'], empty()))
-        for location in connection.execute(facility_locations(LocationSelection())).mappings()]
-    return dict(census_date=census_date, items=sorted(items,
-        key=lambda item: (item['state'], item['portfolio'], item['region'], item['facility_name'])))
+        for location in connection.execute(facility_locations(LocationSelection())).mappings()],
+        key=lambda item: (item['state'], item['portfolio'], item['region'], item['facility_name']))

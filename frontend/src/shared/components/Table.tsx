@@ -38,6 +38,10 @@ export type TableColumn<Row> = {
   /** Optional CSV text when the displayed value includes meaningful status. */
   exportValue?: (row: Row) => SortValue
   header: string
+  /** A colour token for a small square before the header, when the column
+   * stands for a series a chart beside the table draws in that colour: the
+   * header then keys the chart, and the chart needs no legend of its own. */
+  marker?: string
   id: string
   initialSortDirection?: SortDirection
   isRowHeader?: boolean
@@ -291,7 +295,7 @@ function NumericFilterControls({ filter, message, onApply, onClear }: NumericFil
   )
 }
 
-function DownloadIcon() {
+export function DownloadIcon() {
   return (
     <svg aria-hidden="true" className="report-table__export-icon" fill="none" viewBox="0 0 24 24">
       <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" />
@@ -886,11 +890,13 @@ export function Table<Row>({
                           }}
                           type="button"
                         >
-                          <span>{column.header}</span>
+                          <span>{column.marker && <span aria-hidden="true" className="report-table__column-marker"
+                            style={{ background: column.marker }} />}{column.header}</span>
                           <SortIcon direction={direction} />
                         </button>
                       ) : (
-                        <span className="report-table__column-label">{column.header}</span>
+                        <span className="report-table__column-label">{column.marker && <span aria-hidden="true"
+                          className="report-table__column-marker" style={{ background: column.marker }} />}{column.header}</span>
                       )}
                       {isFilterable && (
                         <div

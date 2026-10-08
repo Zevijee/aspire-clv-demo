@@ -5,7 +5,11 @@ type split is what makes skilled census answerable; adt_daily_census has the
 facility total only.
 
 Census is a level, not a flow. Today's census is one day's closing census, never
-a sum over days. Last month's average is the sum of every day's closing census
+a sum over days. The look-back averages divide census days -- closing census
+summed over a period's days -- by its generated days, whole months from
+monthly_payer_census_facts and only the days at the edges from the daily table.
+Measured equal: the rollup's census_days matches the daily closing census summed
+in all 85,609 month, facility and payer rows. Last month's average is the sum of every day's closing census
 divided once by the days in the month -- per facility here, and because every
 facility shares the same denominator, summing facility averages gives the parent
 average exactly. Parent scopes are never stored.
@@ -13,28 +17,24 @@ average exactly. Parent scopes are never stored.
 from calendar import monthrange
 from datetime import date, timedelta
 
-from sqlalchemy import and_, func, select, true
+from sqlalchemy import and_, func, or_, select, true
 from sqlalchemy.engine import Connection
 
 from shared.database.schema import (
-    census_logs, daily_payer_census_facts as facts, daily_runs, payers, pdpm_rate_logs as pdpm)
+    census_logs, daily_payer_census_facts as facts, daily_runs, monthly_payer_census_facts as months, payers,
+    pdpm_rate_logs as pdpm)
+from ..common.dates import rollup_plan
 from ..common.errors import ApiError
 from ..common.locations import LocationSelection, facility_locations
 
 GENERATOR = 'net_change_summary'
+# The monthly rollup's generator, whose checkpoint says how far it has been built.
+ROLLUP = 'monthly_adt_summary'
 
 
-# The history lookback: each column's key, label and distance back from the
-# census day. Months are calendar months, so "3 months ago" from 31 May is 28 Feb.
-LOOKBACK = (
-    ('yesterday', 'Yesterday', dict(days=1)),
-    ('week', '1 week ago', dict(days=7)),
-    ('month', '1 month ago', dict(months=1)),
-    ('month_3', '3 months ago', dict(months=3)),
-    ('month_6', '6 months ago', dict(months=6)),
-    ('month_9', '9 months ago', dict(months=9)),
-    ('year', '1 year ago', dict(months=12)),
-)
+# The census day's movement, from daily_payer_census_facts: opening census, then
+# the flows that take it to the closing census.
+FLOWS = ('opening_census', 'admissions', 'discharges', 'changes_in', 'changes_out')
 
 
 def _back(day, days=0, months=0):
@@ -48,6 +48,21 @@ def _back(day, days=0, months=0):
 def _previous_month(day):
     end = day.replace(day=1) - timedelta(days=1)
     return end.replace(day=1), end
+
+
+def _periods(census_date, first):
+    """The averages census is compared with, as Current Medicare PDPM's: last
+    month is the previous calendar month, and the trailing periods end
+    yesterday -- 6 and 12 calendar months back from the census day -- so today
+    is never inside an average it is compared with. All time runs from the first
+    generated day. Never before it, and never an empty period."""
+    yesterday = census_date - timedelta(days=1)
+    month_start, month_end = _previous_month(census_date)
+    spans = [('month', 'Last month avg.', month_start, month_end),
+        ('month_6', 'Last 6 months avg.', _back(census_date, months=6), yesterday),
+        ('year', 'Last year avg.', _back(census_date, months=12), yesterday),
+        ('all_time', 'All time avg.', first, yesterday)]
+    return [(key, label, max(start, first), end) for key, label, start, end in spans if end >= max(start, first)]
 
 
 def live(connection: Connection, today: date, payer_types: list[str] | None = None):
@@ -73,15 +88,10 @@ def live(connection: Connection, today: date, payer_types: list[str] | None = No
         daily_runs.c.simulation_date.between(month_start, month_end)))
     month_complete = covered == month_days
 
-    lookback = [dict(key=key, label=label, date=_back(census_date, **distance))
-        for key, label, distance in LOOKBACK]
-    # The trailing year: the 12 months up to and including yesterday.
-    year_start, year_end = _back(census_date, months=12), census_date - timedelta(days=1)
-    year_days = (year_end - year_start).days + 1
-    generated = set(connection.scalars(select(daily_runs.c.simulation_date).where(
-        daily_runs.c.generator == GENERATOR,
-        daily_runs.c.simulation_date.between(year_start, census_date))))
-    year_complete = sum(day <= year_end for day in generated) == year_days
+    spans = _periods(census_date, first)
+    generated = dict(connection.execute(select(*(
+        func.count().filter(daily_runs.c.simulation_date.between(start, end)).label(key)
+        for key, _, start, end in spans)).where(daily_runs.c.generator == GENERATOR)).one()._mapping)
 
     # A short list read once, so the aggregate below filters on literals rather
     # than joining payers on every fact row.
@@ -92,22 +102,63 @@ def live(connection: Connection, today: date, payer_types: list[str] | None = No
     month_rows = facts.c.summary_date.between(month_start, month_end)
     closing = facts.c.closing_census
 
-    # One scan of the trailing year answers everything: last month and every
-    # lookback day fall inside it. Measured: 205ms as three separate reads.
-    year_rows = facts.c.summary_date.between(year_start, year_end)
+    # One scan answers today and last month.
     chosen = facts.c.payer_type.in_(payer_types) if payer_types else true()
     totals = {row['facility_id']: row for row in connection.execute(select(
         facts.c.facility_id,
         func.coalesce(func.sum(closing).filter(today_rows), 0).label('all_census'),
         func.coalesce(func.sum(closing).filter(and_(today_rows, chosen)), 0).label('census'),
         func.coalesce(func.sum(closing).filter(and_(today_rows, skilled, chosen)), 0).label('skilled_census'),
+        # The census day's movement on the selected payers: opening plus the
+        # flows is the closing census above, the same identity Net Change reads.
+        *(func.coalesce(func.sum(facts.c[flow]).filter(and_(today_rows, chosen)), 0).label(flow)
+            for flow in FLOWS),
         func.coalesce(func.sum(closing).filter(and_(month_rows, chosen)), 0).label('month_census_days'),
-        func.coalesce(func.sum(closing).filter(and_(month_rows, skilled, chosen)), 0).label('month_skilled_days'),
-        func.coalesce(func.sum(closing).filter(and_(year_rows, chosen)), 0).label('year_census_days'),
-        *(func.coalesce(func.sum(closing).filter(and_(facts.c.summary_date == entry['date'], chosen)), 0)
-            .label(f"history_{entry['key']}") for entry in lookback))
-        .where(facts.c.summary_date.between(min(year_start, month_start), census_date))
+        func.coalesce(func.sum(closing).filter(and_(month_rows, skilled, chosen)), 0).label('month_skilled_days'))
+        .where(facts.c.summary_date.between(month_start, census_date))
         .group_by(facts.c.facility_id)).mappings()}
+
+    # The averages' census days: whole months from the monthly rollup, and only
+    # the days at a period's edges from the daily facts (see rollup_plan). The
+    # rollup must reach yesterday, the last day any period holds.
+    built = connection.scalar(select(func.max(daily_runs.c.simulation_date))
+        .where(daily_runs.c.generator == ROLLUP))
+    if spans and (built is None or built < census_date - timedelta(days=1)):
+        raise ApiError('summary_unavailable', 'Monthly census facts are behind the daily census. '
+            'Run the seeder update.', 409)
+    plan = {key: rollup_plan(start, end, built) for key, _, start, end in spans}
+    period_days = {}
+
+    def add(facility_id, key, census_days, skilled_days):
+        entry = period_days.setdefault(facility_id, {}).setdefault(key, [0, 0])
+        entry[0] += int(census_days or 0)
+        entry[1] += int(skilled_days or 0)
+
+    whole = [(key, span) for key, (span, _) in plan.items() if span]
+    if whole:
+        month_chosen = months.c.payer_type.in_(payer_types) if payer_types else true()
+        month_skilled = months.c.payer_type.in_(skilled_types)
+        for row in connection.execute(select(months.c.facility_id, *(
+                func.sum(months.c.census_days).filter(and_(months.c.month_start.between(*span), month_chosen, *extra))
+                    .label(f'{key}_{name}')
+                for key, span in whole for name, extra in (('census', ()), ('skilled', (month_skilled,)))))
+                .group_by(months.c.facility_id)).mappings():
+            for key, _ in whole:
+                add(row['facility_id'], key, row[f'{key}_census'], row[f'{key}_skilled'])
+
+    edges = {key: ranges for key, (_, ranges) in plan.items() if ranges}
+    if edges:
+        # Each range's sum, signed: days taken away from a rollup month count negative.
+        columns = [sum((sign * func.coalesce(func.sum(closing).filter(and_(
+                facts.c.summary_date.between(start, end), chosen, *extra)), 0)
+                for sign, start, end in ranges)).label(f'{key}_{name}')
+            for key, ranges in edges.items() for name, extra in (('census', ()), ('skilled', (skilled,)))]
+        windows = sorted({(start, end) for ranges in edges.values() for _, start, end in ranges})
+        for row in connection.execute(select(facts.c.facility_id, *columns)
+                .where(or_(*(facts.c.summary_date.between(start, end) for start, end in windows)))
+                .group_by(facts.c.facility_id)).mappings():
+            for key in edges:
+                add(row['facility_id'], key, row[f'{key}_census'], row[f'{key}_skilled'])
 
     # The payer mix is the same census split by payer type. Kept per facility so
     # the report can sum it for whatever scope is drilled into.
@@ -144,13 +195,11 @@ def live(connection: Connection, today: date, payer_types: list[str] | None = No
             region=location['region_name'], capacity=location['beds'],
             census=row.get('census', 0), all_census=row.get('all_census', 0),
             skilled_census=row.get('skilled_census', 0),
+            **{flow: row.get(flow, 0) for flow in FLOWS},
             payer_census=payer_census.get(location['facility_id'], {}),
             payer_daily_rates=daily_rates.get(location['facility_id'], {}),
-            # A day never generated reads as null rather than zero.
-            history={entry['key']: row.get(f"history_{entry['key']}", 0)
-                if entry['date'] in generated else None for entry in lookback},
-            year_average=(row.get('year_census_days', 0) / year_days
-                if year_complete else None),
+            periods={key: dict(zip(('census_days', 'skilled_days'),
+                period_days.get(location['facility_id'], {}).get(key, (0, 0)))) for key, _, _, _ in spans},
             previous_average=(row.get('month_census_days', 0) / month_days
                 if month_complete else None),
             previous_skilled_average=(row.get('month_skilled_days', 0) / month_days
@@ -158,7 +207,8 @@ def live(connection: Connection, today: date, payer_types: list[str] | None = No
 
     return dict(as_of=today, census_date=census_date, previous_month=month_start,
         previous_month_days=month_days,
-        lookback=lookback, year_start=year_start, year_end=year_end,
+        periods=[dict(key=key, label=label, start=start, end=end, days=generated[key])
+            for key, label, start, end in spans],
         items=sorted(items, key=lambda item: (item['state'], item['portfolio'],
             item['region'], item['facility_name'])),
         data_status=dict(available_from=first, available_through=last, generated_at=generated_at))

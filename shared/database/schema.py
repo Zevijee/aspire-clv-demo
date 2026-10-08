@@ -751,6 +751,40 @@ monthly_referral_facts = Table('monthly_referral_facts', metadata,
     Index('ix_monthly_referral_facts_hospital', 'hospital', 'month_start'),
 )
 
+monthly_pdpm_census_facts = Table('monthly_pdpm_census_facts', metadata,
+    # A calendar-month rollup of pdpm_rate_logs for the PDPM residents Current
+    # Medicare PDPM counts: Original Medicare and Managed Medicare PDPM on a PDPM
+    # contract. Its Overview compares today with last month's, the last 6 and 12
+    # months' and the all-time average, which from the rate steps alone read all
+    # 924,406 Medicare steps on every load: 1.1 s. 24,613 rows here, 2.7% of them.
+    #
+    # Flows, not census: each column sums resident-days, so any set of months
+    # adds up and an average divides once. The API reads whole months here and
+    # only the partial edge days of a trailing period from the steps.
+    #
+    # Rebuilt whole after census_logs on every update, because census_logs and its
+    # steps are: payer periods are edited after the fact, so any month may change.
+    Column('month_start', Date, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    # medicare or managed_medicare_pdpm. Two values, so the type grain costs a
+    # factor of two on a table this small and keeps the report's Federal / Managed
+    # split available.
+    Column('payer_type', String, nullable=False),
+    # PDPM residents in a bed, summed over the month's days.
+    Column('resident_days', Integer, nullable=False),
+    # Each day's PDPM rate, summed over the same days.
+    Column('actual_rates', Numeric(14, 2), nullable=False),
+    # Each day's PDPM day factor, summed. The neutral rate is the national per
+    # diem times it, applied at read time, so a change of per diem rebuilds
+    # nothing.
+    Column('factor_days', Numeric(12, 4), nullable=False),
+    PrimaryKeyConstraint('month_start', 'facility_id', 'payer_type'),
+    CheckConstraint('resident_days > 0'),
+    CheckConstraint('actual_rates > 0 AND factor_days > 0'),
+    CheckConstraint("payer_type IN ('medicare', 'managed_medicare_pdpm')"),
+    CheckConstraint("date_trunc('month', month_start) = month_start"),
+)
+
 daily_runs = Table('sandbox_daily_runs', metadata,
     Column('generator', String, primary_key=True),
     Column('simulation_date', Date, primary_key=True),

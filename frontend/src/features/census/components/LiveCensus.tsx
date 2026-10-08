@@ -5,18 +5,19 @@ import { DrilldownNavigation } from '../../../shared/components/DrilldownNavigat
 import { groupLocations, useLocationView } from '../../../shared/customGrouping'
 import type { TableColumn } from '../../../shared/components/Table'
 import { DonutChart } from '../../../shared/components/charts/DonutChart'
-import { BarChartRanking } from '../../../shared/components/charts/BarChartRanking'
+import { LineChart } from '../../../shared/components/charts/LineChart'
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { payerCode, payerLabel } from '../../adt/api/admissionsOverview'
 import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
-import { tableChange } from '../../../shared/utils/tableChange'
-import { getLiveCensus, type FacilityCensus, type LiveCensusReport } from '../api'
+import { LookbackCards, type LookbackMeasure, type LookbackPeriod } from '../../../shared/components/LookbackCards'
+import { getCensusTrendingDaily, getLiveCensus, type CensusDailyTrend, type FacilityCensus, type LiveCensusReport } from '../api'
 
 type Row = { key: string; name: string; path: string[]; facilities: FacilityCensus[]; isTotal?: boolean }
-type Summed = 'census' | 'all_census' | 'capacity' | 'skilled_census' | 'previous_average' | 'previous_skilled_average'
+type Summed = 'census' | 'all_census' | 'capacity' | 'skilled_census' | 'opening_census' | 'admissions'
+  | 'discharges' | 'changes_in' | 'changes_out'
 const levels = ['State', 'Portfolio', 'Region', 'Facility']
 function location(row: FacilityCensus) { return [row.state, row.portfolio, row.region, row.facility_name] }
 
@@ -34,48 +35,28 @@ function metric(row: Row, field: string): number | null {
   if (field === 'empty') return capacity - (sum(row, 'all_census') ?? 0)
   // A ratio of the two sums at this scope, never an average of facility ratios.
   if (field === 'skill_mix') return census > 0 ? (sum(row, 'skilled_census') ?? 0) / census * 100 : null
-  if (field === 'variance') {
-    const average = sum(row, 'previous_average')
-    return average === null ? null : census - average
-  }
-  if (field === 'skilled_variance') {
-    const average = sum(row, 'previous_skilled_average')
-    return average === null ? null : (sum(row, 'skilled_census') ?? 0) - average
-  }
+  // Closing less opening census: admissions less discharges, plus payer
+  // changes in less out, which with no payer filter cancel.
+  if (field === 'net_change') return census - (sum(row, 'opening_census') ?? 0)
   return sum(row, field as Summed)
 }
 
 const metrics: [id: string, header: string][] = [
   ['census', 'Census'], ['capacity', 'Capacity'], ['occupancy', 'Occupancy'],
-  ['empty', 'Empty beds'], ['previous_average', 'Last month avg. daily census'],
-  ['variance', 'Variance'], ['skilled_census', 'Skilled census'],
-  ['skill_mix', 'Skill mix'],
-  ['previous_skilled_average', 'Last month avg. daily skilled'], ['skilled_variance', 'Skilled variance'],
+  ['empty', 'Empty beds'], ['skilled_census', 'Skilled census'], ['skill_mix', 'Skill mix'],
+  ['admissions', 'Admissions'], ['discharges', 'Discharges'],
+  ['changes_in', 'Payer changes in'], ['changes_out', 'Payer changes out'], ['net_change', 'Net change'],
 ]
-const fractional = new Set(['occupancy', 'skill_mix', 'previous_average', 'variance',
-  'previous_skilled_average', 'skilled_variance'])
-const variances = new Set(['variance', 'skilled_variance'])
+// Payer changes move residents between payer types inside a facility, so they
+// change its census only when a payer filter narrows it; otherwise in equals out.
+const payerChangeMetrics = new Set(['changes_in', 'changes_out'])
+const fractional = new Set(['occupancy', 'skill_mix'])
+const variances = new Set(['net_change'])
 
-const dollars = (value: number) => value.toLocaleString(undefined,
-  { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
-
-// A parent is only known when every facility under it is: one ungenerated day
-// must not read as a smaller census.
-function historySum(row: Row, value: (facility: FacilityCensus) => number | null): number | null {
-  let total = 0
-  for (const facility of row.facilities) {
-    const next = value(facility)
-    if (next === null) return null
-    total += next
-  }
-  return total
-}
+const percent = (value: number) => `${value.toLocaleString(undefined,
+  { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
 const shortDate = (value: string) => new Date(`${value}T00:00:00`)
   .toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-
-function monthLabel(value: string) {
-  return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
-}
 
 export function LiveCensus() {
   const [response, setResponse] = useState<{ key: string; body: LiveCensusReport } | null>(null)
@@ -84,7 +65,6 @@ export function LiveCensus() {
   const [path, setPath] = useState<string[]>([])
   const { grouping, locationView } = useLocationView(() => setPath([]))
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
-  const [showHistoryFacilities, setShowHistoryFacilities] = useSearchParamFlag('all_facilities_history')
   // The header's Payers filter, which the payer mix donut also sets.
   const [params, setParams] = useReportSearchParams()
   const payers = params.getAll('live_payer')
@@ -114,35 +94,81 @@ export function LiveCensus() {
     return () => controller.abort()
   }, [retry, requestKey])
   const { depth, rows: groupRows } = groupLocations(data?.items ?? [], path, grouping)
+
+  // Census over the 30 days to the census day, for the scope the drilldown
+  // shows: each day's closing census, on the same payers -- the table's Census
+  // column, day by day. Empty ids mean every
+  // facility, so the top level sends none. Keyed by a string, so the minute's
+  // refresh and a re-render do not refetch it.
+  const trendIds = path.length || grouping
+    ? groupRows.flatMap(row => row.facilities.map(facility => facility.facility_id)) : []
+  const trendKey = data ? JSON.stringify([data.census_date, payers, trendIds]) : null
+  const [trend, setTrend] = useState<{ key: string; data?: CensusDailyTrend; error?: string } | null>(null)
+  useEffect(() => {
+    if (!trendKey) return
+    const controller = new AbortController()
+    const [end, payerTypes, ids] = JSON.parse(trendKey) as [string, string[], string[]]
+    const start = new Date(`${end}T00:00:00`)
+    start.setDate(start.getDate() - 29)
+    const startDate = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`
+    void getCensusTrendingDaily(startDate, end, payerTypes, ids, controller.signal)
+      .then(result => { if (!controller.signal.aborted) setTrend({ key: trendKey, data: result }) },
+        (failure: Error) => { if (!controller.signal.aborted) setTrend({ key: trendKey, error: failure.message }) })
+    return () => controller.abort()
+  }, [trendKey])
+  const currentTrend = trend?.key === trendKey ? trend : null
   const nameColumn: TableColumn<Row> = { id: 'name', header: levels[depth], isRowHeader: true, value: row => row.name,
     format: (_, row) => row.isTotal || path.length === 4 ? row.name :
       <button type="button" className="drilldown-table__link" onClick={() => setPath(row.path)}>{row.name}</button> }
-  const count = (value: number | string) => typeof value !== 'number' ? value : value.toLocaleString(undefined,
-    { maximumFractionDigits: 0 })
-  // Each past value carries its variance beside it: current minus then, so a
-  // rise since then reads as favourable, matching the main table's variance.
-  const withVariance = (digits: number) => (value: number | string, row: Row) => {
-    if (typeof value !== 'number') return value
-    const shown = value.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })
-    const change = tableChange(Math.round(((row.facilities.reduce((total, facility) => total + facility.census, 0))
-      - value) * 10 ** digits) / 10 ** digits, 'increase')
-    return <>{shown}<span className={`census-history__variance ${change.className ?? ''}`}>{change.text}</span></>
+  // The census history as look-back cards: current census against the same
+  // averages as Current Medicare PDPM -- last month, the last 6 months, the
+  // last year and all time -- with current minus each beside it, so a rise
+  // reads as favourable, matching the table's variance. Each period sums its
+  // facilities' census days first and divides once by the period's generated
+  // days. Occupancy and skill mix divide the scope's sums once, as the table
+  // does; beds are each facility's current count, which does not change.
+  const periodDays = (key: string) => data?.periods.find(period => period.key === key)?.days ?? 0
+  const historySum = (row: Row, key: string | null, field: 'census_days' | 'skilled_days') => {
+    if (key === null) {
+      return row.facilities.reduce((total, facility) =>
+        total + (field === 'census_days' ? facility.census : facility.skilled_census), 0)
+    }
+    const days = periodDays(key)
+    return days > 0 ? row.facilities.reduce((total, facility) => total + (facility.periods[key]?.[field] ?? 0), 0) / days
+      : null
   }
-  const historyColumns: TableColumn<Row>[] = [
-    // Plain names: this table follows the level chosen above rather than
-    // drilling on its own.
-    { ...nameColumn, format: undefined },
-    { id: 'current', header: 'Current', numeric: true, value: row => historySum(row, facility => facility.census) ?? '—', format: count },
-    ...(data?.lookback ?? []).map(({ key, label }): TableColumn<Row> => ({
-      id: key, header: label, numeric: true, format: withVariance(0),
-      value: row => historySum(row, facility => facility.history[key] ?? null) ?? '—',
-    })),
-    { id: 'year_average', header: 'Last year avg.', numeric: true, format: withVariance(1),
-      value: row => historySum(row, facility => facility.year_average) ?? '—' },
-  ]
+  const historyCensus = (row: Row, key: string | null) => historySum(row, key, 'census_days')
+  const historySkilled = (row: Row, key: string | null) => historySum(row, key, 'skilled_days')
+  const points = (value: number) => `${value.toLocaleString(undefined,
+    { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pts`
+  const historyMeasures: LookbackMeasure<Row>[] = [{
+    id: 'census', label: 'Census', favorable: 'increase', step: 0.1,
+    value: historyCensus,
+    // Current census is a count; an average has a decimal place.
+    format: (value, average) => value.toLocaleString(undefined,
+      { minimumFractionDigits: average ? 1 : 0, maximumFractionDigits: average ? 1 : 0 }),
+  }, {
+    id: 'occupancy', label: 'Occupancy', favorable: 'increase', step: 0.1,
+    value: (row, key) => {
+      const census = historyCensus(row, key)
+      const capacity = sum(row, 'capacity') ?? 0
+      return census === null || capacity === 0 ? null : census / capacity * 100
+    },
+    format: percent, formatChange: points,
+  }, {
+    id: 'skill_mix', label: 'Skill mix', favorable: 'increase', step: 0.1,
+    value: (row, key) => {
+      const census = historyCensus(row, key)
+      const skilled = historySkilled(row, key)
+      return census === null || skilled === null || census === 0 ? null : skilled / census * 100
+    },
+    format: percent, formatChange: points,
+  }]
+  const historyPeriods: LookbackPeriod[] = (data?.periods ?? []).map(({ key, label, start, end }) =>
+    ({ key, label, title: `${shortDate(start)} to ${shortDate(end)}`, average: true }))
   const columns: TableColumn<Row>[] = [
     nameColumn,
-    ...metrics.map(([id, header]): TableColumn<Row> => ({
+    ...metrics.filter(([id]) => payers.length > 0 || !payerChangeMetrics.has(id)).map(([id, header]): TableColumn<Row> => ({
       id, header, numeric: true, value: row => metric(row, id) ?? '—',
       format: value => typeof value !== 'number' ? value : value.toLocaleString(undefined, {
         maximumFractionDigits: fractional.has(id) ? 1 : 0,
@@ -152,43 +178,27 @@ export function LiveCensus() {
       ...(variances.has(id) ? { change: { favorable: 'increase' as const } } : {}),
     })),
   ]
-  // The payer charts cover the same facilities as the table at its current level.
+  // The payer chart covers the same facilities as the table at its current level.
   const payerMix = new Map<string, number>()
-  const payerRates = new Map<string, number>()
   for (const facility of groupRows.flatMap(row => row.facilities)) {
     for (const [payer, census] of Object.entries(facility.payer_census)) {
       payerMix.set(payer, (payerMix.get(payer) ?? 0) + census)
     }
-    for (const [payer, rates] of Object.entries(facility.payer_daily_rates)) {
-      payerRates.set(payer, (payerRates.get(payer) ?? 0) + rates)
-    }
   }
   const payerItems = [...payerMix].map(([payer, value]) => ({ label: payerLabel(payer), value }))
     .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))
-  // Every resident's rate summed, then divided once by residents: a resident-
-  // weighted average, never an average of facility or plan averages.
-  const rateItems = [...payerMix].filter(([, census]) => census > 0)
-    .map(([payer, census]) => ({ label: payerLabel(payer), value: (payerRates.get(payer) ?? 0) / census }))
-    .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))
-  const residents = [...payerMix.values()].reduce((total, value) => total + value, 0)
-  const blendedRate = residents > 0
-    ? [...payerRates.values()].reduce((total, value) => total + value, 0) / residents : null
+  const scopeFacilities = groupRows.flatMap(row => row.facilities)
+  const scopeCensus = scopeFacilities.reduce((total, facility) => total + facility.census, 0)
   const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
   // One row per facility, whatever the drilldown above is showing.
   const facilityRows: Row[] = (data?.items ?? []).map(facility => ({
     key: facility.facility_id, name: facility.facility_name, path: location(facility), facilities: [facility] }))
   const stale = data && data.census_date < data.as_of
     ? ` Census is generated through ${data.census_date}, so that day's counts are shown.` : ''
-  const incomplete = data?.items.some(item => item.previous_average === null)
-    ? ' Last month is not completely generated, so its averages are unavailable.' : ''
-  const subtitle = data ? `Census as of ${data.census_date}. Last month: ${monthLabel(data.previous_month)}. `
-    + "Variance is current census minus last month's average daily census. "
-    + `Skilled covers Medicare, managed Medicare and VA.${stale}${incomplete}` : ''
-
-  const historySubtitle = data ? 'Census at the close of each day, with current census minus that value beside it. '
-    + `Current: ${shortDate(data.census_date)}; `
-    + data.lookback.map(entry => `${entry.label.toLowerCase()}: ${shortDate(entry.date)}`).join('; ')
-    + `. Last year avg. is the average daily census from ${shortDate(data.year_start)} to ${shortDate(data.year_end)}.` : ''
+  const subtitle = data ? `Census at the close of ${data.census_date}. Admissions, discharges and net change are that day's; `
+    + 'net change is the closing census less the opening one'
+    + (payers.length ? ', and with payers selected counts payer changes into and out of them.' : '.')
+    + ` Skilled covers Medicare, managed Medicare and VA.${stale}` : ''
   const facilitiesModal = <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
     onSelect={path => { setPath(path); setShowFacilities(false) }}
     filters={<CensusPayerFilter param="live_payer" />}
@@ -222,30 +232,22 @@ export function LiveCensus() {
           const payer = payerCode(label)
           setPayers(payers.includes(payer) ? payers.filter(value => value !== payer) : [...payers, payer])
         }} />
-      <BarChartRanking loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}
-        title="Average daily rate by payer" categoryLabel="Payer" valueLabel="per resident per day"
-        selectedLabels={payers.map(payerLabel)}
-        items={rateItems} formatValue={dollars} showShare={false}
-        subtitle={`${scopeName}, residents in a bed that day${blendedRate === null ? ''
-          : `. All payers: ${dollars(blendedRate)}`}`} />
+      <LineChart title="Census, last 30 days" valueLabel="Census" variant="line" height={340}
+        items={(currentTrend?.data?.days ?? []).map(day => ({ date: day.date, value: day.census }))}
+        formatValue={value => Math.round(value).toLocaleString()}
+        loading={!error && (!data || currentTrend === null)} error={error ?? currentTrend?.error ?? null}
+        onRetry={() => { setRetry(value => value + 1); setTrend(null) }}
+        subtitle={`${scopeName}, census at the close of each day${payers.length ? ', selected payers only' : ''}`
+          + `${!data ? '' : `. ${shortDate(data.census_date)}: ${scopeCensus.toLocaleString()}`}`} />
     </div>
-    <DrilldownTable<Row> title={`${levels[depth]} census history`} columns={historyColumns} rows={groupRows}
-      getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
-      loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}
-      getFooterRow={rows => ({ key: 'total', name: 'Total', path: [], isTotal: true,
-        facilities: rows.flatMap(row => row.facilities) })}
-      subtitle={historySubtitle}
-      headerActions={<><OpenViewButton kind="facilities" label="Show all facilities" onClick={() => setShowHistoryFacilities(true)} /><CustomGroupingButton onApply={() => setPath([])} /></>}
-      emptyMessage="No facilities match this view."
-      csvFileName={`census-history-${data?.census_date ?? 'today'}.csv`} />
-    <AllFacilitiesModal<Row> open={showHistoryFacilities} onClose={() => setShowHistoryFacilities(false)}
-      onSelect={path => { setPath(path); setShowHistoryFacilities(false) }}
-      filters={<CensusPayerFilter param="live_payer" />}
-      title={data ? `All facilities · census history as of ${data.census_date}` : 'All facilities · census history'}
-      subtitle={historySubtitle}
-      rows={facilityRows} columns={historyColumns.slice(1)} getRowKey={row => row.key} getName={row => row.name}
-      getPath={row => [row.path[0], row.path[1], row.path[2]]}
-      loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)}
-      csvFileName={`census-history-facilities-${data?.census_date ?? 'today'}.csv`} />
+    {/* Each location's census on earlier days, with current minus each. Dates
+        show on hovering a column's heading. */}
+    <LookbackCards<Row> rows={groupRows} measures={historyMeasures}
+      total={{ key: 'scope', name: scopeName, path, facilities: groupRows.flatMap(row => row.facilities), isTotal: true }}
+      currentLabel="Current" currentTitle={data ? shortDate(data.census_date) : undefined} periods={historyPeriods}
+      title={`${levels[depth]} census history`}
+      subtitle="The current census against its average daily census over each earlier period; in brackets, the current census minus each average. Hover a column for its dates."
+      csvFileName={`census-history-${data?.census_date ?? 'today'}.csv`}
+      loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)} />
   </>
 }
