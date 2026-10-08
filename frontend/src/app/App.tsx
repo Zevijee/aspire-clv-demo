@@ -22,6 +22,9 @@ import { PdpmCalculator } from '../features/mds/components/PdpmCalculator'
 import { HospitalTransfers } from '../features/clinical/components/HospitalTransfers'
 import { TransferLogs } from '../features/clinical/components/TransferLogs'
 import { TransferFilters } from '../features/clinical/components/TransferFilters'
+import { Incidents } from '../features/clinical/components/Incidents'
+import { IncidentFilters } from '../features/clinical/components/IncidentFilters'
+import { IncidentLogs } from '../features/clinical/components/IncidentLogs'
 import { HistoricalResidents } from '../features/mds/components/HistoricalResidents'
 import { worksheetDateBasis } from '../features/mds/worksheetApi'
 import { Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
@@ -68,7 +71,8 @@ const dischargesTabs = [
   { id: 'overview', label: 'Overview' },
   { id: 'logs', label: 'Logs', noScroll: true },
 ]
-const hospitalTransfersTabs = [
+// The Clinical reports' tabs: a drilldown, and one row per event.
+const clinicalTabs = [
   { id: 'overview', label: 'Overview' },
   { id: 'logs', label: 'Logs', noScroll: true },
 ]
@@ -165,7 +169,8 @@ function App() {
   const activeAdmissionsTab = admissionsTabs.find((tab) => tab.id === admissionsView)?.id ?? 'testing'
   const activeDischargesTab = dischargesTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeLiveCensusTab = admissionsView === 'residents' ? 'residents' : 'overview'
-  const activeTransfersTab = hospitalTransfersTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
+  const isClinicalReport = currentReport.path === '/clinical/hospital-transfers' || currentReport.path === '/clinical/incidents'
+  const activeClinicalTab = clinicalTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeMedicareTab = medicareTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeHistoricalMedicareTab = historicalMedicareTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeMonthlyMedicareTab = monthlyMedicareTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
@@ -415,6 +420,7 @@ function App() {
               }} />}
             {isMonthlyAdtReport && <MonthlyAdtFilters />}
             {currentReport.path === '/clinical/hospital-transfers' && <TransferFilters />}
+            {currentReport.path === '/clinical/incidents' && <IncidentFilters />}
             {/* Left of the date range: which date the range applies to. */}
             {(isWorksheetReport || isHistoricalMdsReport) && <WorksheetDateBasisToggle />}
             {isMonthlyReport ? <ReportMonthRangeFilter /> : currentReport.path !== '/adt/referring-hospital' && currentReport.path !== '/census/daily-census'
@@ -441,9 +447,9 @@ function App() {
                 activeTabId: activeDischargesTab,
                 onTabChange: handleAdmissionsTabChange,
                 tabs: dischargesTabs,
-              } : currentReport.path === '/clinical/hospital-transfers' ? {
-                activeTabId: activeTransfersTab,
-                tabs: hospitalTransfersTabs,
+              } : isClinicalReport ? {
+                activeTabId: activeClinicalTab,
+                tabs: clinicalTabs,
                 onTabChange: (id: string) => {
                   const next = new URLSearchParams(searchParams)
                   if (id === 'overview') next.delete('view')
@@ -530,7 +536,8 @@ function App() {
                   : report.path === '/mds/pdpm-worksheet' ? <PdpmWorksheet />
                   : report.path === '/mds/medicaid-pdpm-worksheet' ? <MedicaidWorksheet />
                   : report.path === '/clinical/hospital-transfers'
-                    ? (activeTransfersTab === 'logs' ? <TransferLogs /> : <HospitalTransfers />)
+                    ? (activeClinicalTab === 'logs' ? <TransferLogs /> : <HospitalTransfers />)
+                  : report.path === '/clinical/incidents' ? (activeClinicalTab === 'logs' ? <IncidentLogs /> : <Incidents />)
                   : report.path === '/mds/historical-medicare' ? (activeHistoricalMedicareTab === 'categories'
                     ? <HistoricalCategoryBreakdown /> : activeHistoricalMedicareTab === 'residents'
                     ? <HistoricalResidents /> : <HistoricalOverview />) : report.path === '/census/residents' ? <ResidentsReport /> :report.path === '/census/bed-board' ? <BedBoard /> : report.path === '/census/monthly-trending' ? <MonthlyCensusTrending /> : report.path === '/census/trending' ? <CensusTrending /> : report.path === '/census/daily-census' ? (

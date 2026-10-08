@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from ..common.errors import ApiError, ErrorResponse
 from ..common.tables import Page
 from ..database import DbConnection
-from . import hospital_transfers, logs
+from . import hospital_transfers, incident_log, incidents, logs
 
 router = APIRouter(prefix='/clinical', tags=['Clinical'])
 
@@ -51,3 +51,40 @@ def hospital_transfer_log_export(request: Request, query: Annotated[logs.LogsQue
     return StreamingResponse(logs.csv_chunks(request.app.state.database, query), media_type='text/csv',
         headers={'Content-Disposition':
             f'attachment; filename="hospital-transfers-{query.start_date}-to-{query.end_date}.csv"'})
+
+
+@router.get('/incidents', response_model=incidents.IncidentsReport, responses={409: {'model': ErrorResponse}})
+def incidents_report(connection: DbConnection, query: Annotated[incidents.IncidentsQuery, Query()]):
+    """Every facility's incidents in the range: how many, how many resulted in a
+    hospitalization, those still open, by time of day, the resident days the rate
+    per 1,000 divides by, and the counts by type and severity. payer_types,
+    incident_types and severities filter it."""
+    return incidents.incidents_report(connection, query)
+
+
+@router.get('/incidents/daily', response_model=incidents.DailyIncidents, responses={409: {'model': ErrorResponse}})
+def incidents_daily(connection: DbConnection, query: Annotated[incidents.DailyIncidentsQuery, Query()]):
+    """Each day's incidents, with the report's filters, over the given facilities
+    or all of them, for the daily trend."""
+    return incidents.daily(connection, query)
+
+
+@router.get('/incidents/logs', response_model=Page[incident_log.Incident])
+def incident_logs_page(connection: DbConnection, query: Annotated[incident_log.LogsQuery, Query()]):
+    """One row per incident in the range: the Logs tab."""
+    return incident_log.page(connection, query)
+
+
+@router.get('/incidents/logs/filter-options')
+def incident_log_options(connection: DbConnection, query: Annotated[incident_log.FilterQuery, Query()]):
+    return incident_log.options(connection, query)
+
+
+@router.get('/incidents/logs/export')
+def incident_log_export(request: Request, query: Annotated[incident_log.LogsQuery, Query()]):
+    # Validate the sort before response headers are sent; the stream owns its DB
+    # connection so dependency cleanup cannot close it mid-download.
+    if query.sort is not None and query.sort not in incident_log.COLUMN_NAMES:
+        raise ApiError('invalid_sort', 'Unsupported sort column.')
+    return StreamingResponse(incident_log.csv_chunks(request.app.state.database, query), media_type='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="incidents-{query.start_date}-to-{query.end_date}.csv"'})

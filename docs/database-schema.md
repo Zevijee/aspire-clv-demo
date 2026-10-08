@@ -198,6 +198,13 @@ erDiagram
     }
     payers ||--o{ discharge_logs : "payer_id"
     res_stays ||--o| discharge_logs : "stay_id"
+    incident_logs {
+        Uuid incident_id PK
+    }
+    facilities ||--o{ incident_logs : "facility_id"
+    payers ||--o{ incident_logs : "payer_id"
+    res_stays ||--o{ incident_logs : "stay_id"
+    residents ||--o{ incident_logs : "resident_id"
     res_payer_stays {
         Uuid payer_stay_id PK
     }
@@ -899,6 +906,31 @@ One actual discharge event per closed episode. LOS measures the final payer peri
 - CHECK: `los > 0`
 - INDEX `ix_discharge_logs_discharge_date`: discharge_date
 - INDEX `ix_discharge_logs_payer_id`: payer_id
+
+## incident_logs
+
+One resident incident per row, on a day the resident was in a bed, with its type, the payer that day, whether it sent the resident to a hospital, its severity and hour, and the day its investigation closed.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| incident_id | UUID | no | PK |  |  |
+| stay_id | UUID | no | FK → res_stays.stay_id |  |  |
+| resident_id | UUID | no | FK → residents.resident_id |  |  |
+| facility_id | UUID | no | FK → facilities.facility_id |  |  |
+| incident_date | DATE | no |  |  |  |
+| incident_type | VARCHAR | no |  |  |  |
+| payer_id | UUID | no | FK → payers.payer_id |  |  |
+| hospitalized | BOOLEAN | no |  |  |  |
+| severity | SMALLINT | no |  |  |  |
+| incident_hour | SMALLINT | no |  |  |  |
+| closed_date | DATE | no |  |  |  |
+
+- CHECK: `NOT hospitalized OR severity >= 4`
+- CHECK: `closed_date > incident_date`
+- CHECK: `incident_hour BETWEEN 0 AND 23`
+- CHECK: `incident_type IN ('Fall', 'Skin tear or bruise', 'Medication error', 'Resident altercation', 'Pressure injury', 'Elopement or wandering', 'Choking', 'Other')`
+- CHECK: `severity BETWEEN 1 AND 5`
+- INDEX `ix_incident_logs_date`: incident_date, facility_id
 
 ## res_payer_stays
 

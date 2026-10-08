@@ -1,5 +1,5 @@
 import { FilterDropdown } from '../../../shared/components/filters/FilterDropdown'
-import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
+import { useSearchParamList } from '../../../shared/hooks/useSearchParamList'
 import { AdmissionsPayerFilter } from '../../adt/components/AdmissionsPayerFilter'
 import { TRANSFER_REASONS } from '../api'
 
@@ -11,17 +11,12 @@ export const TRANSFER_REASON_PARAM = 'transfer_reason'
  * and reason filters its donuts set, kept in the URL, so either one changes the
  * other. */
 export function TransferFilters() {
-  const [params, setParams] = useReportSearchParams()
-  const set = (param: string) => (values: string[]) => {
-    const next = new URLSearchParams(params)
-    next.delete(param)
-    values.forEach(value => next.append(param, value))
-    setParams(next)
-  }
+  const payers = useSearchParamList(TRANSFER_PAYER_PARAM)
+  const reasons = useSearchParamList(TRANSFER_REASON_PARAM)
   return <>
-    <AdmissionsPayerFilter values={params.getAll(TRANSFER_PAYER_PARAM)} onChange={set(TRANSFER_PAYER_PARAM)} />
+    <AdmissionsPayerFilter values={payers.values} onChange={payers.set} />
     <FilterDropdown label="Reasons" placeholder="All reasons"
       options={TRANSFER_REASONS.map(reason => ({ value: reason, label: reason }))}
-      values={params.getAll(TRANSFER_REASON_PARAM)} onChange={set(TRANSFER_REASON_PARAM)} />
+      values={reasons.values} onChange={reasons.set} />
   </>
 }

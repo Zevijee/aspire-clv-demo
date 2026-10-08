@@ -10,6 +10,7 @@ import { useCustomGrouping } from '../../../shared/customGrouping'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { DonutChart } from '../../../shared/components/charts/DonutChart'
 import { payerCode, payerLabels } from '../../adt/api/admissionsOverview'
+import { useSearchParamList } from '../../../shared/hooks/useSearchParamList'
 import { TRANSFER_PAYER_PARAM, TRANSFER_REASON_PARAM } from './TransferFilters'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import {
@@ -85,8 +86,10 @@ export function HospitalTransfers() {
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
-  const payerFilter = params.getAll(PAYER_PARAM)
-  const reasonFilter = params.getAll(REASON_PARAM)
+  const payers = useSearchParamList(PAYER_PARAM)
+  const reasons = useSearchParamList(REASON_PARAM)
+  const payerFilter = payers.values
+  const reasonFilter = reasons.values
   // Joined, so the fetch reruns only when a filter changes.
   const filterKey = JSON.stringify([payerFilter, reasonFilter])
   useEffect(() => {
@@ -158,20 +161,6 @@ export function HospitalTransfers() {
   const blockSize = trendBlockSize(startDate, endDate)
   const trend = groupTrendPeriods((daily?.days ?? []).map(day => ({ date: day.date, value: day.transfers })),
     startDate, blockSize)
-  // A slice toggles its value in the filter; the filters live in the URL.
-  const toggle = (param: string, value: string) => {
-    const next = new URLSearchParams(params)
-    const values = next.getAll(param)
-    next.delete(param)
-    ;(values.includes(value) ? values.filter(item => item !== value) : [...values, value])
-      .forEach(item => next.append(param, item))
-    setParams(next)
-  }
-  const clear = (param: string) => {
-    const next = new URLSearchParams(params)
-    next.delete(param)
-    setParams(next)
-  }
 
   return <>
     <LocationNavigation path={path} setPath={setPath} />
@@ -197,14 +186,14 @@ export function HospitalTransfers() {
       <DonutChart {...status} title="Transfers by payer" valueLabel="Transfers"
         subtitle={`${scopeName} · Click payers to filter the report`}
         items={breakdown('payers', key => payerLabels[key] ?? key)}
-        selectedLabels={payerFilter.map(payer => payerLabels[payer] ?? payer)} onClear={() => clear(PAYER_PARAM)}
-        onSelect={label => toggle(PAYER_PARAM, payerCode(label))} />
+        selectedLabels={payerFilter.map(payer => payerLabels[payer] ?? payer)} onClear={payers.clear}
+        onSelect={label => payers.toggle(payerCode(label))} />
       <DonutChart {...status} title="Transfers by reason" valueLabel="Transfers"
         subtitle={`${scopeName} · Click reasons to filter the report`}
         items={breakdown('reasons', key => key)}
-        selectedLabels={reasonFilter} onClear={() => clear(REASON_PARAM)}
+        selectedLabels={reasonFilter} onClear={reasons.clear}
         filterName={{ one: 'reason', many: 'reasons' }}
-        onSelect={label => toggle(REASON_PARAM, label)} />
+        onSelect={reasons.toggle} />
     </div>
     <LineChart items={trend} title={blockSize === 1 ? 'Daily hospital transfers' : 'Hospital transfers trend'}
       // Red, the shared adverse colour: transfers are a count to bring down.

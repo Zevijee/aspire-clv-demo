@@ -1,7 +1,7 @@
 export type TableFilterSource = {
   endpoint?: string
   id: 'admissions' | 'discharges' | 'payer-changes' | 'net-change-logs' | 'census-residents' | 'resident-summaries' | 'medicare-residents'
-    | 'pdpm-worksheet' | 'historical-medicare-residents' | 'medicaid-residents' | 'historical-medicaid-residents' | 'medicaid-pdpm-worksheet' | 'hospital-transfers'
+    | 'pdpm-worksheet' | 'historical-medicare-residents' | 'medicaid-residents' | 'historical-medicaid-residents' | 'medicaid-pdpm-worksheet' | 'hospital-transfers' | 'incidents'
   startDate: string
   endDate: string
 }

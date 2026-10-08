@@ -579,6 +579,51 @@ transfer_logs = Table('transfer_logs', metadata,
     Index('ix_transfer_logs_date', 'transfer_date', 'facility_id'),
 )
 
+# The kinds of incident, in the generator's order.
+INCIDENT_TYPES = ('Fall', 'Skin tear or bruise', 'Medication error', 'Resident altercation', 'Pressure injury',
+    'Elopement or wandering', 'Choking', 'Other')
+
+incident_logs = Table('incident_logs', metadata,
+    # One resident incident per row: a fall, a skin tear, a medication error and
+    # so on, on a day the resident was in a bed, and the day its investigation
+    # closed. Its own event, recorded nowhere else, so clinical reports read it
+    # alone and can cross any of its columns.
+    #
+    # Built from saved stays on every update; each stay's incidents -- how
+    # many, which days, what kind, when closed -- are drawn from its id, so a
+    # rebuild gives the same incidents.
+    Column('incident_id', Uuid, primary_key=True),
+    Column('stay_id', Uuid, ForeignKey('res_stays.stay_id'), nullable=False),
+    Column('resident_id', Uuid, ForeignKey('residents.resident_id'), nullable=False),
+    # The stay's facility, copied in so a range is read from this table alone. A
+    # resident only ever stays at one facility, so distinct residents add up.
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('incident_date', Date, nullable=False),
+    Column('incident_type', String, nullable=False),
+    # The resident's payer that day: the payer period covering the incident.
+    Column('payer_id', Uuid, ForeignKey('payers.payer_id'), nullable=False),
+    # The incident sent the resident to a hospital: one per hospital transfer
+    # for a fall or injury, on its transfer day, so Incidents and Hospital
+    # Transfers agree.
+    Column('hospitalized', Boolean, nullable=False),
+    # How serious: 1 no injury, 2 minor, 3 moderate, 4 major, 5 severe. Levels 4
+    # and 5 are major; every hospitalized incident is one of them.
+    Column('severity', SmallInteger, nullable=False),
+    # The hour it happened, 0-23; reports group it into morning, afternoon,
+    # evening and night.
+    Column('incident_hour', SmallInteger, nullable=False),
+    # The day its investigation closed. Kept even when it is after the latest
+    # simulated day: an incident is open while that day is still to come.
+    Column('closed_date', Date, nullable=False),
+    CheckConstraint('closed_date > incident_date'),
+    CheckConstraint('severity BETWEEN 1 AND 5', name='ck_incident_logs_severity'),
+    CheckConstraint('incident_hour BETWEEN 0 AND 23', name='ck_incident_logs_hour'),
+    CheckConstraint('NOT hospitalized OR severity >= 4', name='ck_incident_logs_hospitalized_major'),
+    CheckConstraint("incident_type IN (" + ", ".join(f"'{kind}'" for kind in INCIDENT_TYPES) + ")",
+        name='ck_incident_logs_type'),
+    Index('ix_incident_logs_date', 'incident_date', 'facility_id'),
+)
+
 daily_admission_facts = Table('daily_admission_facts', metadata,
     # One row per (date, facility, payer, referral source) that had admissions.
     # Parent location totals are GROUP BY results, never stored copies, so a
@@ -953,6 +998,7 @@ _descriptions = {
     'admission_logs': 'One actual admission event per episode, including referring source and readmission flags.',
     'medicaid_applications': 'Admissions that started pending Medicaid. Preserves application/approval metrics after payer records are retroactively corrected.',
     'discharge_logs': 'One actual discharge event per closed episode. LOS measures the final payer period.',
+    'incident_logs': 'One resident incident per row, on a day the resident was in a bed, with its type, the payer that day, whether it sent the resident to a hospital, its severity and hour, and the day its investigation closed.',
     'transfer_logs': 'One hospital transfer per row: each discharge to a hospital with its hospital, reason, payer, facility, days since admission and admission source, so clinical reports can cross any of them.',
     'payer_change_logs': 'One row per payer change, flattened with the period it moved from. Derived from res_payer_stays to spare every report the self-join on period_number - 1.',
     'daily_admission_facts': 'Additive daily admission measures at facility/payer/source grain. Reports group these rows; parent scopes are not stored.',

@@ -121,3 +121,121 @@ export async function downloadTransferLogs(start: string, end: string, query: Tr
   anchor.remove()
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
+
+// --- Incidents -------------------------------------------------------------
+
+/** One facility's incidents in the range: sums, to add up and divide once. */
+export type FacilityIncidents = {
+  facility_id: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  incidents: number
+  // Incidents that sent the resident to a hospital: the hospital transfers for a fall or injury.
+  hospitalized: number
+  // The range's incidents not closed by the latest simulated day.
+  still_open: number
+  // Closing census summed over the range: the per-1,000 rate divides by it.
+  resident_days: number
+  // By the hour each happened: 6-11, 12-17, 18-21, and 22-5.
+  morning: number
+  afternoon: number
+  evening: number
+  night: number
+  // Incidents by type, and by severity level ('1' to '5'). Each applies the
+  // other filters but not its own, so it keeps every slice to click.
+  types: Record<string, number>
+  severities: Record<string, number>
+}
+
+export type IncidentsReport = { start_date: string; end_date: string; as_of: string; items: FacilityIncidents[] }
+
+// The incident types, in shared/database/schema.py INCIDENT_TYPES order; the API
+// validates them against that list.
+export const INCIDENT_TYPES = ['Fall', 'Skin tear or bruise', 'Medication error', 'Resident altercation',
+  'Pressure injury', 'Elopement or wandering', 'Choking', 'Other']
+
+// Severity by its stored level, 1 to 5, shown by name alone; major and severe
+// are the major incidents.
+export const SEVERITY_LEVELS: Record<string, string> = {
+  1: 'No injury', 2: 'Minor', 3: 'Moderate', 4: 'Major', 5: 'Severe',
+}
+
+/** Payer types, incident types and severity levels filter the report; empty means all. */
+export function getIncidents(startDate: string, endDate: string, payerTypes: string[], incidentTypes: string[],
+    severities: string[], signal?: AbortSignal) {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate })
+  payerTypes.forEach(payer => params.append('payer_types', payer))
+  incidentTypes.forEach(kind => params.append('incident_types', kind))
+  severities.forEach(level => params.append('severities', level))
+  return readJson<IncidentsReport>(`${base}/api/v1/clinical/incidents?${params}`, signal)
+}
+
+export type DailyIncidents = { days: { date: string; incidents: number }[] }
+
+/** Each day's incidents with the same filters, over the given facilities or all
+ * of them when the list is empty. */
+export function getDailyIncidents(startDate: string, endDate: string, payerTypes: string[], incidentTypes: string[],
+    severities: string[], facilityIds: string[], signal?: AbortSignal) {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate })
+  payerTypes.forEach(payer => params.append('payer_types', payer))
+  incidentTypes.forEach(kind => params.append('incident_types', kind))
+  severities.forEach(level => params.append('severities', level))
+  facilityIds.forEach(id => params.append('facility_ids', id))
+  return readJson<DailyIncidents>(`${base}/api/v1/clinical/incidents/daily?${params}`, signal)
+}
+
+// --- Incidents' Logs tab ---------------------------------------------------
+
+export const incidentLogsBase = `${base}/api/v1/clinical/incidents/logs`
+
+export type IncidentLogsQuery = TransferLogsQuery
+
+/** One incident. */
+export type IncidentLog = {
+  incident_id: string
+  facility_id: string
+  resident_name: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  incident_date: string
+  // 0-23, and its part of the day.
+  hour: number
+  time_of_day: string
+  incident_type: string
+  severity: string
+  hospitalized: 'Yes' | 'No'
+  still_open: 'Yes' | 'No'
+  closed_date: string
+  payer_type: string
+  payer_name: string
+}
+
+function incidentLogParameters(start: string, end: string, query: IncidentLogsQuery, offset = 0) {
+  return new URLSearchParams({ start_date: start, end_date: end, limit: '50', offset: String(offset),
+    filters: JSON.stringify(query.filters), search: query.search?.trim() ?? '',
+    sort: query.sort?.columnId ?? 'incident-date',
+    direction: query.sort?.direction === 'ascending' ? 'asc' : 'desc' })
+}
+
+export function getIncidentLogs(start: string, end: string, offset: number, query: IncidentLogsQuery,
+    signal?: AbortSignal) {
+  return readJson<{ items: IncidentLog[]; total: number; limit: number; offset: number }>(
+    `${incidentLogsBase}?${incidentLogParameters(start, end, query, offset)}`, signal)
+}
+
+export async function downloadIncidentLogs(start: string, end: string, query: IncidentLogsQuery) {
+  const response = await authorizedFetch(`${incidentLogsBase}/export?${incidentLogParameters(start, end, query)}`)
+  if (!response.ok) throw new Error('Incident export could not complete.')
+  const url = URL.createObjectURL(await response.blob())
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `incidents-${start}-to-${end}.csv`
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}

@@ -13,8 +13,9 @@ Medicare has an Overview by PDPM category (Primary Diagnosis, PT/OT, SLP,
 Speech Comorbidity, Nursing, NTA and Depression, all built) and a Residents tab;
 Historical Medicare PDPM, Monthly Medicare PDPM Trending, the Medicare PDPM Worksheet, and Current,
 Historical and Monthly Medicaid PDPM and the Medicaid PDPM Worksheet (Texas only) and the PDPM Calculator are built; both monthly reports'
-Category breakdown tabs are still placeholders. The Clinical module has one report, Hospital
-Transfers, a drilldown of transfers to hospital.
+Category breakdown tabs are still placeholders. The Clinical module has two reports: Hospital
+Transfers, a drilldown of transfers to hospital with payer and reason breakdowns and a Logs tab, and
+Incidents, a drilldown of resident incidents.
 
 ## Dead frontend reports
 

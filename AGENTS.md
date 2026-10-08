@@ -122,6 +122,7 @@ list it in `SHARED_RULES` there, or a change to that file goes unnoticed.
 | Monthly PDPM resident-days and rates for Current Medicare PDPM's averages | `pdpm_census_summary --regenerate`, ~5 s |
 | Monthly Texas Medicaid resident-days and rates for Monthly Medicaid Trending | `medicaid_census_summary --regenerate`, ~6 s |
 | Hospital transfers and their reasons, for the Clinical reports | `transfer_logs --regenerate`, ~2 s |
+| Resident incidents, for the Clinical reports | `incident_logs --regenerate`, ~20 s |
 | Room layout (wings, rooms, private share) | `facility_beds --regenerate`, ~2 s, then `bed_assignments --regenerate` |
 | Who sleeps in which bed | `bed_assignments --regenerate`, ~36 s |
 | New additive measure on a fact table | Column, backfill, `admissions_summary --regenerate` |
@@ -156,6 +157,7 @@ python manage.py resident_summaries --regenerate      # every resident's totals 
 python manage.py pdpm_census_summary --regenerate     # PDPM resident-days and rates by month; ~5 s
 python manage.py medicaid_census_summary --regenerate # Texas Medicaid resident-days and rates by month; ~6 s
 python manage.py transfer_logs --regenerate           # hospital transfers with reasons; ~2 s
+python manage.py incident_logs --regenerate           # resident incidents; ~20 s
 python manage.py facility_beds --regenerate           # wings, rooms and beds per facility; ~2 s
 python manage.py bed_assignments --regenerate         # which stay was in which bed; ~36 s
 python manage.py admission_logs --regenerate    # rebuild one table from saved stays
