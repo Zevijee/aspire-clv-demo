@@ -570,6 +570,8 @@ transfer_logs = Table('transfer_logs', metadata,
     # back within 30 days is a rehospitalization.
     Column('admission_source_type', String, nullable=False),
     Column('reason', String, nullable=False),
+    # The hospital the resident went to: the discharge's destination.
+    Column('hospital_name', String, nullable=False),
     CheckConstraint('days_since_admission >= 0'),
     CheckConstraint('transfer_date >= admission_date'),
     CheckConstraint("reason IN (" + ", ".join(f"'{reason}'" for reason in TRANSFER_REASONS) + ")",
@@ -951,7 +953,7 @@ _descriptions = {
     'admission_logs': 'One actual admission event per episode, including referring source and readmission flags.',
     'medicaid_applications': 'Admissions that started pending Medicaid. Preserves application/approval metrics after payer records are retroactively corrected.',
     'discharge_logs': 'One actual discharge event per closed episode. LOS measures the final payer period.',
-    'transfer_logs': 'One hospital transfer per row: each discharge to a hospital with its reason, payer, facility, days since admission and admission source, so clinical reports can cross any of them.',
+    'transfer_logs': 'One hospital transfer per row: each discharge to a hospital with its hospital, reason, payer, facility, days since admission and admission source, so clinical reports can cross any of them.',
     'payer_change_logs': 'One row per payer change, flattened with the period it moved from. Derived from res_payer_stays to spare every report the self-join on period_number - 1.',
     'daily_admission_facts': 'Additive daily admission measures at facility/payer/source grain. Reports group these rows; parent scopes are not stored.',
     'daily_discharge_facts': 'Additive daily discharge measures at facility/payer/destination/disposition grain. Length of stay is a sum beside its count so any grouping divides correctly.',

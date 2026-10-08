@@ -3,7 +3,7 @@ import dayjs from 'dayjs'
 import { useReportSearchParams as useSearchParams } from '../../../shared/components/ReportSearchContext'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { DataState } from '../../../shared/components/DataState'
-import { DrilldownNavigation, type DrilldownBreadcrumb } from '../../../shared/components/DrilldownNavigation'
+import { DrilldownNavigation, locationLevel, type DrilldownBreadcrumb } from '../../../shared/components/DrilldownNavigation'
 import { useLocationView } from '../../../shared/customGrouping'
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
@@ -132,7 +132,7 @@ export function PayerChangesOverview() {
     .reduce((total, row) => total + row.changes, 0)
   const scopeName = path.at(-1) ?? (grouping ? 'Custom grouping' : 'All states')
   return <>
-    <DrilldownNavigation ariaLabel="Payer changes drill-down" items={breadcrumbs} locationView={locationView} />
+    <DrilldownNavigation ariaLabel="Payer changes drill-down" items={breadcrumbs} level={locationLevel(level)} locationView={locationView} />
     {previous.error && !status.error && <DataState label="Prior period"
       error={`Prior period: ${previous.error}`} onRetry={previous.onRetry} />}
     <Table {...status} key={scopeKey} columns={columns} rows={rows} getRowKey={row => row.id}

@@ -14,7 +14,11 @@ import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange
 import {
   drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow,
 } from '../../../shared/utils/locationDrilldown'
-import { getHospitalTransfers, type FacilityTransfers, type HospitalTransfersReport } from '../api'
+import { LineChart } from '../../../shared/components/charts/LineChart'
+import { groupTrendPeriods, trendBlockSize } from '../../../shared/utils/trendPeriods'
+import {
+  getDailyTransfers, getHospitalTransfers, type DailyTransfers, type FacilityTransfers, type HospitalTransfersReport,
+} from '../api'
 
 type Row = DrilldownRow<FacilityTransfers>
 type Summed = 'transfers' | 'within_30_days' | 'los_days' | 'rehospitalizations' | 'resident_days'
@@ -129,6 +133,29 @@ export function HospitalTransfers() {
       .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))
   }
   const status = { loading, error, onRetry }
+
+  // The daily trend follows the same filters and the drilldown: every facility
+  // at the top, the ones shown below it. Joined into a string so the fetch reruns
+  // only when the facilities change; it waits for the table, which knows them.
+  const scopedIds = (path.length || grouping ? scoped.map(facility => facility.facility_id) : []).join(',')
+  const [daily, setDaily] = useState<DailyTransfers | null>(null)
+  const [dailyError, setDailyError] = useState<string | null>(null)
+  const [dailyRetry, setDailyRetry] = useState(0)
+  useEffect(() => {
+    if (!data) return
+    const controller = new AbortController()
+    setDailyError(null)
+    getDailyTransfers(startDate, endDate, payerFilter, reasonFilter, scopedIds ? scopedIds.split(',') : [],
+      controller.signal)
+      .then(body => { if (!controller.signal.aborted) setDaily(body) })
+      .catch((failure: Error) => { if (!controller.signal.aborted) setDailyError(failure.message) })
+    return () => controller.abort()
+    // filterKey and scopedIds name everything the request reads.
+  }, [startDate, endDate, filterKey, scopedIds, Boolean(data), dailyRetry])
+  // Long ranges are shown in equal blocks of days, as Daily Admissions is.
+  const blockSize = trendBlockSize(startDate, endDate)
+  const trend = groupTrendPeriods((daily?.days ?? []).map(day => ({ date: day.date, value: day.transfers })),
+    startDate, blockSize)
   // A slice toggles its value in the filter; the filters live in the URL.
   const toggle = (param: string, value: string) => {
     const next = new URLSearchParams(params)
@@ -177,5 +204,13 @@ export function HospitalTransfers() {
         filterName={{ one: 'reason', many: 'reasons' }}
         onSelect={label => toggle(REASON_PARAM, label)} />
     </div>
+    <LineChart items={trend} title={blockSize === 1 ? 'Daily hospital transfers' : 'Hospital transfers trend'}
+      // Red, the shared adverse colour: transfers are a count to bring down.
+      valueLabel="Transfers" variant="bar" height={360} barColor="var(--color-table-change-adverse)"
+      subtitle={`${scopeName} · ${blockSize === 1 ? 'Hospital transfers each day'
+        : `Hospital transfers per ${blockSize}-day period; the tooltip shows the exact dates`}${filtered.length
+        ? `, filtered to ${filtered.join(', ')}` : ''}.`}
+      loading={loading || (!daily && !dailyError)} error={error ?? dailyError}
+      onRetry={error ? onRetry : () => setDailyRetry(count => count + 1)} />
   </>
 }

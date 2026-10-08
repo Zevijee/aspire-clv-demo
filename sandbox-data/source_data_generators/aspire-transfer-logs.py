@@ -4,7 +4,8 @@ Run: python manage.py transfer_logs --regenerate
 Also rebuilt by every seed and update, after the day's ADT simulation.
 
 Each transfer copies what the clinical reports cut it by -- facility, date,
-payer, admission date and source -- from the stay and its logs, and gets a
+payer, the hospital it went to, admission date and source -- from the stay and
+its logs, and gets a
 reason. The reason is drawn from the stay id's hash, not a random generator, so
 a rebuild gives every transfer the same reason. Its odds depend on the stay:
 
@@ -49,7 +50,7 @@ def _reason_case(odds):
 def transfers_sql(table):
     return f"""
 WITH transfers AS (
-    SELECT d.stay_id, s.facility_id, d.discharge_date, d.payer_id, s.admission_date,
+    SELECT d.stay_id, s.facility_id, d.discharge_date, d.payer_id, s.admission_date, d.destination_name,
            d.discharge_date - s.admission_date AS days, a.source_type,
            -- A stable draw in [0, 1) from the stay id: 32 bits of its md5.
            ('x' || lpad(substr(md5(d.stay_id::text), 1, 8), 16, '0'))::bit(64)::bigint / 4294967296.0 AS draw
@@ -59,11 +60,12 @@ WITH transfers AS (
     WHERE d.destination_type = 'Hospital'
 )
 INSERT INTO {table} (stay_id, facility_id, transfer_date, payer_id, admission_date, days_since_admission,
-    admission_source_type, reason)
+    admission_source_type, reason, hospital_name)
 SELECT stay_id, facility_id, discharge_date, payer_id, admission_date, days, source_type,
        CASE WHEN days <= {WITHIN_DAYS} AND source_type = 'Hospital' THEN {_reason_case(REASON_ODDS['rehospitalization'])}
             WHEN days <= {WITHIN_DAYS} THEN {_reason_case(REASON_ODDS['early'])}
-            ELSE {_reason_case(REASON_ODDS['long_stay'])} END
+            ELSE {_reason_case(REASON_ODDS['long_stay'])} END,
+       destination_name
 FROM transfers
 """
 

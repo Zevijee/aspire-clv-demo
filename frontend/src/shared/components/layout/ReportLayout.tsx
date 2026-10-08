@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { ActiveFiltersProvider } from '../../activeFilters'
 
 import { ReportTabs, type ReportTabsProps } from './ReportTabs'
 
@@ -29,7 +30,8 @@ export function ReportLayout({
   const activeTab = tabs?.tabs.find((tab) => tab.id === tabs.activeTabId)
   const noScroll = internalScroll || activeTab?.noScroll === true
 
-  return (
+  // The report's filters announce themselves here; its drilldown bar lists them.
+  return (<ActiveFiltersProvider>
     <div className="main-panel">
       <header className="app-header">
         <div className="app-header__content">
@@ -54,5 +56,5 @@ export function ReportLayout({
         <div className="content-area__overlay" key={tabs?.activeTabId}>{tabFilters}</div>
       )}
     </div>
-  )
+  </ActiveFiltersProvider>)
 }

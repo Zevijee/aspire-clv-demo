@@ -8,4 +8,10 @@ export const clinicalReports: ReportDefinition[] = [
     path: '/clinical/hospital-transfers',
     title: 'Hospital Transfers',
   },
+  {
+    description: 'Review resident incidents.',
+    module: 'Clinical',
+    path: '/clinical/incidents',
+    title: 'Incidents',
+  },
 ]

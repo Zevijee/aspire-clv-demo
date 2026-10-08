@@ -26,6 +26,7 @@ Completeness comes from the seeder's checkpoints: a range with a day never
 generated is a 409, a day with no transfers is zero.
 """
 from datetime import date, timedelta
+from uuid import UUID
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -153,3 +154,29 @@ def hospital_transfers(connection: Connection, query: TransfersQuery):
     items.sort(key=lambda item: (item['state'], item['portfolio'], item['region'], item['facility_name']))
     return dict(start_date=query.start_date, end_date=query.end_date, prior_start_date=prior_start,
         prior_end_date=prior_end, items=items)
+
+
+class DailyTransfersQuery(TransfersQuery):
+    # The drilldown's facilities; empty means every facility.
+    facility_ids: list[UUID] = Field(default_factory=list, max_length=1000)
+
+
+class DailyTransfers(BaseModel):
+    days: list[dict] = Field(description='Every day of the range: its date and transfers, zero included.')
+
+
+def daily(connection: Connection, query: DailyTransfersQuery):
+    """Each day's transfers for the trend: the same transfers and filters as the
+    table, over the drilldown's facilities. A day with none is zero."""
+    if not _generated(connection, query.start_date, query.end_date):
+        raise ApiError('summary_unavailable', 'The requested period includes days not generated yet. '
+            'Run the seeder update or select completed dates.', 409)
+    conditions = _filters(query)
+    if query.facility_ids:
+        conditions.append(transfers.c.facility_id.in_(query.facility_ids))
+    counts = dict(connection.execute(select(transfers.c.transfer_date, func.count())
+        .where(transfers.c.transfer_date.between(query.start_date, query.end_date), *conditions)
+        .group_by(transfers.c.transfer_date)).all())
+    return dict(days=[dict(date=query.start_date + timedelta(days=offset),
+            transfers=counts.get(query.start_date + timedelta(days=offset), 0))
+        for offset in range(query.days)])

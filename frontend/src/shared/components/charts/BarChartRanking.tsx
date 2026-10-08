@@ -1,5 +1,6 @@
 import { useId } from 'react'
 import { DataState, type DataStateProps } from '../DataState'
+import { useAnnounceFilters } from '../../activeFilters'
 import {
   Bar,
   Cell,
@@ -17,7 +18,8 @@ type BarChartRankingItem = {
 }
 
 type BarChartRankingProps = DataStateProps & {
-  clearLabel?: string
+  /** What a selection filters, for "Clear destination filter". Sources by default. */
+  filterName?: { one: string; many: string }
   categoryLabel: string
   items: BarChartRankingItem[]
   subtitle: string
@@ -73,11 +75,14 @@ export function BarChartRanking({
   title,
   valueLabel,
   selectedLabels = [], onSelect, onClear,
-  clearLabel = 'Clear source filter',
+  filterName = { one: 'source', many: 'sources' },
   formatValue: axisFormat,
   showShare = true,
   baseline = 'zero',
 }: BarChartRankingProps) {
+  // A selection that filters the report is a report filter, listed in the drilldown bar.
+  useAnnounceFilters([{ name: filterName.one, active: Boolean(onClear) && selectedLabels.length > 0,
+    clear: () => onClear?.() }])
   // Unique per chart: several rankings on one page each label their own section.
   const titleId = useId()
   const formatValue = axisFormat ?? ((value: number) => value.toLocaleString())
@@ -92,7 +97,7 @@ export function BarChartRanking({
     <section aria-busy={loading} className="bar-chart-ranking" aria-labelledby={titleId}>
       <h2 id={titleId}>{title}</h2>
       <p className="bar-chart-ranking__subtitle">{subtitle}
-        {selectedLabels.length > 0 && onClear && <> · <button className="donut-chart__legend-select donut-chart__clear-filter" type="button" onClick={onClear}>{clearLabel}</button></>}
+        {selectedLabels.length > 0 && onClear && <> · <button className="donut-chart__legend-select donut-chart__clear-filter" type="button" onClick={onClear}>Clear {filterName.one} filter</button></>}
       </p>
       {loading || error || items.length === 0 ? (
         <div className="bar-chart-ranking__plot data-state-container">

@@ -6,7 +6,7 @@ import { Modal } from 'antd'
 import { useReportSearchParams as useSearchParams } from '../../../shared/components/ReportSearchContext'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { DataState } from '../../../shared/components/DataState'
-import { DrilldownNavigation, type DrilldownBreadcrumb } from '../../../shared/components/DrilldownNavigation'
+import { DrilldownNavigation, locationLevel, type DrilldownBreadcrumb } from '../../../shared/components/DrilldownNavigation'
 import { useCustomGrouping } from '../../../shared/customGrouping'
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
@@ -169,12 +169,10 @@ export function AdmissionsOverview({ selection: given, onChangeSelection }: {
         initialSort={{ columnId: 'admissions', direction: 'descending' }}
         csvFileName={`referring-hospitals-${startDate}-to-${endDate}.csv`} emptyMessage="No referring hospitals match these dates and filters." /></div>
     </Modal>
-    <DrilldownNavigation ariaLabel="Admissions drill-down" items={breadcrumbs}
+    <DrilldownNavigation ariaLabel="Admissions drill-down" items={breadcrumbs} level={locationLevel(level)}
       locationView={{ groupBy: customLevel ?? 'state', selectedCount: selection.locations?.length ?? 0,
         selectionLevel: getLocationLevel(selection.locations ?? []), onReturn: () => navigate(null),
-        onClear: () => { setGrouping(null); onChangeSelection({ ...given, scope: null, locations: [], groupBy: 'state' }) } }}
-      activeFilters={[...(payers.length ? ['payer'] : []), ...(sources.length ? ['source'] : [])]}
-      onClearFilter={filter => { if (filter === 'payer') setPayers([]); if (filter === 'source') setSources([]) }} />
+        onClear: () => { setGrouping(null); onChangeSelection({ ...given, scope: null, locations: [], groupBy: 'state' }) } }} />
     {previous.error && !status.error && <DataState label="Prior period" error={`Prior period: ${previous.error}`} onRetry={previous.onRetry} />}
     <Table {...status} key={JSON.stringify([scope, selection.locations, selection.groupBy])} columns={columns} rows={rows}
       getRowKey={row => row.id} getFooterRow={total} initialSort={{ columnId: 'admissions', direction: 'descending' }}

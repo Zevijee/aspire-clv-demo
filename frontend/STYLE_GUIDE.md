@@ -189,7 +189,17 @@ The shared side-filter drawer's category-navigation default is a vertical sideba
 
 Use the shared `DrilldownNavigation` component for report hierarchies. Pass ordered
 `items` with stable IDs, labels, and ancestor `onSelect` callbacks; the final item is
-the current location. Optionally pass `level` with `current`, `total`, and `label`.
+the current location. `level` is required, so every drilldown says where it is
+("Level 2 of 4 · Portfolio"); `locationLevel(level)` builds it from a level name.
+
+Every bar also lists the view's active report filters, each with its Clear button,
+and no report wires them. The shared filter controls announce themselves through
+`src/shared/activeFilters.tsx`: a `FilterDropdown` in the header's `ReportFilters`,
+each applied `TabFilterBar` category, and a `DonutChart` or `BarChartRanking`
+selection with `onClear`. `ReportLayout` holds the list for a report and
+`FullScreenModal` holds its own for a modal. A filter shown in two places, such as
+the header payer dropdown and the payer donut, appears once. A new filter control
+announces itself with `useAnnounceFilters`; a report never passes filters to the bar.
 The component owns breadcrumb separators, styling, responsive wrapping, current-location
 semantics, and focus restoration when the path changes. Features own their hierarchy
 state and data filtering; do not duplicate the breadcrumb markup or override its styles.
@@ -304,6 +314,7 @@ Use the shared `InfoDisclosure` component for inline explanations of KPIs, formu
 - Keep headers visible when feasible for long, scrollable data.
 - Support empty, loading, and error states.
 - Use horizontal scrolling rather than compressing critical columns on small screens.
+- Yes/No values are always `BooleanBadge`s, never plain text. The shared `Table` shows any plain column whose every value is Yes or No as badges by itself; set `dataType: 'boolean'` only to add `negativeWhenTrue`, where Yes is the bad outcome (a rehospitalization, a readmission). Outside a `Table`, render `BooleanBadge` directly.
 - Use the shared `Table` component for report data tables. It provides consistent card structure, semantic table markup, responsive horizontal scrolling, accessible sortable columns, clickable multi-select filter icons beside enabled headers, and optional CSV export. Filter menus show search first, then Select all and Clear actions; during search, Select matches adds only matching options and preserves selections outside the search. Values start unchecked, and an empty selection leaves the column unfiltered. Use `internalScroll` for a fixed-height scroll body with sticky column headers.
 
 ### Charts

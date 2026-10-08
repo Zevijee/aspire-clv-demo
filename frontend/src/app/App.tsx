@@ -20,6 +20,7 @@ import { MonthlyMedicaid } from '../features/mds/components/MonthlyMedicaid'
 import { MedicaidWorksheet } from '../features/mds/components/MedicaidWorksheet'
 import { PdpmCalculator } from '../features/mds/components/PdpmCalculator'
 import { HospitalTransfers } from '../features/clinical/components/HospitalTransfers'
+import { TransferLogs } from '../features/clinical/components/TransferLogs'
 import { HistoricalResidents } from '../features/mds/components/HistoricalResidents'
 import { worksheetDateBasis } from '../features/mds/worksheetApi'
 import { Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
@@ -63,6 +64,10 @@ const admissionsTabs = [
   { id: 'logs', label: 'Logs', noScroll: true },
 ]
 const dischargesTabs = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'logs', label: 'Logs', noScroll: true },
+]
+const hospitalTransfersTabs = [
   { id: 'overview', label: 'Overview' },
   { id: 'logs', label: 'Logs', noScroll: true },
 ]
@@ -159,6 +164,7 @@ function App() {
   const activeAdmissionsTab = admissionsTabs.find((tab) => tab.id === admissionsView)?.id ?? 'testing'
   const activeDischargesTab = dischargesTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeLiveCensusTab = admissionsView === 'residents' ? 'residents' : 'overview'
+  const activeTransfersTab = hospitalTransfersTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeMedicareTab = medicareTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeHistoricalMedicareTab = historicalMedicareTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeMonthlyMedicareTab = monthlyMedicareTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
@@ -433,6 +439,15 @@ function App() {
                 activeTabId: activeDischargesTab,
                 onTabChange: handleAdmissionsTabChange,
                 tabs: dischargesTabs,
+              } : currentReport.path === '/clinical/hospital-transfers' ? {
+                activeTabId: activeTransfersTab,
+                tabs: hospitalTransfersTabs,
+                onTabChange: (id: string) => {
+                  const next = new URLSearchParams(searchParams)
+                  if (id === 'overview') next.delete('view')
+                  else next.set('view', id)
+                  setSearchParams(next)
+                },
               } : currentReport.path === '/census/daily-census' ? {
                 activeTabId: activeLiveCensusTab,
                 tabs: liveCensusTabs,
@@ -512,7 +527,8 @@ function App() {
                     ? <HistoricalMedicaidResidents /> : <HistoricalMedicaidOverview />)
                   : report.path === '/mds/pdpm-worksheet' ? <PdpmWorksheet />
                   : report.path === '/mds/medicaid-pdpm-worksheet' ? <MedicaidWorksheet />
-                  : report.path === '/clinical/hospital-transfers' ? <HospitalTransfers />
+                  : report.path === '/clinical/hospital-transfers'
+                    ? (activeTransfersTab === 'logs' ? <TransferLogs /> : <HospitalTransfers />)
                   : report.path === '/mds/historical-medicare' ? (activeHistoricalMedicareTab === 'categories'
                     ? <HistoricalCategoryBreakdown /> : activeHistoricalMedicareTab === 'residents'
                     ? <HistoricalResidents /> : <HistoricalOverview />) : report.path === '/census/residents' ? <ResidentsReport /> :report.path === '/census/bed-board' ? <BedBoard /> : report.path === '/census/monthly-trending' ? <MonthlyCensusTrending /> : report.path === '/census/trending' ? <CensusTrending /> : report.path === '/census/daily-census' ? (

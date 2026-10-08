@@ -509,7 +509,13 @@ export function Table<Row>({
   const sized = (columnId: string, content: ReactNode) => columnWidths[columnId] === undefined ? content
     : <div className="report-table__sized"
       style={{ width: `calc(${columnWidths[columnId]}px - 2 * var(--space-4))` }}>{content}</div>
-  const visibleColumns = useMemo(() => columns.filter((column) => column.hidden !== true), [columns])
+  // A Yes/No column is shown as badges whether or not it says so: a plain
+  // column whose every value on the page is Yes or No is a boolean one.
+  // dataType: 'boolean' is still how a column asks for negativeWhenTrue.
+  const visibleColumns = useMemo(() => columns.filter((column) => column.hidden !== true)
+    .map((column) => column.dataType || column.format || column.change || column.numeric || rows.length === 0
+      || !rows.every((row) => { const value = column.value(row); return value === 'Yes' || value === 'No' })
+      ? column : { ...column, dataType: 'boolean' as const }), [columns, rows])
   const hiddenFilterColumns = useMemo(
     () => columns.filter((column) => column.hidden === true && column.filterable === true && column.numeric !== true),
     [columns],

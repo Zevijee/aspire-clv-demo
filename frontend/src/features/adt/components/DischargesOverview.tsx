@@ -4,7 +4,7 @@ import { PayerFilter } from './PayerFilter'
 import { useReportSearchParams as useSearchParams } from '../../../shared/components/ReportSearchContext'
 import { Table, type TableColumn } from '../../../shared/components/Table'
 import { DataState } from '../../../shared/components/DataState'
-import { DrilldownNavigation, type DrilldownBreadcrumb } from '../../../shared/components/DrilldownNavigation'
+import { DrilldownNavigation, locationLevel, type DrilldownBreadcrumb } from '../../../shared/components/DrilldownNavigation'
 import { useCustomGrouping } from '../../../shared/customGrouping'
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
@@ -151,12 +151,10 @@ export function DischargesOverview({ selection: given, onChange }: {
     (current.data?.daily ?? []).map(row => ({ date: row.date, value: row.discharges })), startDate, blockSize)
   const heading = level[0].toUpperCase() + level.slice(1)
   return <>
-    <DrilldownNavigation ariaLabel="Discharges drill-down" items={breadcrumbs}
+    <DrilldownNavigation ariaLabel="Discharges drill-down" items={breadcrumbs} level={locationLevel(level)}
       locationView={{ groupBy: customLevel ?? 'state', selectedCount: selection.locations?.length ?? 0,
         selectionLevel: getLocationLevel(selection.locations ?? []), onReturn: () => navigate(null),
-        onClear: () => { setGrouping(null); onChange({ ...given, scope: null, locations: [], groupBy: 'state' }) } }}
-      activeFilters={[...(payers.length ? ['payer'] : []), ...(destinations.length ? ['destination'] : [])]}
-      onClearFilter={filter => { if (filter === 'payer') setPayers([]); if (filter === 'destination') setDestinations([]) }} />
+        onClear: () => { setGrouping(null); onChange({ ...given, scope: null, locations: [], groupBy: 'state' }) } }} />
     {previous.error && !status.error && <DataState label="Prior period"
       error={`Prior period: ${previous.error}`} onRetry={previous.onRetry} />}
     <Table {...status} key={JSON.stringify([scope, selection.locations, selection.groupBy])}
@@ -185,7 +183,7 @@ export function DischargesOverview({ selection: given, onChange }: {
         categoryLabel="Destination type" valueLabel="Discharges"
         items={(current.data?.by_destination ?? []).map(row => ({ label: row.destination_type, value: row.discharges }))
           .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))}
-        selectedLabels={destinations} onClear={() => setDestinations([])}
+        filterName={{ one: 'destination', many: 'destinations' }} selectedLabels={destinations} onClear={() => setDestinations([])}
         onSelect={value => setDestinations(destinations.includes(value)
           ? destinations.filter(item => item !== value) : [...destinations, value])} />
       <DonutChart {...status} title="Discharges by Payer Type" subtitle="Click payers to filter the report"

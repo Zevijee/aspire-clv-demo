@@ -3,6 +3,7 @@ import { Popover } from 'antd'
 import { FilterValuePicker, type FilterPickerOption } from './FilterValuePicker'
 import { MultiSelectFilterOptions } from './MultiSelectFilterOptions'
 import { DataState, type DataStateProps } from '../DataState'
+import { useAnnounceFilters, useInReportHeader } from '../../activeFilters'
 
 type FilterDropdownProps = DataStateProps & {
   label: string
@@ -22,6 +23,10 @@ export function FilterDropdown({ label, options, values, onChange,
   const id = useId()
   const trigger = useRef<HTMLButtonElement>(null)
   const summary = values.length === 0 ? placeholder : `${values.length} selected`
+  // In the report header it is a report filter, listed in the drilldown bar;
+  // in a table's column header it is the table's own and is not.
+  const inHeader = useInReportHeader()
+  useAnnounceFilters([{ name: label, active: inHeader && values.length > 0, clear: () => onChange([]) }])
 
   return <div className="filter-dropdown">
     <label className="filter-dropdown__label" htmlFor={`${id}-trigger`}>{label}</label>

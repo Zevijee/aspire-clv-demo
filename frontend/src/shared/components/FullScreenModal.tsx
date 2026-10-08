@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Modal } from 'antd'
+import { ActiveFiltersProvider } from '../activeFilters'
 
 type FullScreenModalProps = {
   open: boolean
@@ -16,6 +17,7 @@ export function FullScreenModal({ open, onClose, title, children, destroyOnHidde
   return <Modal open={open} onCancel={onClose} footer={null} destroyOnHidden={destroyOnHidden}
     title={title} width="calc(100vw - 48px)" className="net-change-daily-modal"
     style={{ top: 24, paddingBottom: 0, maxWidth: 'calc(100vw - 48px)' }}>
-    {children}
+    {/* Its own filters, so a modal's selections never show in the page's bar. */}
+    <ActiveFiltersProvider>{children}</ActiveFiltersProvider>
   </Modal>
 }

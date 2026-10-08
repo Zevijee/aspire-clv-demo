@@ -1,4 +1,5 @@
 import { DataState, type DataStateProps } from '../DataState'
+import { useAnnounceFilters } from '../../activeFilters'
 import { useId, useState, type ReactNode } from 'react'
 import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts'
 
@@ -38,6 +39,9 @@ const chartColors = [
 export function DonutChart({ items, subtitle, title, titleContent, loading, error, onRetry, selectedLabels = [], onClear, onSelect, valueLabel = 'Admissions', centerMode = 'active', formatValue = (value: number) => value.toLocaleString(),
   filterName = { one: 'payer', many: 'payers' } }: DonutChartProps) {
   const titleId = useId()
+  // A selection that filters the report is a report filter, listed in the drilldown bar.
+  useAnnounceFilters([{ name: filterName.one, active: Boolean(onClear) && selectedLabels.length > 0,
+    clear: () => onClear?.() }])
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const total = items.reduce((sum, item) => sum + item.value, 0)
   const hasSelection = selectedLabels.length > 0

@@ -2,6 +2,7 @@ import { useId, useState, type ReactNode } from 'react'
 import { Drawer } from 'antd'
 import { FilterValuePicker } from './FilterValuePicker'
 import type { MultiSelectFilterOption } from './MultiSelectFilterOptions'
+import { useAnnounceFilters } from '../../activeFilters'
 
 export type TabFilterBarFilter = {
   id: string
@@ -73,6 +74,10 @@ export function TabFilterBar({
       values: payerTypes,
     },
   ]
+  // Each applied category is a report filter, listed in the drilldown bar.
+  useAnnounceFilters(filters.map(filter => ({ name: filter.label, active: filter.values.length > 0,
+    clear: () => filter.onChange ? filter.onChange([])
+      : onApplyFilters?.({ ...Object.fromEntries(filters.map(item => [item.id, item.values])), [filter.id]: [] }) })))
   const activeFilter = filters.find((filter) => filter.id === activeFilterId) ?? filters[0]
   const appliedCategoryCount = filters.filter((filter) => filter.values.length > 0 || filter.isApplied).length
   const hasSelections = filters.some((filter) => (draftValues[filter.id] ?? filter.values).length > 0)

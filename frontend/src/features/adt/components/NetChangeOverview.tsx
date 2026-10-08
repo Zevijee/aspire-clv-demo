@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { NetChangePayerFilter } from './NetChangePayerFilter'
 import { useReportSearchParams as useSearchParams } from '../../../shared/components/ReportSearchContext'
 import { Table, type TableColumn } from '../../../shared/components/Table'
-import { DrilldownNavigation, type DrilldownBreadcrumb } from '../../../shared/components/DrilldownNavigation'
+import { DrilldownNavigation, locationLevel, type DrilldownBreadcrumb } from '../../../shared/components/DrilldownNavigation'
 import { useCustomGrouping } from '../../../shared/customGrouping'
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
@@ -12,7 +12,6 @@ import { locationPlace } from '../utils/locationPlace'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import { useAdmissionsReferences } from '../hooks/useAdmissionsOverview'
 import { useNetChangeOverview } from '../hooks/useNetChangeOverview'
-import { payerLabel } from '../api/admissionsOverview'
 import { netChangeParameters, type NetChangeLocation, type NetChangeSelection } from '../api/netChangeOverview'
 import { getLocationLevel, locationLevels } from '../utils/admissionsOverviewFilters'
 import { NetChangeDailyTrend } from './NetChangeDailyTrend'
@@ -74,16 +73,6 @@ export function NetChangeOverview() {
     params2.delete('all_facilities')
     setParams(params2)
   }
-  function setPayer(payer?: string) {
-    const next = new URLSearchParams(params)
-    const payers = payer
-      ? selectedPayers.includes(payer)
-        ? selectedPayers.filter(value => value !== payer) : [...selectedPayers, payer]
-      : []
-    next.delete('net_payer')
-    payers.forEach(value => next.append('net_payer', value))
-    setParams(next)
-  }
   const breadcrumbs: DrilldownBreadcrumb[] = path.map((name, index) => ({
     id: JSON.stringify(path.slice(0, index + 1)), label: name,
     onSelect: () => setPath(path.slice(0, index + 1)),
@@ -133,7 +122,7 @@ export function NetChangeOverview() {
       value: row => row.payer_changes_in, format: number },
   ]
   return <>
-    <DrilldownNavigation ariaLabel="Net change drill-down" items={breadcrumbs}
+    <DrilldownNavigation ariaLabel="Net change drill-down" items={breadcrumbs} level={locationLevel(level)}
       locationView={{ groupBy: customLevel, selectedCount: locations.length,
         selectionLevel: getLocationLevel(locations),
         onReturn: () => setPath([]), onClear: () => {
@@ -141,12 +130,7 @@ export function NetChangeOverview() {
           const next = new URLSearchParams(params)
           for (const key of ['net_scope', 'net_location', 'net_level']) next.delete(key)
           setParams(next)
-        } }}
-      activeFilters={selectedPayers.map(payerLabel)}
-      onClearFilter={label => {
-        const payer = selectedPayers.find(value => payerLabel(value) === label)
-        if (payer) setPayer(payer)
-      }} />
+        } }} />
     <Table {...status} key={JSON.stringify([scopeKey, locationKey, customLevel])}
       title={`${level[0].toUpperCase() + level.slice(1)} net change`}
       subtitle={`Net change is close census minus open census.${selectedPayers.length ? ' Payer in and out count moves between payer types.' : ''}`}

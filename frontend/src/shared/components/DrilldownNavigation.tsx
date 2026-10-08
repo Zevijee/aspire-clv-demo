@@ -1,3 +1,5 @@
+import { useActiveFilters } from '../activeFilters'
+import { locationLevels, type LocationLevel } from '../customGrouping'
 import { useEffect, useRef, type ReactNode } from 'react'
 
 export type DrilldownBreadcrumb = {
@@ -8,8 +10,6 @@ export type DrilldownBreadcrumb = {
 
 type DrilldownNavigationProps = {
   ariaLabel?: string
-  activeFilters?: readonly string[]
-  onClearFilter?: (filter: string) => void
   clearAction?: { label: string; onClick: () => void }
   /** Builds the shared location-view root and reset action before the supplied
    * path. useLocationView supplies it from the app-wide grouping. */
@@ -22,7 +22,9 @@ type DrilldownNavigationProps = {
   }
   /** Ordered from the root to the current location; the final item is not clickable. */
   items: readonly DrilldownBreadcrumb[]
-  level?: { current: number; total: number; label: string }
+  /** Where the drilldown is: "Level 2 of 4 · Portfolio". Required, so every
+   * location drilldown shows it; `locationLevel` builds it from a level name. */
+  level: { current: number; total: number; label: string }
   /** The report's own controls, such as a category choice, on a row of their own
    * under the breadcrumbs. The bar is sticky, so they stay in reach on scroll. */
   controls?: ReactNode
@@ -30,14 +32,13 @@ type DrilldownNavigationProps = {
 
 export function DrilldownNavigation({
   ariaLabel = 'Drill-down navigation',
-  activeFilters = [],
-  onClearFilter,
   clearAction: suppliedClearAction,
   items: pathItems,
   locationView,
   level,
   controls,
 }: DrilldownNavigationProps) {
+  const activeFilters = useActiveFilters()
   const isCustomView = Boolean(locationView && (locationView.groupBy !== 'state' || locationView.selectedCount > 0))
   let items = pathItems
   let clearAction = suppliedClearAction
@@ -93,14 +94,12 @@ export function DrilldownNavigation({
           {clearAction.label}
         </button>
       )}
-      {activeFilters.length > 0 && (
-        <>
-          {onClearFilter && activeFilters.map((filter) => (
-            <button key={filter} className="drilldown-navigation__clear" type="button"
-              onClick={() => onClearFilter(filter)}>Clear {filter} filter</button>
-          ))}
-        </>
-      )}
+      {/* Every active report filter, announced by the shared control that holds
+          it: header dropdowns, the side-filter drawer, chart selections. */}
+      {activeFilters.map((filter) => (
+        <button key={filter.name} className="drilldown-navigation__clear" type="button"
+          onClick={filter.clear}>Clear {filter.name} filter</button>
+      ))}
       {level && (
         <span className="drilldown-navigation__level">
           Level {level.current} of {level.total} · {level.label}
@@ -110,4 +109,10 @@ export function DrilldownNavigation({
       {controls && <div className="drilldown-navigation__controls">{controls}</div>}
     </nav>
   )
+}
+
+/** The bar's level for a location level name. */
+export function locationLevel(level: LocationLevel) {
+  return { current: locationLevels.indexOf(level) + 1, total: locationLevels.length,
+    label: level[0].toUpperCase() + level.slice(1) }
 }

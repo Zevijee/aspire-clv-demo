@@ -940,7 +940,7 @@ Internal future simulation plans. These are not completed clinical events.
 
 ## transfer_logs
 
-One hospital transfer per row: each discharge to a hospital with its reason, payer, facility, days since admission and admission source, so clinical reports can cross any of them.
+One hospital transfer per row: each discharge to a hospital with its hospital, reason, payer, facility, days since admission and admission source, so clinical reports can cross any of them.
 
 | Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
 | --- | --- | --- | --- | --- | --- |
@@ -952,6 +952,7 @@ One hospital transfer per row: each discharge to a hospital with its reason, pay
 | days_since_admission | INTEGER | no |  |  |  |
 | admission_source_type | VARCHAR | no |  |  |  |
 | reason | VARCHAR | no |  |  |  |
+| hospital_name | VARCHAR | no |  |  |  |
 
 - CHECK: `days_since_admission >= 0`
 - CHECK: `reason IN ('Respiratory', 'Cardiac', 'Infection or sepsis', 'Urinary tract infection', 'Fall or injury', 'Change in mental status', 'Gastrointestinal', 'Dehydration or electrolytes', 'Surgical complication', 'Planned procedure', 'Other')`
