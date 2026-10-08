@@ -21,6 +21,7 @@ import { MedicaidWorksheet } from '../features/mds/components/MedicaidWorksheet'
 import { PdpmCalculator } from '../features/mds/components/PdpmCalculator'
 import { HospitalTransfers } from '../features/clinical/components/HospitalTransfers'
 import { TransferLogs } from '../features/clinical/components/TransferLogs'
+import { TransferFilters } from '../features/clinical/components/TransferFilters'
 import { HistoricalResidents } from '../features/mds/components/HistoricalResidents'
 import { worksheetDateBasis } from '../features/mds/worksheetApi'
 import { Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
@@ -413,6 +414,7 @@ function App() {
                 setSearchParams(next)
               }} />}
             {isMonthlyAdtReport && <MonthlyAdtFilters />}
+            {currentReport.path === '/clinical/hospital-transfers' && <TransferFilters />}
             {/* Left of the date range: which date the range applies to. */}
             {(isWorksheetReport || isHistoricalMdsReport) && <WorksheetDateBasisToggle />}
             {isMonthlyReport ? <ReportMonthRangeFilter /> : currentReport.path !== '/adt/referring-hospital' && currentReport.path !== '/census/daily-census'

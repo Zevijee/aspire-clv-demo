@@ -31,7 +31,7 @@ export function ReportLayout({
   const noScroll = internalScroll || activeTab?.noScroll === true
 
   // The report's filters announce themselves here; its drilldown bar lists them.
-  return (<ActiveFiltersProvider>
+  return (<ActiveFiltersProvider requireHeader>
     <div className="main-panel">
       <header className="app-header">
         <div className="app-header__content">

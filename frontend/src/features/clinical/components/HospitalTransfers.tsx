@@ -10,6 +10,7 @@ import { useCustomGrouping } from '../../../shared/customGrouping'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { DonutChart } from '../../../shared/components/charts/DonutChart'
 import { payerCode, payerLabels } from '../../adt/api/admissionsOverview'
+import { TRANSFER_PAYER_PARAM, TRANSFER_REASON_PARAM } from './TransferFilters'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import {
   drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow,
@@ -22,9 +23,10 @@ import {
 
 type Row = DrilldownRow<FacilityTransfers>
 type Summed = 'transfers' | 'within_30_days' | 'los_days' | 'rehospitalizations' | 'resident_days'
-// The donuts' filters, kept in the URL with the drilldown.
-const PAYER_PARAM = 'transfer_payer'
-const REASON_PARAM = 'transfer_reason'
+// The donuts' filters, kept in the URL with the drilldown and shared with the
+// header dropdowns.
+const PAYER_PARAM = TRANSFER_PAYER_PARAM
+const REASON_PARAM = TRANSFER_REASON_PARAM
 
 const sum = (row: Row, field: Summed) => row.facilities.reduce((total, facility) => total + facility[field], 0)
 // Sums at this scope divided once: never an average of facility averages.

@@ -40,8 +40,9 @@ export function DonutChart({ items, subtitle, title, titleContent, loading, erro
   filterName = { one: 'payer', many: 'payers' } }: DonutChartProps) {
   const titleId = useId()
   // A selection that filters the report is a report filter, listed in the drilldown bar.
-  useAnnounceFilters([{ name: filterName.one, active: Boolean(onClear) && selectedLabels.length > 0,
-    clear: () => onClear?.() }])
+  // A chart with a clear action is a filter whether or not anything is selected.
+  useAnnounceFilters(onClear ? [{ name: filterName.one, active: selectedLabels.length > 0,
+    clear: () => onClear(), kind: 'chart' }] : [])
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const total = items.reduce((sum, item) => sum + item.value, 0)
   const hasSelection = selectedLabels.length > 0

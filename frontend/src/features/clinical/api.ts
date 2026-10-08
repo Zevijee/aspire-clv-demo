@@ -1,6 +1,12 @@
 import { readJson } from '../adt/api/admissionsOverview'
 import { authorizedFetch } from '../auth/api'
 
+// The transfer reasons, in shared/database/schema.py TRANSFER_REASONS order; the
+// API validates them against that list.
+export const TRANSFER_REASONS = ['Respiratory', 'Cardiac', 'Infection or sepsis', 'Urinary tract infection',
+  'Fall or injury', 'Change in mental status', 'Gastrointestinal', 'Dehydration or electrolytes',
+  'Surgical complication', 'Planned procedure', 'Other']
+
 const base = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').replace(/\/$/, '')
 
 /** One facility's hospital transfers in the range: sums, for the page to add

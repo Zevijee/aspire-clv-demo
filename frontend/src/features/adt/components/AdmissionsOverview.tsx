@@ -194,6 +194,7 @@ export function AdmissionsOverview({ selection: given, onChangeSelection }: {
       csvFileName={`admissions-facilities-${startDate}-to-${endDate}.csv`} />
     <div className="admissions-dashboard">
       <BarChartRanking {...status} title="Admissions by Source Type" subtitle="Click sources to filter the report"
+        filterName={{ one: 'source type', many: 'source types' }}
         categoryLabel="Admission source type" valueLabel="Admissions"
         items={(current.data?.by_source ?? []).map(row => ({ label: row.source_type, value: row.admissions }))
           .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))}

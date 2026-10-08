@@ -183,7 +183,7 @@ export function DischargesOverview({ selection: given, onChange }: {
         categoryLabel="Destination type" valueLabel="Discharges"
         items={(current.data?.by_destination ?? []).map(row => ({ label: row.destination_type, value: row.discharges }))
           .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))}
-        filterName={{ one: 'destination', many: 'destinations' }} selectedLabels={destinations} onClear={() => setDestinations([])}
+        filterName={{ one: 'destination type', many: 'destination types' }} selectedLabels={destinations} onClear={() => setDestinations([])}
         onSelect={value => setDestinations(destinations.includes(value)
           ? destinations.filter(item => item !== value) : [...destinations, value])} />
       <DonutChart {...status} title="Discharges by Payer Type" subtitle="Click payers to filter the report"

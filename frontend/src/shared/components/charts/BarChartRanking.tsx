@@ -81,8 +81,9 @@ export function BarChartRanking({
   baseline = 'zero',
 }: BarChartRankingProps) {
   // A selection that filters the report is a report filter, listed in the drilldown bar.
-  useAnnounceFilters([{ name: filterName.one, active: Boolean(onClear) && selectedLabels.length > 0,
-    clear: () => onClear?.() }])
+  // A chart with a clear action is a filter whether or not anything is selected.
+  useAnnounceFilters(onClear ? [{ name: filterName.one, active: selectedLabels.length > 0,
+    clear: () => onClear(), kind: 'chart' }] : [])
   // Unique per chart: several rankings on one page each label their own section.
   const titleId = useId()
   const formatValue = axisFormat ?? ((value: number) => value.toLocaleString())

@@ -256,6 +256,21 @@ Use the shared `InfoDisclosure` component for inline explanations of KPIs, formu
 - Prefer comfortable interactive targets. Compact header filters use the established 32 px control height; preserve visible focus and keyboard access.
 - Disabled states must remain legible and must not be used as a substitute for validation feedback.
 
+### Report filters
+
+A report filter is always in the report header, beside the date range, as a
+`FilterDropdown` in `ReportFilters`. A chart may also set it -- a donut or ranking
+chart a person clicks -- but only in addition to the header dropdown, never
+instead of it, and both read and write the same state (for example the same URL
+parameter), so choosing in either changes the other.
+
+This is checked, not just written down: the shared controls register with
+`src/shared/activeFilters.tsx`, and on a report page a chart filter with no
+header filter of the same name logs a console error, which `tools/site_audit.py`
+fails on. Name a chart's filter as its header dropdown is labelled -- a chart
+filtering "Source type" uses `filterName={{ one: 'source type', many: 'source types' }}`
+-- so the two count as one filter, and the drilldown bar shows one Clear button for it.
+
 ### Inputs and filters
 
 - Labels remain visible; placeholders do not replace labels.
