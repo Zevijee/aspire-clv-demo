@@ -14,4 +14,22 @@ export const clinicalReports: ReportDefinition[] = [
     path: '/clinical/incidents',
     title: 'Incidents',
   },
+  {
+    description: 'Review resident fevers and infections.',
+    module: 'Clinical',
+    path: '/clinical/fever-infections',
+    title: 'Fever / Infections',
+  },
+  {
+    description: 'Review resident weight changes.',
+    module: 'Clinical',
+    path: '/clinical/weight-surveillance',
+    title: 'Weight Surveillance',
+  },
+  {
+    description: 'Review progress notes flagged for follow-up.',
+    module: 'Clinical',
+    path: '/clinical/flagged-progress-notes',
+    title: 'Flagged Progress Notes',
+  },
 ]

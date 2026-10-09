@@ -29,6 +29,7 @@ from sqlalchemy import func, select
 
 from shared.database import schema
 from base import BaseGenerator, DailyGenerator, GenerationResult
+from source_data_generators.draws import draw as _draw, pick as _pick
 
 THROUGH = "SELECT max(simulation_date) AS day FROM sandbox_daily_runs WHERE generator = 'adt'"
 # Incidents per resident day: higher in the first 30 days of a stay, when falls
@@ -53,23 +54,6 @@ HOUR_WEIGHTS = (2, 2, 1.5, 1.5, 1.5, 2, 4, 6, 6.5, 6, 5, 4.5, 4, 4, 4, 4, 4.5, 5
 SEVERITY_ODDS = (45, 33, 17, 5, 0)
 HOSPITALIZED_SEVERITY_ODDS = (0, 0, 0, 70, 30)
 assert len(HOUR_WEIGHTS) == 24 and sum(SEVERITY_ODDS) == sum(HOSPITALIZED_SEVERITY_ODDS) == 100
-
-
-def _draw(seed):
-    """A stable draw in [0, 1) from a text seed: 32 bits of its md5."""
-    return f"(('x' || lpad(substr(md5({seed}), 1, 8), 16, '0'))::bit(64)::bigint / 4294967296.0)"
-
-
-def _pick(draw, values, weights):
-    """The value a draw in [0, 1) lands on, by cumulative weights."""
-    total, whens, running = sum(weights), [], 0
-    for value, weight in zip(values, weights):
-        if weight == 0:
-            continue
-        running += weight
-        whens.append((value, running / total))
-    return 'CASE ' + ' '.join(f'WHEN {draw} < {edge} THEN {value}' for value, edge in whens[:-1]) \
-        + f' ELSE {whens[-1][0]} END'
 
 
 def _type_case(draw):

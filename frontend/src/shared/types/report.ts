@@ -1,4 +1,4 @@
-export type AnalyticsModule = 'ADT' | 'Census' | 'MDS' | 'Clinical'
+export type AnalyticsModule = 'ADT' | 'Census' | 'MDS' | 'Clinical' | 'Staffing'
 
 export type ReportDefinition = {
   description: string

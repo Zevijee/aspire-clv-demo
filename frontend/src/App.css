@@ -3700,6 +3700,119 @@ h1 {
   background: var(--color-success-subtle);
 }
 
+/* StatusBadge: the shared badge shape, toned by what the status asks for. */
+.status-badge--danger {
+  color: var(--color-danger);
+  background: var(--color-danger-subtle);
+}
+.status-badge--warning {
+  color: var(--color-warning);
+  background: var(--color-warning-subtle);
+}
+.status-badge--success {
+  color: var(--color-success);
+  background: var(--color-success-subtle);
+}
+.status-badge--neutral {
+  color: var(--color-text-muted);
+  background: var(--color-surface-subtle);
+}
+
+/* Tag: a label for one of many values, toned from the chart series colours by
+   its text. */
+/* One line, however many: the column widens rather than the row growing. */
+.tag-list {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: var(--space-1);
+}
+.tag {
+  --tag-color: var(--color-chart-series-primary);
+  /* Centred by the box, not the line: with a line height the font's lowercase
+     sits low, leaving more room above the word than below. The 1px of bottom
+     padding lifts the letters to the optical middle. */
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 1.375rem;
+  padding: 0 var(--space-2) 1px;
+  border: 1px solid color-mix(in srgb, var(--tag-color) 45%, transparent);
+  border-radius: 4px;
+  color: color-mix(in srgb, var(--tag-color) 75%, var(--color-text));
+  background: color-mix(in srgb, var(--tag-color) 10%, transparent);
+  font-size: 0.75rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+.tag--1 { --tag-color: var(--color-chart-series-secondary); }
+.tag--2 { --tag-color: var(--color-chart-series-tertiary); }
+.tag--3 { --tag-color: var(--color-chart-series-quaternary); }
+.tag--4 { --tag-color: var(--color-chart-series-quinary); }
+.tag--5 { --tag-color: var(--color-chart-series-senary); }
+.tag--6 { --tag-color: var(--color-chart-series-septenary); }
+
+/* A word in running text, marked in its tag's colour. */
+/* The tone classes set --tag-color; the first tone has none, hence the fallback. */
+.tag-mark {
+  /* Its own box on the text's baseline, so the space above and below the word
+     can be evened: inline, the font's tall ascent left the word low. */
+  display: inline-block;
+  line-height: 1.15;
+  padding: 1px 3px 3px;
+  border: 1px solid color-mix(in srgb, var(--tag-color, var(--color-chart-series-primary)) 45%, transparent);
+  border-radius: 3px;
+  color: color-mix(in srgb, var(--tag-color, var(--color-chart-series-primary)) 75%, var(--color-text));
+  background: color-mix(in srgb, var(--tag-color, var(--color-chart-series-primary)) 12%, transparent);
+  font-weight: 600;
+}
+
+/* DetailModal: a compact, centred modal for one record. */
+.detail-modal .ant-modal-container {
+  padding: var(--space-5);
+  border-radius: 12px;
+}
+.detail-modal__heading {
+  display: grid;
+  gap: 2px;
+}
+.detail-modal__title {
+  color: var(--color-text);
+  font-size: 1rem;
+  font-weight: 600;
+}
+.detail-modal__subtitle {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+/* Flagged Progress Notes' note: who signed it, its flags, then the text. */
+.progress-note {
+  display: grid;
+  gap: var(--space-3);
+}
+.progress-note__meta {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+.progress-note__flags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+.progress-note__text {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-subtle);
+  line-height: 1.6;
+}
+
 /* A care code still to come: needs attention, not an error. */
 .care-code-badge--missing {
   color: var(--color-warning);

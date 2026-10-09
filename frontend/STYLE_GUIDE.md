@@ -43,6 +43,7 @@ Inspect these owners before adding another implementation. Paths and component n
 | Charts | `src/shared/components/charts/` including `LineChart` with bar variant, `DailyChangeChart`, `DonutChart`, rankings and diverging charts |
 | Equal-day trend grouping | `src/shared/utils/trendPeriods.ts` |
 | Full-screen detail modal | `src/shared/components/FullScreenModal.tsx` |
+| Compact modal for reading one record (a note, an event) | `src/shared/components/DetailModal.tsx` |
 | Show all facilities from a drilldown (every drilldown has one) | `src/shared/components/AllFacilitiesModal.tsx` with `OpenViewButton` |
 | Facility name with its region, portfolio and state on hover | `src/shared/components/LocationName.tsx` |
 | Header button that opens another view (outlined, never the solid Export style) | `src/shared/components/OpenViewButton.tsx` |
@@ -330,6 +331,8 @@ filtering "Source type" uses `filterName={{ one: 'source type', many: 'source ty
 - Support empty, loading, and error states.
 - Use horizontal scrolling rather than compressing critical columns on small screens.
 - Yes/No values are always `BooleanBadge`s, never plain text. The shared `Table` shows any plain column whose every value is Yes or No as badges by itself; set `dataType: 'boolean'` only to add `negativeWhenTrue`, where Yes is the bad outcome (a rehospitalization, a readmission). Outside a `Table`, render `BooleanBadge` directly.
+- Any other short status -- Outbreak, Watch -- is a `StatusBadge` (`src/shared/components/StatusBadge.tsx`) with a tone: `danger` for what needs action now, `warning` for what needs watching, `success`, `neutral`. Do not add report-specific badge classes.
+- One of many values shown as labels -- the watch words in a note -- is a `Tag`, several in a cell a `TagList` (`src/shared/components/Tag.tsx`). A tag's colour comes from its text, so a word has the same colour everywhere. Do not hand-colour tags per report.
 - Use the shared `Table` component for report data tables. It provides consistent card structure, semantic table markup, responsive horizontal scrolling, accessible sortable columns, clickable multi-select filter icons beside enabled headers, and optional CSV export. Filter menus show search first, then Select all and Clear actions; during search, Select matches adds only matching options and preserves selections outside the search. Values start unchecked, and an empty selection leaves the column unfiltered. Use `internalScroll` for a fixed-height scroll body with sticky column headers.
 
 ### Charts

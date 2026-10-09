@@ -41,6 +41,11 @@ SHARED_RULES = {
     'monthly_adt_summary': ('summary_generators/payer_movements.py',),
     # PDPM pricing: the per diem from each code, shared with the API.
     'census_logs': ('../shared/pdpm.py',),
+    # Stable SQL draws, shared by the clinical event generators.
+    'incident_logs': ('source_data_generators/draws.py',),
+    'infection_logs': ('source_data_generators/draws.py',),
+    'weight_logs': ('source_data_generators/draws.py',),
+    'progress_notes': ('source_data_generators/draws.py',),
 }
 # Reference data rebuilt from its rules alone, as `<name> --regenerate` does.
 REFERENCE = ('payer_rates', 'facility_beds', 'referring_hospitals')

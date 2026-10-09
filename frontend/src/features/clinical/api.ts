@@ -239,3 +239,164 @@ export async function downloadIncidentLogs(start: string, end: string, query: In
   anchor.remove()
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
+
+// --- Fever / Infections ----------------------------------------------------
+
+/** One facility and contagious type whose new cases reach watch or outbreak. */
+export type InfectionAlert = {
+  facility_id: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  infection_type: string
+  status: 'outbreak' | 'watch'
+  // New cases with onset in the 72 hours, and the 7 days, ending on the day.
+  cases_72_hours: number
+  cases_7_days: number
+  with_fever: number
+  // Not yet resolved on the day, whenever they began.
+  active: number
+  first_onset: string
+  latest_onset: string
+  wings: string[]
+}
+
+export type InfectionsBoard = {
+  date: string
+  // The latest generated day.
+  latest: string
+  facilities: number
+  facilities_in_outbreak: number
+  // With a watch and no outbreak.
+  facilities_on_watch: number
+  new_cases_72_hours: number
+  active_cases: number
+  // Outbreaks first, then watches.
+  alerts: InfectionAlert[]
+}
+
+/** The alert board as of a day; null means the latest generated day. */
+export function getInfectionsBoard(day: string | null, signal?: AbortSignal) {
+  const params = new URLSearchParams(day ? { date: day } : {})
+  return readJson<InfectionsBoard>(`${base}/api/v1/clinical/fever-infections?${params}`, signal)
+}
+
+// --- Weight Surveillance ---------------------------------------------------
+
+export const weightsBase = `${base}/api/v1/clinical/weight-surveillance`
+
+export type WeightsQuery = TransferLogsQuery
+
+/** One resident in a bed on the day, with this stay's weights in pounds. */
+export type ResidentWeight = {
+  stay_id: string
+  resident_name: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  admission_date: string
+  days_in_facility: number
+  admission_weight: number
+  // The latest weigh-in on or before the day, and when it was taken.
+  current_weight: number
+  weighed_on: string
+  // Current less admission.
+  change: number
+  change_percent: number
+  highest: number
+  lowest: number
+  // Highest less lowest, and that as a percent of the highest.
+  weight_range: number
+  range_percent: number
+  // Percent, against the latest weight at least 30 and 180 days older; null
+  // when the stay is younger.
+  change_30_days: number | null
+  change_180_days: number | null
+  flag: 'Significant loss' | 'Significant gain' | 'None'
+}
+
+export type WeightsPage = {
+  items: ResidentWeight[]
+  total: number
+  census_date: string
+  // Of the whole filtered list.
+  significant_loss: number
+  significant_gain: number
+}
+
+function weightParameters(query: WeightsQuery, day: string | null, offset = 0) {
+  const params = new URLSearchParams({ limit: '50', offset: String(offset),
+    filters: JSON.stringify(query.filters), search: query.search?.trim() ?? '',
+    sort: query.sort?.columnId ?? 'flag', direction: query.sort?.direction === 'descending' ? 'desc' : 'asc' })
+  if (day) params.set('end_date', day)
+  return params
+}
+
+/** Residents in a bed on the day; null means the latest day with weights. */
+export function getWeights(offset: number, query: WeightsQuery, day: string | null, signal?: AbortSignal) {
+  return readJson<WeightsPage>(`${weightsBase}?${weightParameters(query, day, offset)}`, signal)
+}
+
+export async function downloadWeights(query: WeightsQuery, day: string) {
+  const response = await authorizedFetch(`${weightsBase}/export?${weightParameters(query, day)}`)
+  if (!response.ok) throw new Error('Weight export could not complete.')
+  const url = URL.createObjectURL(await response.blob())
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `weights-${day}.csv`
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+// --- Flagged Progress Notes ------------------------------------------------
+
+export const flaggedNotesBase = `${base}/api/v1/clinical/flagged-notes`
+
+export type FlaggedNotesQuery = TransferLogsQuery
+
+/** A progress note from the last 10 days with a watch word in it. */
+export type FlaggedNote = {
+  note_id: string
+  note_date: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  resident_name: string
+  note_type: string
+  // The payer's label: Medicare, Medicaid and so on.
+  payer_type: string
+  clinician: string
+  // The watch words found in the text, alphabetically.
+  flag_terms: string[]
+  note_text: string
+}
+
+function flaggedNoteParameters(query: FlaggedNotesQuery, offset = 0) {
+  return new URLSearchParams({ limit: '50', offset: String(offset),
+    filters: JSON.stringify(query.filters), search: query.search?.trim() ?? '',
+    sort: query.sort?.columnId ?? 'note-date',
+    direction: query.sort?.direction === 'ascending' ? 'asc' : 'desc' })
+}
+
+export function getFlaggedNotes(offset: number, query: FlaggedNotesQuery, signal?: AbortSignal) {
+  return readJson<{ items: FlaggedNote[]; total: number }>(
+    `${flaggedNotesBase}?${flaggedNoteParameters(query, offset)}`, signal)
+}
+
+export async function downloadFlaggedNotes(query: FlaggedNotesQuery) {
+  const response = await authorizedFetch(`${flaggedNotesBase}/export?${flaggedNoteParameters(query)}`)
+  if (!response.ok) throw new Error('Note export could not complete.')
+  const url = URL.createObjectURL(await response.blob())
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = 'flagged-notes.csv'
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}

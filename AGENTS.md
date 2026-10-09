@@ -123,6 +123,9 @@ list it in `SHARED_RULES` there, or a change to that file goes unnoticed.
 | Monthly Texas Medicaid resident-days and rates for Monthly Medicaid Trending | `medicaid_census_summary --regenerate`, ~6 s |
 | Hospital transfers and their reasons, for the Clinical reports | `transfer_logs --regenerate`, ~2 s |
 | Resident incidents, for the Clinical reports | `incident_logs --regenerate`, ~20 s |
+| Resident weigh-ins, for Weight Surveillance | `weight_logs --regenerate`, ~3.5 min |
+| Progress notes and their flag terms, for Flagged Progress Notes | `progress_notes --regenerate`, ~6 min; updates only move dates |
+| Resident infections and outbreaks, for Fever / Infections | `infection_logs --regenerate`, ~15 s |
 | Room layout (wings, rooms, private share) | `facility_beds --regenerate`, ~2 s, then `bed_assignments --regenerate` |
 | Who sleeps in which bed | `bed_assignments --regenerate`, ~36 s |
 | New additive measure on a fact table | Column, backfill, `admissions_summary --regenerate` |
@@ -158,6 +161,9 @@ python manage.py pdpm_census_summary --regenerate     # PDPM resident-days and r
 python manage.py medicaid_census_summary --regenerate # Texas Medicaid resident-days and rates by month; ~6 s
 python manage.py transfer_logs --regenerate           # hospital transfers with reasons; ~2 s
 python manage.py incident_logs --regenerate           # resident incidents; ~20 s
+python manage.py weight_logs --regenerate             # resident weigh-ins; ~3.5 min
+python manage.py progress_notes --regenerate          # last 10 days of notes; ~6 min, then dates move
+python manage.py infection_logs --regenerate          # infections and outbreaks; ~15 s
 python manage.py facility_beds --regenerate           # wings, rooms and beds per facility; ~2 s
 python manage.py bed_assignments --regenerate         # which stay was in which bed; ~36 s
 python manage.py admission_logs --regenerate    # rebuild one table from saved stays

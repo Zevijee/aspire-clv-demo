@@ -24,6 +24,9 @@ import { TransferLogs } from '../features/clinical/components/TransferLogs'
 import { TransferFilters } from '../features/clinical/components/TransferFilters'
 import { Incidents } from '../features/clinical/components/Incidents'
 import { IncidentFilters } from '../features/clinical/components/IncidentFilters'
+import { FeverInfections } from '../features/clinical/components/FeverInfections'
+import { WeightSurveillance } from '../features/clinical/components/WeightSurveillance'
+import { FlaggedProgressNotes } from '../features/clinical/components/FlaggedProgressNotes'
 import { IncidentLogs } from '../features/clinical/components/IncidentLogs'
 import { HistoricalResidents } from '../features/mds/components/HistoricalResidents'
 import { worksheetDateBasis } from '../features/mds/worksheetApi'
@@ -122,6 +125,18 @@ function ModuleIcon({ module }: { module: AnalyticsModule }) {
     return (
       <svg aria-hidden="true" viewBox="0 0 24 24">
         <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+      </svg>
+    )
+  }
+
+  // A person with a clock: who is on, and for how long.
+  if (module === 'Staffing') {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <circle cx="9" cy="7" r="4" />
+        <path d="M2 21v-2a4 4 0 0 1 4-4h5" />
+        <circle cx="17.5" cy="17.5" r="4.5" />
+        <path d="M17.5 15.5v2l1.5 1" />
       </svg>
     )
   }
@@ -353,6 +368,7 @@ function App() {
       ) : (
       <ReportLayout
         internalScroll={currentReport.path === '/adt/referring-hospital' || currentReport.path === '/census/residents'
+          || currentReport.path === '/clinical/weight-surveillance' || currentReport.path === '/clinical/flagged-progress-notes'
           || isWorksheetReport}
         filters={
           <ReportFilters>
@@ -408,6 +424,8 @@ function App() {
             {/* Overview only: the Residents tab filters payers in its own table. */}
             {currentReport.path === '/census/daily-census' && activeLiveCensusTab === 'overview' && <CensusPayerFilter param="live_payer" />}
             {currentReport.path === '/census/daily-census' && <ReportDateFilter earliest="2023-01-01" />}
+            {/* The board reads the 7 days ending on the day, so its first is the 7th. */}
+            {currentReport.path === '/clinical/fever-infections' && <ReportDateFilter earliest="2023-01-07" />}
             {currentReport.path === '/census/trending' && <CensusPayerFilter param="trending_payer" />}
             {currentReport.path === '/census/bed-board' && <BedBoardFacilityFilter />}
             {isMonthlyCensusReport && <CensusPayerFilter param="monthly_census_payer" />}
@@ -424,6 +442,8 @@ function App() {
             {/* Left of the date range: which date the range applies to. */}
             {(isWorksheetReport || isHistoricalMdsReport) && <WorksheetDateBasisToggle />}
             {isMonthlyReport ? <ReportMonthRangeFilter /> : currentReport.path !== '/adt/referring-hospital' && currentReport.path !== '/census/daily-census'
+              && currentReport.path !== '/clinical/fever-infections' && currentReport.path !== '/clinical/weight-surveillance'
+              && currentReport.path !== '/clinical/flagged-progress-notes'
               && currentReport.path !== '/census/residents' && currentReport.path !== '/census/bed-board'
               && currentReport.path !== '/mds/current-medicare' && currentReport.path !== '/mds/current-medicaid'
               ? <ReportDateRangeFilter /> : null}
@@ -495,7 +515,7 @@ function App() {
               } : undefined
         }
         title={currentReport.title}
-        titleDetail={currentReport.path === '/census/daily-census' ? `Census on ${dayjs(searchParams.get('date') ?? undefined).format('dddd, MMMM D, YYYY')}` : currentReport.path === '/census/bed-board' ? 'Current beds, one facility at a time' : currentReport.path === '/mds/current-medicare' ? 'PDPM residents in a bed today' : currentReport.path === '/mds/current-medicaid' ? 'Texas Medicaid residents in a bed today' :currentReport.path === '/census/residents' ? 'Every resident ever admitted' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyReport
+        titleDetail={currentReport.path === '/census/daily-census' ? `Census on ${dayjs(searchParams.get('date') ?? undefined).format('dddd, MMMM D, YYYY')}` : currentReport.path === '/clinical/fever-infections' ? `Outbreak alerts on ${dayjs(searchParams.get('date') ?? undefined).format('dddd, MMMM D, YYYY')}` : currentReport.path === '/clinical/weight-surveillance' ? 'Residents in a bed today' : currentReport.path === '/clinical/flagged-progress-notes' ? 'Progress notes from the last 10 days with a watch word' : currentReport.path === '/census/bed-board' ? 'Current beds, one facility at a time' : currentReport.path === '/mds/current-medicare' ? 'PDPM residents in a bed today' : currentReport.path === '/mds/current-medicaid' ? 'Texas Medicaid residents in a bed today' :currentReport.path === '/census/residents' ? 'Every resident ever admitted' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyReport
           ? `${monthRange.start.format('MMMM YYYY')} to ${monthRange.end.format('MMMM YYYY')} (${monthRange.end.diff(monthRange.start, 'month') + 1} months)`
           : isWorksheetReport || isHistoricalMdsReport
             ? `${currentReport.path === '/mds/historical-medicaid' || currentReport.path === '/mds/medicaid-pdpm-worksheet'
@@ -538,6 +558,9 @@ function App() {
                   : report.path === '/clinical/hospital-transfers'
                     ? (activeClinicalTab === 'logs' ? <TransferLogs /> : <HospitalTransfers />)
                   : report.path === '/clinical/incidents' ? (activeClinicalTab === 'logs' ? <IncidentLogs /> : <Incidents />)
+                  : report.path === '/clinical/fever-infections' ? <FeverInfections />
+                  : report.path === '/clinical/weight-surveillance' ? <WeightSurveillance />
+                  : report.path === '/clinical/flagged-progress-notes' ? <FlaggedProgressNotes />
                   : report.path === '/mds/historical-medicare' ? (activeHistoricalMedicareTab === 'categories'
                     ? <HistoricalCategoryBreakdown /> : activeHistoricalMedicareTab === 'residents'
                     ? <HistoricalResidents /> : <HistoricalOverview />) : report.path === '/census/residents' ? <ResidentsReport /> :report.path === '/census/bed-board' ? <BedBoard /> : report.path === '/census/monthly-trending' ? <MonthlyCensusTrending /> : report.path === '/census/trending' ? <CensusTrending /> : report.path === '/census/daily-census' ? (

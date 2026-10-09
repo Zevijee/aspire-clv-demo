@@ -205,6 +205,19 @@ erDiagram
     payers ||--o{ incident_logs : "payer_id"
     res_stays ||--o{ incident_logs : "stay_id"
     residents ||--o{ incident_logs : "resident_id"
+    infection_logs {
+        Uuid infection_id PK
+    }
+    facilities ||--o{ infection_logs : "facility_id"
+    res_stays ||--o{ infection_logs : "stay_id"
+    residents ||--o{ infection_logs : "resident_id"
+    progress_notes {
+        Uuid note_id PK
+    }
+    facilities ||--o{ progress_notes : "facility_id"
+    payers ||--o{ progress_notes : "payer_id"
+    res_stays ||--o{ progress_notes : "stay_id"
+    residents ||--o{ progress_notes : "resident_id"
     res_payer_stays {
         Uuid payer_stay_id PK
     }
@@ -220,6 +233,11 @@ erDiagram
     facilities ||--o{ transfer_logs : "facility_id"
     payers ||--o{ transfer_logs : "payer_id"
     res_stays ||--o| transfer_logs : "stay_id"
+    weight_logs {
+        Uuid stay_id PK
+        Date weighed_on PK
+    }
+    res_stays ||--o{ weight_logs : "stay_id"
     medicaid_applications {
         Uuid stay_id PK
     }
@@ -230,8 +248,8 @@ erDiagram
         Uuid payer_stay_id PK
     }
     facilities ||--o{ payer_change_logs : "facility_id"
-    payers ||--o{ payer_change_logs : "previous_payer_id"
     payers ||--o{ payer_change_logs : "new_payer_id"
+    payers ||--o{ payer_change_logs : "previous_payer_id"
     res_payer_stays ||--o| payer_change_logs : "payer_stay_id"
     res_stays ||--o{ payer_change_logs : "stay_id"
     residents ||--o{ payer_change_logs : "resident_id"
@@ -932,6 +950,47 @@ One resident incident per row, on a day the resident was in a bed, with its type
 - CHECK: `severity BETWEEN 1 AND 5`
 - INDEX `ix_incident_logs_date`: incident_date, facility_id
 
+## infection_logs
+
+One resident infection or unexplained fever per row, with its type, fever, the wing the resident was in, and onset and resolved dates. Sporadic cases and outbreaks; the alert board finds outbreaks by its own rule.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| infection_id | UUID | no | PK |  |  |
+| stay_id | UUID | no | FK → res_stays.stay_id |  |  |
+| resident_id | UUID | no | FK → residents.resident_id |  |  |
+| facility_id | UUID | no | FK → facilities.facility_id |  |  |
+| wing | VARCHAR | no |  |  |  |
+| onset_date | DATE | no |  |  |  |
+| resolved_date | DATE | no |  |  |  |
+| infection_type | VARCHAR | no |  |  |  |
+| fever | BOOLEAN | no |  |  |  |
+
+- CHECK: `infection_type <> 'Fever, source unknown' OR fever`
+- CHECK: `infection_type IN ('Respiratory', 'Influenza-like illness', 'Gastrointestinal', 'Urinary tract', 'Skin or soft tissue', 'Fever, source unknown')`
+- CHECK: `resolved_date > onset_date`
+- INDEX `ix_infection_logs_onset`: onset_date, facility_id
+
+## progress_notes
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| note_id | UUID | no | PK |  |  |
+| stay_id | UUID | no | FK → res_stays.stay_id |  |  |
+| resident_id | UUID | no | FK → residents.resident_id |  |  |
+| facility_id | UUID | no | FK → facilities.facility_id |  |  |
+| note_date | DATE | no |  |  |  |
+| note_type | VARCHAR | no |  |  |  |
+| clinician | VARCHAR | no |  |  |  |
+| payer_id | UUID | no | FK → payers.payer_id |  |  |
+| note_text | TEXT | no |  |  |  |
+| flag_terms | VARCHAR[] | no |  |  |  |
+
+- CHECK: `note_type IN ('Nursing', 'Therapy', 'Physician', 'Dietary', 'Social Service', 'Activities')`
+- INDEX `ix_progress_notes_date`: note_date, facility_id
+
 ## res_payer_stays
 
 Payer periods inside an admission episode. The active period has no end date.
@@ -990,6 +1049,25 @@ One hospital transfer per row: each discharge to a hospital with its hospital, r
 - CHECK: `reason IN ('Respiratory', 'Cardiac', 'Infection or sepsis', 'Urinary tract infection', 'Fall or injury', 'Change in mental status', 'Gastrointestinal', 'Dehydration or electrolytes', 'Surgical complication', 'Planned procedure', 'Other')`
 - CHECK: `transfer_date >= admission_date`
 - INDEX `ix_transfer_logs_date`: transfer_date, facility_id
+
+## weight_logs
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| stay_id | UUID | no | PK, FK → res_stays.stay_id |  |  |
+| weighed_on | DATE | no | PK |  |  |
+| weight | NUMERIC(5, 1) | no |  |  |  |
+| admission_weight | NUMERIC(5, 1) | no |  |  |  |
+| highest | NUMERIC(5, 1) | no |  |  |  |
+| lowest | NUMERIC(5, 1) | no |  |  |  |
+| weight_30_days_before | NUMERIC(5, 1) | yes |  |  |  |
+| weight_180_days_before | NUMERIC(5, 1) | yes |  |  |  |
+
+- CHECK: `lowest <= weight AND weight <= highest`
+- CHECK: `weight BETWEEN 60 AND 400`
+- INDEX `ix_weight_logs_weighed_on`: weighed_on
 
 ## medicaid_applications
 

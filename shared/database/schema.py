@@ -5,8 +5,8 @@ The sandbox publishes the reviewed schema and migrations when update is requeste
 Table/column info holds documentation without changing database DDL.
 """
 from sqlalchemy import (
-    Boolean, CheckConstraint, Column, Date, DateTime, ForeignKey, Index, Integer,
-    JSON, MetaData, Numeric, PrimaryKeyConstraint, SmallInteger, String, Table, UniqueConstraint, Uuid,
+    ARRAY, Boolean, CheckConstraint, Column, Date, DateTime, ForeignKey, Index, Integer,
+    JSON, MetaData, Numeric, PrimaryKeyConstraint, SmallInteger, String, Table, Text, UniqueConstraint, Uuid,
     false, func, text,
 )
 from sqlalchemy.dialects.postgresql import DATERANGE, JSONB
@@ -624,6 +624,98 @@ incident_logs = Table('incident_logs', metadata,
     Index('ix_incident_logs_date', 'incident_date', 'facility_id'),
 )
 
+# The kinds of infection, in the generator's order. The first three spread
+# between residents and are what an outbreak is made of.
+INFECTION_TYPES = ('Respiratory', 'Influenza-like illness', 'Gastrointestinal', 'Urinary tract',
+    'Skin or soft tissue', 'Fever, source unknown')
+
+infection_logs = Table('infection_logs', metadata,
+    # One resident infection or unexplained fever per row, from its onset to the
+    # day it resolved, with the wing the resident was in. Most are sporadic; some
+    # come in outbreaks, a run of a contagious type through one wing of one
+    # facility, which Fever / Infections' alert board finds by its own rule.
+    #
+    # Built from saved stays and bed assignments on every update; every case is
+    # drawn from stay and facility ids, so a rebuild gives the same cases.
+    Column('infection_id', Uuid, primary_key=True),
+    Column('stay_id', Uuid, ForeignKey('res_stays.stay_id'), nullable=False),
+    Column('resident_id', Uuid, ForeignKey('residents.resident_id'), nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    # The wing of the resident's bed on the onset day.
+    Column('wing', String, nullable=False),
+    Column('onset_date', Date, nullable=False),
+    # The day it resolved; still active before then.
+    Column('resolved_date', Date, nullable=False),
+    Column('infection_type', String, nullable=False),
+    # A temperature of 100.4 F or more with it.
+    Column('fever', Boolean, nullable=False),
+    CheckConstraint('resolved_date > onset_date', name='ck_infection_logs_resolved'),
+    CheckConstraint("infection_type IN (" + ", ".join(f"'{kind}'" for kind in INFECTION_TYPES) + ")",
+        name='ck_infection_logs_type'),
+    CheckConstraint("infection_type <> 'Fever, source unknown' OR fever", name='ck_infection_logs_fever'),
+    Index('ix_infection_logs_onset', 'onset_date', 'facility_id'),
+)
+
+NOTE_TYPES = ('Nursing', 'Therapy', 'Physician', 'Dietary', 'Social Service', 'Activities')
+
+progress_notes = Table('progress_notes', metadata,
+    # One clinical progress note per row, with its full text, for the 10 days
+    # to the latest simulated day: Flagged Progress Notes reviews only those, so
+    # older notes are not kept. Rebuilt whole on every update.
+    #
+    # flag_terms lists the watch words found in the text as whole words --
+    # fall, sepsis, wound and the rest, listed in the generator -- and is empty
+    # for a note with none. Every note is drawn from stay ids and the day, so a
+    # rebuild gives the same notes.
+    Column('note_id', Uuid, primary_key=True),
+    Column('stay_id', Uuid, ForeignKey('res_stays.stay_id'), nullable=False),
+    Column('resident_id', Uuid, ForeignKey('residents.resident_id'), nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('note_date', Date, nullable=False),
+    Column('note_type', String, nullable=False),
+    # Credential and name, as the note is signed: "RN K. Patel".
+    Column('clinician', String, nullable=False),
+    # The resident's payer that day.
+    Column('payer_id', Uuid, ForeignKey('payers.payer_id'), nullable=False),
+    Column('note_text', Text, nullable=False),
+    Column('flag_terms', ARRAY(String), nullable=False),
+    CheckConstraint("note_type IN (" + ", ".join(f"'{kind}'" for kind in NOTE_TYPES) + ")",
+        name='ck_progress_notes_type'),
+    Index('ix_progress_notes_date', 'note_date', 'facility_id'),
+)
+
+weight_logs = Table('weight_logs', metadata,
+    # One weigh-in per row: on admission, weekly for the first four weeks, then
+    # every 30 days, as nursing homes weigh. Weight Surveillance flags a
+    # significant change as the MDS does: 5% in 30 days or 10% in 180.
+    #
+    # Each row also carries the stay's state as of that weigh-in -- admission
+    # weight, highest and lowest so far, and the weights 30 and 180 days
+    # earlier -- so a day's residents are read from the one weigh-in each had in
+    # the 30 days before it: a date-range scan of rows stored together, not a
+    # lookup per stay. Per-stay lookups touched nearly every page of table and
+    # key, more than PostgreSQL's 128MB cache, and a page took 0.8s.
+    #
+    # Built from saved stays on every update, in date order; every weight is
+    # drawn from stay and resident ids, so a rebuild gives the same weights.
+    Column('stay_id', Uuid, ForeignKey('res_stays.stay_id'), primary_key=True),
+    Column('weighed_on', Date, primary_key=True),
+    # Pounds, to a tenth.
+    Column('weight', Numeric(5, 1), nullable=False),
+    # The stay's first weigh-in, on admission day.
+    Column('admission_weight', Numeric(5, 1), nullable=False),
+    # Of the stay's weigh-ins up to and including this one.
+    Column('highest', Numeric(5, 1), nullable=False),
+    Column('lowest', Numeric(5, 1), nullable=False),
+    # The latest weigh-in at least 30, and 180, days before this one; none when
+    # the stay is younger.
+    Column('weight_30_days_before', Numeric(5, 1)),
+    Column('weight_180_days_before', Numeric(5, 1)),
+    CheckConstraint('weight BETWEEN 60 AND 400', name='ck_weight_logs_weight'),
+    CheckConstraint('lowest <= weight AND weight <= highest', name='ck_weight_logs_range'),
+    Index('ix_weight_logs_weighed_on', 'weighed_on'),
+)
+
 daily_admission_facts = Table('daily_admission_facts', metadata,
     # One row per (date, facility, payer, referral source) that had admissions.
     # Parent location totals are GROUP BY results, never stored copies, so a
@@ -998,6 +1090,7 @@ _descriptions = {
     'admission_logs': 'One actual admission event per episode, including referring source and readmission flags.',
     'medicaid_applications': 'Admissions that started pending Medicaid. Preserves application/approval metrics after payer records are retroactively corrected.',
     'discharge_logs': 'One actual discharge event per closed episode. LOS measures the final payer period.',
+    'infection_logs': 'One resident infection or unexplained fever per row, with its type, fever, the wing the resident was in, and onset and resolved dates. Sporadic cases and outbreaks; the alert board finds outbreaks by its own rule.',
     'incident_logs': 'One resident incident per row, on a day the resident was in a bed, with its type, the payer that day, whether it sent the resident to a hospital, its severity and hour, and the day its investigation closed.',
     'transfer_logs': 'One hospital transfer per row: each discharge to a hospital with its hospital, reason, payer, facility, days since admission and admission source, so clinical reports can cross any of them.',
     'payer_change_logs': 'One row per payer change, flattened with the period it moved from. Derived from res_payer_stays to spare every report the self-join on period_number - 1.',
