@@ -27,7 +27,7 @@ from shared import pdpm as pdpm_rates
 from shared.database.schema import (
     census_logs as logs, daily_runs, facilities, medicaid_assessments as assessments, payers, portfolios,
     regions, residents)
-from ..census.service import _back, _previous_month
+from ..census.service import lookback_periods
 from ..common.errors import ApiError
 from ..common.locations import LocationSelection, facility_locations
 from ..common.tables import Page, PageQuery
@@ -127,20 +127,16 @@ def overview(connection: Connection, today: date):
 # --- Look-back -------------------------------------------------------------
 
 def lookback(connection: Connection, today: date):
-    """Each facility's Medicaid resident-days and summed daily rates today and
-    averaged over last month, the last 6 months, the last year and all time, as
-    Current Medicare PDPM's look-back defines them. Read from the census rows
-    alone: a Medicaid resident's rate is the census row's, with no steps."""
+    """Each facility's Medicaid resident-days and summed daily rates today, on
+    single earlier days and averaged over earlier periods, as Daily Census's
+    look-back defines them (census.service.lookback_periods). Read from the
+    census rows alone: a Medicaid resident's rate is the census row's, with no
+    steps."""
     census_date = census_day(connection, today)
-    yesterday = census_date - timedelta(days=1)
     first = connection.scalar(select(func.min(daily_runs.c.simulation_date)).where(daily_runs.c.generator == GENERATOR))
-    month_start, month_end = _previous_month(census_date)
-    spans = [('today', 'Today', census_date, census_date),
-        ('month', 'Last month avg.', month_start, month_end),
-        ('month_6', 'Last 6 months avg.', _back(census_date, months=6), yesterday),
-        ('year', 'Last year avg.', _back(census_date, months=12), yesterday),
-        ('all_time', 'All time avg.', first, yesterday)]
-    spans = [(key, label, max(start, first), end) for key, label, start, end in spans if end >= max(start, first)]
+    chosen = [('today', 'Today', census_date, census_date, False), *lookback_periods(census_date, first)]
+    spans = [(key, label, start, end) for key, label, start, end, _ in chosen]
+    averages = {key: average for key, _, _, _, average in chosen}
     generated = dict(connection.execute(select(*(
         func.count().filter(daily_runs.c.simulation_date.between(start, end)).label(key)
         for key, _, start, end in spans)).where(daily_runs.c.generator == GENERATOR)).one()._mapping)
@@ -170,7 +166,8 @@ def lookback(connection: Connection, today: date):
             periods={key: dict(resident_days=int(row[f'{key}_days'] or 0) if row else 0,
                 actual_rates=float(row[f'{key}_actual'] or 0) if row else 0.0) for key, _, _, _ in spans}))
     return dict(census_date=census_date,
-        periods=[dict(key=key, label=label, start=start, end=end, days=generated[key]) for key, label, start, end in spans],
+        periods=[dict(key=key, label=label, start=start, end=end, days=generated[key], average=averages[key])
+            for key, label, start, end in spans],
         items=sorted(items, key=lambda item: (item['state'], item['portfolio'], item['region'], item['facility_name'])))
 
 

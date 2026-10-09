@@ -65,6 +65,22 @@ function RankingTooltip({ active, label, payload, total, formatValue, showShare 
   )
 }
 
+// The label column fits the longest label, measured in the axis's own font, so
+// a facility name is never cut off at the chart's left edge (a fixed 90px cut
+// "Stonebridge Haven" to "nebridge"). Capped so one very long name cannot
+// squeeze the bars; past the cap, the axis wraps the name onto two lines.
+const LABEL_FONT_SIZE = 12
+const LABEL_MIN = 40
+const LABEL_MAX = 240
+function labelColumnWidth(labels: string[]) {
+  const context = document.createElement('canvas').getContext('2d')
+  if (!context) return 90
+  context.font = `${LABEL_FONT_SIZE}px ${getComputedStyle(document.body).fontFamily}`
+  const widest = Math.max(0, ...labels.map(label => context.measureText(label).width))
+  // Room for the tick's own gap before the bar.
+  return Math.min(LABEL_MAX, Math.max(LABEL_MIN, Math.ceil(widest) + 12))
+}
+
 export function BarChartRanking({
   loading,
   error,
@@ -93,6 +109,7 @@ export function BarChartRanking({
   const lowestValue = baseline === 'fit'
     ? Math.max(0, Math.floor(smallestValue - Math.max(1, (largestValue - smallestValue) / 2))) : 0
   const total = items.reduce((sum, item) => sum + item.value, 0)
+  const labelWidth = labelColumnWidth(items.map(item => item.label))
 
   return (
     <section aria-busy={loading} className="bar-chart-ranking" aria-labelledby={titleId}>
@@ -138,10 +155,10 @@ export function BarChartRanking({
             <YAxis
               axisLine={false}
               dataKey="label"
-              tick={{ fill: 'var(--color-chart-label)', fontSize: 12 }}
+              tick={{ fill: 'var(--color-chart-label)', fontSize: LABEL_FONT_SIZE }}
               tickLine={false}
               type="category"
-              width={90}
+              width={labelWidth}
             />
             <Tooltip
               content={<RankingTooltip total={total} formatValue={formatValue} showShare={showShare} />}
@@ -153,6 +170,10 @@ export function BarChartRanking({
               style={onSelect ? { cursor: 'pointer' } : undefined}
               dataKey="value"
               fill="var(--color-chart-series-primary)"
+              // A few rows would otherwise stretch each bar to fill the plot's
+              // height; capped, they stay bars with space between, centred in
+              // their rows. Long rankings are thinner than this anyway.
+              maxBarSize={40}
               radius={[4, 4, 4, 4]}
             >
               {items.map((item) => <Cell key={item.label} fillOpacity={!selectedLabels.length || selectedLabels.includes(item.label) ? 1 : 0.35} />)}

@@ -115,6 +115,12 @@ erDiagram
         String new_payer_type PK
     }
     facilities ||--o{ daily_payer_change_facts : "facility_id"
+    daily_staffing_facts {
+        Date summary_date PK
+        Uuid facility_id PK
+        String role PK
+    }
+    facilities ||--o{ daily_staffing_facts : "facility_id"
     facility_beds {
         Uuid bed_id PK
     }
@@ -634,6 +640,26 @@ Additive daily payer-change counts at facility/from-type/to-type grain. Resident
 
 - CHECK: `changes > 0`
 - INDEX `ix_daily_payer_change_facts_facility`: facility_id, summary_date
+
+## daily_staffing_facts
+
+Hours worked, target hours and wages per facility, staffing role and day. Excess and short hours are measured each day, so a parent scope adds them up without one offsetting the other. PPD divides hours by daily_payer_census_facts closing census, summed.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| summary_date | DATE | no | PK |  |  |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| role | VARCHAR | no | PK |  |  |
+| hours_worked | NUMERIC(7, 1) | no |  |  |  |
+| target_hours | NUMERIC(7, 1) | no |  |  |  |
+| excess_hours | NUMERIC(7, 1) | no |  |  |  |
+| short_hours | NUMERIC(7, 1) | no |  |  |  |
+| wages | NUMERIC(10, 2) | no |  |  |  |
+| excess_wages | NUMERIC(10, 2) | no |  |  |  |
+
+- CHECK: `hours_worked - target_hours = excess_hours - short_hours`
+- CHECK: `hours_worked >= 0 AND target_hours >= 0 AND excess_hours >= 0 AND short_hours >= 0 AND wages >= 0 AND excess_wages >= 0`
+- CHECK: `role IN ('rn', 'lpn', 'cna', 'pt', 'pta', 'ot', 'cota', 'slp', 'dietary_aide', 'cook', 'evs')`
 
 ## facility_beds
 

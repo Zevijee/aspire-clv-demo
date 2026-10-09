@@ -185,7 +185,7 @@ export function MonthlyMedicare() {
     <div className="report-chart-grid">
       {/* Census days each month, as revenue is shown: a bar spans its month's
           days, so the tooltip's average per day is the average daily census. */}
-      <LineChart title="PDPM census trending" valueLabel="Census days" variant="bar" interval="month"
+      <LineChart title="Census trending" valueLabel="Census days" variant="bar" interval="month"
         height={320} barColor="var(--color-chart-series-primary)" baseline="fit" showDailyAverage
         subtitle={`${scopeName}. Total PDPM census days each month: every resident's days in a bed. Hover a month for its average daily census.`}
         items={monthBars('census_days')} formatValue={amount => amount.toLocaleString(undefined, { maximumFractionDigits: 1 })}

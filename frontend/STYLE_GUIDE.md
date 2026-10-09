@@ -47,6 +47,7 @@ Inspect these owners before adding another implementation. Paths and component n
 | Show all facilities from a drilldown (every drilldown has one) | `src/shared/components/AllFacilitiesModal.tsx` with `OpenViewButton` |
 | Facility name with its region, portfolio and state on hover | `src/shared/components/LocationName.tsx` |
 | Header button that opens another view (outlined, never the solid Export style) | `src/shared/components/OpenViewButton.tsx` |
+| Icon-only download for a card's own data (a blue arrow into a tray, in a quiet square frame) | `src/shared/components/DownloadButton.tsx` |
 | Isolated report state inside modals | `src/shared/components/ReportSearchContext.tsx` |
 | Visual tokens / shared CSS | `src/index.css` / `src/App.css` |
 
@@ -232,16 +233,26 @@ every existing report.
 
 ### Look-back cards
 
-Use the shared `LookbackCards` to compare a location's current values with past
-days or averages (Daily Census, Current Medicare PDPM). It draws one outer card
-with a `title`, holding a card per location at the drilldown level, two to a
-row, with the scope's own total card first when more than one location shows,
-always named Total (the breadcrumb says where you are), its name larger and in the orange accent (blue would read as a link). Names are plain text: the report's
-drilldown chooses the level, not the cards. Each card is a small table, a measure
-per row and a period per column, with the current value's change in brackets
-beside each past value, on a tinted background inside the white outer card. The
-location's name sits above its card, and the table fills the card edge to edge. A report supplies `rows`, `total`, `periods` and `measures`. Each
-measure gives its `value` at a row's scope, summed over its facilities and
+Use the shared `LookbackCards` to compare the current values with past days and
+averages (Daily Census, Current Medicare PDPM, Current Medicaid PDPM). It draws one
+full-width card for the drilldown's current scope, raised on the page as every
+report card is -- never a card per location: another level's look-back is a drill
+away. Its header is the `title` ("Historical look-back"), a line saying whose total
+it is ("All locations: the total of the 253 facilities in the current drilldown")
+and what the columns compare, and on the right a `DownloadButton` that writes the
+card to CSV. Periods come from the API in both kinds, and the card shows both: the
+real value on single earlier days first (Yesterday, Week ago, Month ago, 6 months
+ago, Year ago), then the averages. A table narrower screens cannot fit scrolls
+rather than clipping. Below the
+header, a small table fills the card edge to edge: a measure per row and a period per
+column, its header row coloured as the shared `Table`'s (tint, muted headings, a
+border-coloured rule), each value centred over what is beneath it, the current column in bold with
+a Baseline label and no tint, and the current value's signed change beneath each
+past value as a `compact` `StatusBadge`, smaller than the value (green favourable,
+red adverse, neutral at zero). An average period's heading ends "avg." ("Last
+month avg."), since nothing else on the card says so, and wraps, balanced, when its
+column is too narrow; hovering a heading shows its dates. A report supplies `scope`, `periods` and `measures`. Each
+measure gives its `value` at the scope, summed over its facilities and
 divided once, plus `format`, an optional `formatChange` (percentage points for a
 percentage), a rounding `step` and its `favorable` direction. The component owns
 layout, alignment and change colours; do not restyle it from a feature.
@@ -331,7 +342,7 @@ filtering "Source type" uses `filterName={{ one: 'source type', many: 'source ty
 - Support empty, loading, and error states.
 - Use horizontal scrolling rather than compressing critical columns on small screens.
 - Yes/No values are always `BooleanBadge`s, never plain text. The shared `Table` shows any plain column whose every value is Yes or No as badges by itself; set `dataType: 'boolean'` only to add `negativeWhenTrue`, where Yes is the bad outcome (a rehospitalization, a readmission). Outside a `Table`, render `BooleanBadge` directly.
-- Any other short status -- Outbreak, Watch -- is a `StatusBadge` (`src/shared/components/StatusBadge.tsx`) with a tone: `danger` for what needs action now, `warning` for what needs watching, `success`, `neutral`. Do not add report-specific badge classes.
+- Any other short status -- Outbreak, Watch -- is a `StatusBadge` (`src/shared/components/StatusBadge.tsx`) with a tone: `danger` for what needs action now, `warning` for what needs watching, `success`, `neutral`. `compact` makes it smaller, for a badge beneath the value it qualifies. Do not add report-specific badge classes.
 - One of many values shown as labels -- the watch words in a note -- is a `Tag`, several in a cell a `TagList` (`src/shared/components/Tag.tsx`). A tag's colour comes from its text, so a word has the same colour everywhere. Do not hand-colour tags per report.
 - Use the shared `Table` component for report data tables. It provides consistent card structure, semantic table markup, responsive horizontal scrolling, accessible sortable columns, clickable multi-select filter icons beside enabled headers, and optional CSV export. Filter menus show search first, then Select all and Clear actions; during search, Select matches adds only matching options and preserves selections outside the search. Values start unchecked, and an empty selection leaves the column unfiltered. Use `internalScroll` for a fixed-height scroll body with sticky column headers.
 

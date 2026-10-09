@@ -59,11 +59,11 @@ function metric(row: OverviewRow, field: string, rangeDays: number): number | nu
 
 type Kind = 'count' | 'days' | 'average' | 'rate' | 'revenue'
 // No neutral rate: Medicaid pays its own rate, which no case-mix-neutral rate
-// compares with here.
+// compares with here -- so it is just the rate, never "actual".
 const metrics: [id: string, header: string, kind: Kind][] = [
   ['stays', 'Medicaid stays', 'count'], ['los', 'Avg. length of stay', 'days'],
   ['census_days', 'Census days', 'count'], ['adc', 'Avg. daily census', 'average'],
-  ['actual_rate', 'Actual rate', 'rate'], ['actual_revenue', 'Actual revenue', 'revenue'],
+  ['actual_rate', 'Rate', 'rate'], ['actual_revenue', 'Revenue', 'revenue'],
 ]
 function formatMetric(value: number | string, kind: Kind) {
   if (typeof value !== 'number') return value
@@ -91,7 +91,7 @@ export function HistoricalMedicaidOverview() {
     })),
   ]
   const subtitle = data ? `${scopeNote} Stays ${basis} from ${range}, each counted whole, through its end or `
-    + `${data.census_date} if still running. Actual rate is what Medicaid paid per Medicaid day. Census days are `
+    + `${data.census_date} if still running. Rate is what Medicaid paid per Medicaid day. Census days are `
     + "these stays' days in a bed inside the range; average daily census divides them by the range's "
     + `${data.census_range_days.toLocaleString()} days with census data. The trends below follow the same stays.` : ''
 
@@ -134,10 +134,10 @@ export function HistoricalMedicaidOverview() {
     {/* Historical Medicare PDPM's trends less the neutral rate, three to a row
         on the same days, each in its own colour. */}
     <div className="report-chart-grid report-chart-grid--three-columns">
-      <LineChart title="Medicaid census trending" valueLabel="Medicaid census" variant="line" height={320}
+      <LineChart title="Census trending" valueLabel="Census" variant="line" height={320}
         subtitle={`${scopeName}. The Medicaid stays ${basis} from ${range}: how many were in a bed each day.`}
         items={trendDays.map(day => ({ date: day.date, value: day.census }))} {...chartStatus} />
-      <LineChart title="Actual rate trending" valueLabel="Actual rate" variant="line" height={320}
+      <LineChart title="Rate trending" valueLabel="Rate" variant="line" height={320}
         subtitle={`${scopeName}. Average daily rate Medicaid paid for those stays.`}
         items={trendDays.map(day => ({ date: day.date, value: day.actual_rates / day.census }))}
         formatValue={money} lineColor="var(--color-chart-series-senary)" {...chartStatus} />

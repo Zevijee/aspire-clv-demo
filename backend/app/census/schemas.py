@@ -49,6 +49,8 @@ class Period(BaseModel):
     start: date
     end: date = Field(description='Inclusive.')
     days: int = Field(description='Generated days in the period: its averages divide by these.')
+    average: bool = Field(description='An average over its days; false for a single day, whose value is '
+        "that day's alone (start equals end).")
 
 
 class DataStatus(BaseModel):
@@ -63,7 +65,8 @@ class LiveCensus(BaseModel):
         'The day census is read from: the latest completed day on or before `as_of`.')
     previous_month: date = Field(description='First day of the calendar month before `census_date`.')
     previous_month_days: int
-    periods: list[Period] = Field(description='The averages census is compared with, nearest first: last '
-        'month, the last 6 months and the last year ending yesterday, and all time.')
+    periods: list[Period] = Field(description='What census is compared with: its real value on single '
+        'earlier days first -- yesterday, and the same day a week, a month, 6 months and a year back -- then '
+        'the averages over last month, the last 6 months and the last year ending yesterday, and all time.')
     items: list[FacilityCensus]
     data_status: DataStatus

@@ -14,6 +14,8 @@ import {
 } from '../api'
 import { drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow } from '../../../shared/utils/locationDrilldown'
 import { LocationNavigation } from '../../../shared/components/LocationNavigation'
+import { DonutChart } from '../../../shared/components/charts/DonutChart'
+import { BarChartRanking } from '../../../shared/components/charts/BarChartRanking'
 
 type Row = DrilldownRow<FacilityOverview>
 type Summed = 'federal' | 'managed' | 'actual_rates' | 'neutral_rates' | 'resident_days' | 'no_score'
@@ -39,7 +41,7 @@ function metric(row: Row, field: string): number | null {
 
 // The location table's columns, after the location itself.
 const metrics: [id: string, header: string, kind: 'count' | 'rate' | 'days'][] = [
-  ['residents', 'PDPM residents', 'count'], ['federal', 'Federal Medicare', 'count'],
+  ['residents', 'Census', 'count'], ['federal', 'Federal Medicare', 'count'],
   ['managed', 'Managed Medicare PDPM', 'count'], ['no_score', 'Missing care code', 'count'],
   ['missing_los', 'Avg. LOS, missing care code', 'days'],
   ['neutral_rate', 'Neutral rate', 'rate'], ['actual_rate', 'Actual rate', 'rate'],
@@ -58,7 +60,7 @@ type LookbackRow = DrilldownRow<FacilityLookback>
 // rates divide the scope's summed rates by its resident-days. A rise in any of
 // them against the average reads as favourable.
 const measures = [
-  { id: 'residents', label: 'PDPM residents', favorable: 'increase' },
+  { id: 'residents', label: 'Census', favorable: 'increase' },
   { id: 'neutral', label: 'Neutral rate', favorable: 'increase' },
   { id: 'actual', label: 'Actual rate', favorable: 'increase' },
 ] as const
@@ -136,20 +138,32 @@ export function CurrentMedicareOverview() {
     + 'Missing care code is residents not yet assessed and coded in the first days of their Medicare stay. '
     + "Neutral rate is not adjusted for the facility's case mix. Actual rate is what the payer pays." : ''
 
-  // The look-back follows the same drilldown: one card per location at this
-  // level, the scope's own total first. A card's name drills in, as the
-  // table's names do.
+  const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
+  // The charts cover the table's locations: the payer split summed over all of
+  // them, and each one's neutral rate -- its summed rates divided once by its
+  // residents -- highest first. A location with no residents has no rate.
+  const scopeFacilities = rows.flatMap(row => row.facilities)
+  const payerItems = [
+    { label: 'Federal Medicare', value: scopeFacilities.reduce((total, facility) => total + facility.federal, 0) },
+    { label: 'Managed Medicare PDPM', value: scopeFacilities.reduce((total, facility) => total + facility.managed, 0) },
+  ]
+  const neutralItems = rows.flatMap(row => {
+    const rate = metric(row, 'neutral_rate')
+    return rate === null ? [] : [{ label: row.name, value: rate }]
+  }).sort((a, b) => b.value - a.value)
+  const asOf = data ? `, as of ${data.census_date}` : ''
+
+  // The look-back follows the same drilldown: one card, the current scope.
   const { rows: pastRows } = groupByLocation(past?.items ?? [], path, grouping)
   const pastLoading = !past && !pastError
-  const scopeRow: LookbackRow = { key: 'scope', name: path.length ? path[path.length - 1]
-    : grouping ? 'Custom grouping' : 'All locations', path, facilities: pastRows.flatMap(row => row.facilities),
-    isTotal: true }
-  // The periods after today, each an average over its generated days.
-  const averages = (past?.periods ?? []).filter(period => period.key !== 'today')
+  const scopeRow: LookbackRow = { key: 'scope', name: scopeName, path,
+    facilities: pastRows.flatMap(row => row.facilities), isTotal: true }
+  // The periods after today: single earlier days, then averages.
+  const earlier = (past?.periods ?? []).filter(period => period.key !== 'today')
   const lookbackMeasures = measures.map(({ id, label, favorable }): LookbackMeasure<LookbackRow> => ({
     id, label, favorable,
     value: (row, key) => key === null ? periodValue(row, id, 'today', 1)
-      : periodValue(row, id, key, averages.find(period => period.key === key)?.days ?? 0),
+      : periodValue(row, id, key, earlier.find(period => period.key === key)?.days ?? 0),
     // Today's residents are a count; an average has a decimal place.
     format: (value, average) => id !== 'residents' ? money(value) : value.toLocaleString(undefined,
       { minimumFractionDigits: average ? 1 : 0, maximumFractionDigits: average ? 1 : 0 }),
@@ -159,7 +173,7 @@ export function CurrentMedicareOverview() {
 
   return <>
     <LocationNavigation path={path} setPath={setPath} />
-    <DrilldownTable<Row> title={`${levels[depth]} PDPM residents`} columns={columns} rows={rows}
+    <DrilldownTable<Row> title={`${levels[depth]} census`} columns={columns} rows={rows}
       getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
       loading={loading} error={error} onRetry={retryLoad}
       getFooterRow={visible => ({ key: 'total', name: 'Total', path: [], isTotal: true,
@@ -170,20 +184,29 @@ export function CurrentMedicareOverview() {
       csvFileName={`current-medicare-${data?.census_date ?? 'today'}.csv`} />
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
       onSelect={path => setPath(path)}
-      title={data ? `All facilities · PDPM residents on ${data.census_date}` : 'All facilities'} subtitle={subtitle}
+      title={data ? `All facilities · census on ${data.census_date}` : 'All facilities'} subtitle={subtitle}
       rows={facilityRows(data?.items ?? [])} columns={columns.slice(1)} getRowKey={row => row.key}
       getName={row => row.name} getPath={row => [row.path[0], row.path[1], row.path[2]]}
       loading={loading} error={error} onRetry={retryLoad}
       csvFileName={`current-medicare-facilities-${data?.census_date ?? 'today'}.csv`} />
-    {/* Floating on the page, two to a row: each location's own look-back,
-        today against earlier days, with today minus each beside it. */}
-    <LookbackCards<LookbackRow> rows={pastRows} total={scopeRow} measures={lookbackMeasures}
+    {/* Who pays, beside how the locations' neutral rates compare. Neither
+        filters the report: it has no payer filter for the donut to set. */}
+    <div className="report-chart-grid">
+      <DonutChart title="Census by payer" valueLabel="Census" centerMode="total" items={payerItems}
+        subtitle={`${scopeName}${asOf}. Original Medicare against Medicare Advantage paying on a PDPM contract`}
+        loading={loading} error={error} onRetry={retryLoad} />
+      <BarChartRanking title={`Neutral rate by ${levels[depth].toLowerCase()}`} categoryLabel={levels[depth]}
+        valueLabel="Neutral rate" items={neutralItems} formatValue={money} showShare={false} baseline="fit"
+        subtitle={`${scopeName}${asOf}. Average case-mix-neutral daily rate per PDPM resident, highest first`}
+        loading={loading} error={error} onRetry={retryLoad} />
+    </div>
+    {/* This scope's look-back, full width: today against earlier periods,
+        with today minus each beneath it. */}
+    <LookbackCards<LookbackRow> scope={scopeRow} measures={lookbackMeasures}
       currentLabel="Today" currentTitle={past ? shortDate(past.census_date) : undefined}
-      periods={averages.map(({ key, label, start, end }) =>
-        ({ key, label, title: `${shortDate(start)} to ${shortDate(end)}`, average: true }))}
-      title={`${levels[depth]} PDPM look-back`}
-      subtitle={'PDPM residents, and their average neutral and actual daily rates, today against last month, the '
-        + "last 6 months, the last year and all time; in brackets, today minus each average. Hover a column for its dates."}
+      periods={earlier.map(({ key, label, start, end, average }) =>
+        ({ key, label, title: start === end ? shortDate(start) : `${shortDate(start)} to ${shortDate(end)}`, average }))}
+      title="Historical look-back"
       csvFileName={`current-medicare-lookback-${past?.census_date ?? 'today'}.csv`}
       loading={pastLoading} error={pastError} onRetry={retryLoad} />
   </>

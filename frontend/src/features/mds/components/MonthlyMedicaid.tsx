@@ -61,9 +61,9 @@ const metrics: [id: string, header: string, measure: Measure, kind: 'average' | 
   ['census', 'Avg. daily census', 'census', 'average'],
   ['census_high', 'Highest month census', 'census', 'highest'],
   ['census_low', 'Lowest month census', 'census', 'lowest'],
-  ['actual', 'Avg. actual rate', 'actual', 'average'],
-  ['actual_high', 'Highest actual rate', 'actual', 'highest'],
-  ['actual_low', 'Lowest actual rate', 'actual', 'lowest'],
+  ['actual', 'Avg. rate', 'actual', 'average'],
+  ['actual_high', 'Highest rate', 'actual', 'highest'],
+  ['actual_low', 'Lowest rate', 'actual', 'lowest'],
 ]
 
 /** Monthly Medicaid Trending: Texas Medicaid census, rate and revenue over a
@@ -154,12 +154,12 @@ export function MonthlyMedicaid() {
     {/* Monthly Medicare PDPM Trending's charts less the neutral rate, three to
         a row on the same months. The axes start near the lowest month. */}
     <div className="report-chart-grid report-chart-grid--three-columns">
-      <LineChart title="Medicaid census trending" valueLabel="Census days" variant="bar" interval="month"
+      <LineChart title="Census trending" valueLabel="Census days" variant="bar" interval="month"
         height={320} barColor="var(--color-chart-series-primary)" baseline="fit" showDailyAverage
         subtitle={`${scopeName}. Total Medicaid census days each month: every resident's days in a bed. Hover a month for its average daily census.`}
         items={monthBars('census_days')} formatValue={amount => amount.toLocaleString(undefined, { maximumFractionDigits: 1 })}
         {...chartStatus} />
-      <LineChart title="Actual rate trending" valueLabel="Avg. actual rate" variant="bar" interval="month"
+      <LineChart title="Rate trending" valueLabel="Avg. rate" variant="bar" interval="month"
         height={320} barColor="var(--color-chart-series-quinary)" baseline="fit"
         subtitle={`${scopeName}. Average daily rate Medicaid paid each month, per resident-day.`}
         items={monthBars('actual')} formatValue={money} {...chartStatus} />

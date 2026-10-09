@@ -27,8 +27,9 @@ export type FacilityCensus = {
   // Every resident's daily rate summed by payer type. Sum these and the census
   // first, then divide once, so the average is weighted by residents.
   payer_daily_rates: Record<string, number>
-  // Each average period's census days and skilled census days, by its key. Sum
-  // facilities first, then divide by the period's days once.
+  // Each earlier period's census days and skilled census days, by its key: a
+  // single day (one generated day) or an average. Sum facilities first, then
+  // divide by the period's days once.
   periods: Record<string, { census_days: number; skilled_days: number }>
   // Unrounded, so summing facilities gives the parent average exactly. Null when
   // the previous month is not completely generated.
@@ -41,9 +42,10 @@ export type LiveCensusReport = {
   census_date: string
   previous_month: string
   previous_month_days: number
-  // Last month, the last 6 months and the last year ending yesterday, and all
-  // time; `days` is the generated days each average divides by.
-  periods: { key: string; label: string; start: string; end: string; days: number }[]
+  // Single earlier days first -- yesterday, and the same day a week, a month,
+  // 6 months and a year back -- then the averages. `days` is the generated days
+  // each divides by; `average` is false for a single day.
+  periods: { key: string; label: string; start: string; end: string; days: number; average: boolean }[]
   items: FacilityCensus[]
   data_status: { available_from: string | null; available_through: string | null; generated_at: string | null }
 }

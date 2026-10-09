@@ -314,7 +314,7 @@ function CategoryDrilldown({ breakdown, categoryLabel, onOpenResidents, path, se
       csvFileName={`current-medicare-${breakdown.slug}-${day}.csv`} />
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
       onSelect={path => setPath(path)}
-      title={`All facilities · ${breakdown.name}, PDPM residents on ${day}`} subtitle={subtitle}
+      title={`All facilities · ${breakdown.name}, census on ${day}`} subtitle={subtitle}
       rows={facilityRows(data?.items ?? [])} columns={columns.slice(1)} getRowKey={row => row.key}
       getName={row => row.name} getPath={row => [row.path[0], row.path[1], row.path[2]]}
       loading={loading} error={error} onRetry={retryLoad}

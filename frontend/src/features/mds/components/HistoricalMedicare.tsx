@@ -166,7 +166,7 @@ export function HistoricalOverview() {
     {/* Two to a row, on the same days, so a move in one reads against the others;
         each in its own colour so they are told apart at a glance. */}
     <div className="report-chart-grid">
-      <LineChart title="PDPM census trending" valueLabel="PDPM census" variant="line" height={320}
+      <LineChart title="Census trending" valueLabel="Census" variant="line" height={320}
         subtitle={`${scopeName}. The PDPM stays ${basis} from ${range}: how many were in a bed each day.`}
         items={trendDays.map(day => ({ date: day.date, value: day.census }))}
         loading={trendLoading} error={error ?? trend.error} onRetry={error ? retry : trend.retry} />

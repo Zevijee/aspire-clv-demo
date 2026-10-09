@@ -120,13 +120,15 @@ export function LiveCensus() {
   const nameColumn: TableColumn<Row> = { id: 'name', header: levels[depth], isRowHeader: true, value: row => row.name,
     format: (_, row) => row.isTotal || path.length === 4 ? row.name :
       <button type="button" className="drilldown-table__link" onClick={() => setPath(row.path)}>{row.name}</button> }
-  // The census history as look-back cards: current census against the same
-  // averages as Current Medicare PDPM -- last month, the last 6 months, the
-  // last year and all time -- with current minus each beside it, so a rise
-  // reads as favourable, matching the table's variance. Each period sums its
-  // facilities' census days first and divides once by the period's generated
-  // days. Occupancy and skill mix divide the scope's sums once, as the table
-  // does; beds are each facility's current count, which does not change.
+  // The census history as a look-back card, with the same periods as Current
+  // Medicare PDPM's: current census against what it really was yesterday, a
+  // week, a month, 6 months and a year ago, and against its averages over last
+  // month, the last 6 months, the last year and all time -- with current minus
+  // each beneath it, so a rise reads as favourable, matching the table's
+  // variance. Each period sums its facilities' census days first and divides
+  // once by its generated days (one, for a single day). Occupancy and skill mix
+  // divide the scope's sums once, as the table does; beds are each facility's
+  // current count.
   const periodDays = (key: string) => data?.periods.find(period => period.key === key)?.days ?? 0
   const historySum = (row: Row, key: string | null, field: 'census_days' | 'skilled_days') => {
     if (key === null) {
@@ -148,6 +150,13 @@ export function LiveCensus() {
     format: (value, average) => value.toLocaleString(undefined,
       { minimumFractionDigits: average ? 1 : 0, maximumFractionDigits: average ? 1 : 0 }),
   }, {
+    // Residents on a skilled payer, read as census is: a count today, an average
+    // with a decimal place over a period.
+    id: 'skilled_census', label: 'Skilled census', favorable: 'increase', step: 0.1,
+    value: historySkilled,
+    format: (value, average) => value.toLocaleString(undefined,
+      { minimumFractionDigits: average ? 1 : 0, maximumFractionDigits: average ? 1 : 0 }),
+  }, {
     id: 'occupancy', label: 'Occupancy', favorable: 'increase', step: 0.1,
     value: (row, key) => {
       const census = historyCensus(row, key)
@@ -164,8 +173,8 @@ export function LiveCensus() {
     },
     format: percent, formatChange: points,
   }]
-  const historyPeriods: LookbackPeriod[] = (data?.periods ?? []).map(({ key, label, start, end }) =>
-    ({ key, label, title: `${shortDate(start)} to ${shortDate(end)}`, average: true }))
+  const historyPeriods: LookbackPeriod[] = (data?.periods ?? []).map(({ key, label, start, end, average }) =>
+    ({ key, label, title: start === end ? shortDate(start) : `${shortDate(start)} to ${shortDate(end)}`, average }))
   const columns: TableColumn<Row>[] = [
     nameColumn,
     ...metrics.filter(([id]) => payers.length > 0 || !payerChangeMetrics.has(id)).map(([id, header]): TableColumn<Row> => ({
@@ -240,13 +249,12 @@ export function LiveCensus() {
         subtitle={`${scopeName}, census at the close of each day${payers.length ? ', selected payers only' : ''}`
           + `${!data ? '' : `. ${shortDate(data.census_date)}: ${scopeCensus.toLocaleString()}`}`} />
     </div>
-    {/* Each location's census on earlier days, with current minus each. Dates
-        show on hovering a column's heading. */}
-    <LookbackCards<Row> rows={groupRows} measures={historyMeasures}
-      total={{ key: 'scope', name: scopeName, path, facilities: groupRows.flatMap(row => row.facilities), isTotal: true }}
+    {/* This scope's census against earlier periods, with current minus each.
+        Dates show on hovering a column's heading. */}
+    <LookbackCards<Row> measures={historyMeasures}
+      scope={{ key: 'scope', name: scopeName, path, facilities: groupRows.flatMap(row => row.facilities), isTotal: true }}
       currentLabel="Current" currentTitle={data ? shortDate(data.census_date) : undefined} periods={historyPeriods}
-      title={`${levels[depth]} census history`}
-      subtitle="The current census against its average daily census over each earlier period; in brackets, the current census minus each average. Hover a column for its dates."
+      title="Historical look-back"
       csvFileName={`census-history-${data?.census_date ?? 'today'}.csv`}
       loading={!data && !error} error={error} onRetry={() => setRetry(value => value + 1)} />
   </>

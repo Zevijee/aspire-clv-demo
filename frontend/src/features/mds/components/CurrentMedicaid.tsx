@@ -86,8 +86,8 @@ function metric(row: Row, field: string): number | null {
 // No neutral rate: Medicaid pays its own rate, which no case-mix-neutral rate
 // compares with here.
 const metrics: [id: string, header: string, kind: 'count' | 'rate' | 'days'][] = [
-  ['residents', 'Medicaid residents', 'count'], ['no_score', 'Missing care code', 'count'],
-  ['missing_los', 'Avg. LOS, missing care code', 'days'], ['actual_rate', 'Actual rate', 'rate'],
+  ['residents', 'Census', 'count'], ['no_score', 'Missing care code', 'count'],
+  ['missing_los', 'Avg. LOS, missing care code', 'days'], ['actual_rate', 'Rate', 'rate'],
   ['los', 'Avg. length of stay', 'days'],
 ]
 function formatMetric(value: number | string, kind: 'count' | 'rate' | 'days') {
@@ -98,7 +98,7 @@ function formatMetric(value: number | string, kind: 'count' | 'rate' | 'days') {
 }
 
 /** The Overview tab: today's Texas Medicaid residents by location, and the same
- * scope's residents and actual rate against its averages over earlier periods. */
+ * scope's census and rate against earlier days and averages. */
 export function MedicaidOverview() {
   const { path, setPath } = useDrillPath()
   const { data, error, loading, retry } = useMedicaidOverview()
@@ -125,15 +125,15 @@ export function MedicaidOverview() {
     })),
   ]
   const subtitle = data ? `${scopeNote} In a bed on ${data.census_date}. Missing care code is residents not yet `
-    + 'assessed and coded in the first days of their Medicaid stay. Actual rate is what Medicaid pays.' : ''
+    + 'assessed and coded in the first days of their Medicaid stay. Rate is what Medicaid pays per day.' : ''
 
-  // The look-back follows the same drilldown: one card per location, the
-  // scope's own total first.
+  // The look-back follows the same drilldown: one card, the current scope.
   const { rows: pastRows } = groupByLocation(past?.items ?? [], path, grouping)
   const scopeRow: LookbackRow = { key: 'scope', name: path.length ? path[path.length - 1]
     : grouping ? 'Custom grouping' : 'All locations', path, facilities: pastRows.flatMap(row => row.facilities),
     isTotal: true }
-  const averages = (past?.periods ?? []).filter(period => period.key !== 'today')
+  // The periods after today: single earlier days, then averages.
+  const earlier = (past?.periods ?? []).filter(period => period.key !== 'today')
   // A period's value at a scope, summed and divided once: residents per day,
   // the rate per resident-day.
   const periodValue = (row: LookbackRow, id: string, key: string, days: number) => {
@@ -147,11 +147,11 @@ export function MedicaidOverview() {
     if (id === 'residents') return days > 0 ? residentDays / days : null
     return residentDays > 0 ? actual / residentDays : null
   }
-  const lookbackMeasures = ([['residents', 'Medicaid residents'], ['actual', 'Actual rate']] as const)
+  const lookbackMeasures = ([['residents', 'Census'], ['actual', 'Rate']] as const)
     .map(([id, label]): LookbackMeasure<LookbackRow> => ({
       id, label, favorable: 'increase',
       value: (row, key) => key === null ? periodValue(row, id, 'today', 1)
-        : periodValue(row, id, key, averages.find(period => period.key === key)?.days ?? 0),
+        : periodValue(row, id, key, earlier.find(period => period.key === key)?.days ?? 0),
       format: (value, average) => id !== 'residents' ? money(value) : value.toLocaleString(undefined,
         { minimumFractionDigits: average ? 1 : 0, maximumFractionDigits: average ? 1 : 0 }),
       step: id === 'residents' ? 0.1 : 0.01,
@@ -159,7 +159,7 @@ export function MedicaidOverview() {
 
   return <>
     <LocationNavigation path={path} setPath={setPath} />
-    <DrilldownTable<Row> title={`${levels[depth]} Medicaid residents`} columns={columns} rows={rows}
+    <DrilldownTable<Row> title={`${levels[depth]} census`} columns={columns} rows={rows}
       getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
       loading={loading} error={error} onRetry={retry}
       getFooterRow={visible => ({ key: 'total', name: 'Total', path: [], isTotal: true,
@@ -170,18 +170,16 @@ export function MedicaidOverview() {
       csvFileName={`current-medicaid-${data?.census_date ?? 'today'}.csv`} />
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
       onSelect={next => setPath(next)}
-      title={data ? `All facilities · Medicaid residents on ${data.census_date}` : 'All facilities'} subtitle={subtitle}
+      title={data ? `All facilities · census on ${data.census_date}` : 'All facilities'} subtitle={subtitle}
       rows={facilityRows(data?.items ?? [])} columns={columns.slice(1)} getRowKey={row => row.key}
       getName={row => row.name} getPath={row => [row.path[0], row.path[1], row.path[2]]}
       loading={loading} error={error} onRetry={retry}
       csvFileName={`current-medicaid-facilities-${data?.census_date ?? 'today'}.csv`} />
-    <LookbackCards<LookbackRow> rows={pastRows} total={scopeRow} measures={lookbackMeasures}
+    <LookbackCards<LookbackRow> scope={scopeRow} measures={lookbackMeasures}
       currentLabel="Today" currentTitle={past ? shortDate(past.census_date) : undefined}
-      periods={averages.map(({ key, label, start, end }) =>
-        ({ key, label, title: `${shortDate(start)} to ${shortDate(end)}`, average: true }))}
-      title={`${levels[depth]} Medicaid look-back`}
-      subtitle={'Medicaid residents and their average actual daily rate, today against last month, the last 6 '
-        + 'months, the last year and all time; in brackets, today minus each average. Hover a column for its dates.'}
+      periods={earlier.map(({ key, label, start, end, average }) =>
+        ({ key, label, title: start === end ? shortDate(start) : `${shortDate(start)} to ${shortDate(end)}`, average }))}
+      title="Historical look-back"
       csvFileName={`current-medicaid-lookback-${past?.census_date ?? 'today'}.csv`}
       loading={!past && !pastError} error={pastError} onRetry={() => setPastRetry(value => value + 1)} />
   </>
@@ -229,7 +227,7 @@ export function MedicaidCategoryBreakdown() {
       csvFileName={`current-medicaid-${breakdown.slug}-${day}.csv`} />
     <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
       onSelect={next => setPath(next)}
-      title={`All facilities · ${breakdown.name}, Medicaid residents on ${day}`} subtitle={subtitle}
+      title={`All facilities · ${breakdown.name}, census on ${day}`} subtitle={subtitle}
       rows={facilityRows(data?.items ?? [])} columns={columns.slice(1)} getRowKey={row => row.key}
       getName={row => row.name} getPath={row => [row.path[0], row.path[1], row.path[2]]}
       loading={loading} error={error} onRetry={retry}

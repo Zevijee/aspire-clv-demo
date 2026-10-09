@@ -28,6 +28,8 @@ import { FeverInfections } from '../features/clinical/components/FeverInfections
 import { WeightSurveillance } from '../features/clinical/components/WeightSurveillance'
 import { FlaggedProgressNotes } from '../features/clinical/components/FlaggedProgressNotes'
 import { IncidentLogs } from '../features/clinical/components/IncidentLogs'
+import { PpdDrilldown } from '../features/staffing/components/PpdDrilldown'
+import { StaffingRoleFilter } from '../features/staffing/components/StaffingRoleFilter'
 import { HistoricalResidents } from '../features/mds/components/HistoricalResidents'
 import { worksheetDateBasis } from '../features/mds/worksheetApi'
 import { Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
@@ -439,6 +441,7 @@ function App() {
             {isMonthlyAdtReport && <MonthlyAdtFilters />}
             {currentReport.path === '/clinical/hospital-transfers' && <TransferFilters />}
             {currentReport.path === '/clinical/incidents' && <IncidentFilters />}
+            {currentReport.path === '/staffing/ppd' && <StaffingRoleFilter />}
             {/* Left of the date range: which date the range applies to. */}
             {(isWorksheetReport || isHistoricalMdsReport) && <WorksheetDateBasisToggle />}
             {isMonthlyReport ? <ReportMonthRangeFilter /> : currentReport.path !== '/adt/referring-hospital' && currentReport.path !== '/census/daily-census'
@@ -561,6 +564,7 @@ function App() {
                   : report.path === '/clinical/fever-infections' ? <FeverInfections />
                   : report.path === '/clinical/weight-surveillance' ? <WeightSurveillance />
                   : report.path === '/clinical/flagged-progress-notes' ? <FlaggedProgressNotes />
+                  : report.path === '/staffing/ppd' ? <PpdDrilldown />
                   : report.path === '/mds/historical-medicare' ? (activeHistoricalMedicareTab === 'categories'
                     ? <HistoricalCategoryBreakdown /> : activeHistoricalMedicareTab === 'residents'
                     ? <HistoricalResidents /> : <HistoricalOverview />) : report.path === '/census/residents' ? <ResidentsReport /> :report.path === '/census/bed-board' ? <BedBoard /> : report.path === '/census/monthly-trending' ? <MonthlyCensusTrending /> : report.path === '/census/trending' ? <CensusTrending /> : report.path === '/census/daily-census' ? (

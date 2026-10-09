@@ -1,8 +1,11 @@
 """Current Medicare PDPM against its own past: each facility's PDPM residents and
-their summed actual and neutral daily rates today, and averaged over last
-month, the last 6 months, the last year and all time: every day ever generated.
+their summed actual and neutral daily rates today, on single earlier days --
+yesterday, and the same day a week, a month, 6 months and a year back -- and
+averaged over last month, the last 6 months, the last year and all time: every
+day ever generated.
 
-Periods follow Daily Census: last month is the previous calendar month, and the
+Periods follow Daily Census (census.service.lookback_periods). A single day is a
+period of one day. Of the averages, last month is the previous calendar month, and the
 trailing periods end yesterday -- 6 and 12 months back from the census day --
 so today is never inside an average it is compared with. All time runs from
 the first generated day to yesterday.
@@ -32,7 +35,7 @@ from shared.database.schema import (
     pdpm_rate_logs as pdpm, res_payer_stays as periods, res_stays as stays)
 from ..common.dates import rollup_plan
 from ..common.errors import ApiError
-from ..census.service import _back, _previous_month
+from ..census.service import lookback_periods
 from ..common.locations import LocationSelection, facility_locations
 from .service import GENERATOR, MEDICARE, NATIONAL_PER_DIEM, census_day
 
@@ -52,6 +55,7 @@ class Period(BaseModel):
     start: date
     end: date = Field(description='Inclusive.')
     days: int = Field(description='Generated days in the period: the average daily census divides by these.')
+    average: bool = Field(description="An average over its days; false for today and each single day.")
 
 
 class FacilityLookback(BaseModel):
@@ -65,23 +69,18 @@ class FacilityLookback(BaseModel):
 
 class Lookback(BaseModel):
     census_date: date
-    periods: list[Period] = Field(description='Today first, then the averages, nearest first.')
+    periods: list[Period] = Field(description='Today first, then single days nearest first, then the averages.')
     items: list[FacilityLookback]
 
 
 def lookback(connection: Connection, today: date):
     census_date = census_day(connection, today)
-    yesterday = census_date - timedelta(days=1)
     first = connection.scalar(select(func.min(daily_runs.c.simulation_date))
         .where(daily_runs.c.generator == GENERATOR))
-    month_start, month_end = _previous_month(census_date)
-    spans = [('today', 'Today', census_date, census_date),
-        ('month', 'Last month avg.', month_start, month_end),
-        ('month_6', 'Last 6 months avg.', _back(census_date, months=6), yesterday),
-        ('year', 'Last year avg.', _back(census_date, months=12), yesterday),
-        ('all_time', 'All time avg.', first, yesterday)]
-    # Never before the first generated day, and never an empty period.
-    spans = [(key, label, max(start, first), end) for key, label, start, end in spans if end >= max(start, first)]
+    # Today, then Daily Census's single earlier days and averages.
+    chosen = [('today', 'Today', census_date, census_date, False), *lookback_periods(census_date, first)]
+    spans = [(key, label, start, end) for key, label, start, end, _ in chosen]
+    averages = {key: average for key, _, _, _, average in chosen}
     generated = dict(connection.execute(select(*(
         func.count().filter(daily_runs.c.simulation_date.between(start, end)).label(key)
         for key, _, start, end in spans)).where(daily_runs.c.generator == GENERATOR)).one()._mapping)
@@ -168,6 +167,6 @@ def lookback(connection: Connection, today: date):
             periods=facility_periods(location['facility_id']))
         for location in connection.execute(facility_locations(LocationSelection())).mappings()]
     return dict(census_date=census_date,
-        periods=[dict(key=key, label=label, start=start, end=end, days=generated[key])
+        periods=[dict(key=key, label=label, start=start, end=end, days=generated[key], average=averages[key])
             for key, label, start, end in spans],
         items=sorted(items, key=lambda item: (item['state'], item['portfolio'], item['region'], item['facility_name'])))

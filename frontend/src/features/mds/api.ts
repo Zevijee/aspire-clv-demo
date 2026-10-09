@@ -221,9 +221,11 @@ export type FacilityLookback = {
 
 export type MedicareLookbackReport = {
   census_date: string
-  // Today first, then last month, the last 6 months, the last year and all time.
-  // days is the generated days in each: the average daily census divides by it.
-  periods: { key: string; label: string; start: string; end: string; days: number }[]
+  // Today first, then single earlier days -- yesterday, and the same day a week,
+  // a month, 6 months and a year back -- then the averages over last month, the
+  // last 6 months, the last year and all time. days is the generated days in
+  // each: the average daily census divides by it. average is false for a day.
+  periods: { key: string; label: string; start: string; end: string; days: number; average: boolean }[]
   items: FacilityLookback[]
 }
 
@@ -414,13 +416,14 @@ export type FacilityMedicaidLookback = {
   state: string
   portfolio: string
   region: string
-  // Today and each average period, by key: resident-days and summed rates.
+  // Today and each earlier day and average period, by key: resident-days and
+  // summed rates.
   periods: Record<string, { resident_days: number; actual_rates: number }>
 }
 
 export type MedicaidLookbackReport = {
   census_date: string
-  periods: { key: string; label: string; start: string; end: string; days: number }[]
+  periods: { key: string; label: string; start: string; end: string; days: number; average: boolean }[]
   items: FacilityMedicaidLookback[]
 }
 

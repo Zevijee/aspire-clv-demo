@@ -5,9 +5,12 @@ type split is what makes skilled census answerable; adt_daily_census has the
 facility total only.
 
 Census is a level, not a flow. Today's census is one day's closing census, never
-a sum over days. The look-back averages divide census days -- closing census
-summed over a period's days -- by its generated days, whole months from
-monthly_payer_census_facts and only the days at the edges from the daily table.
+a sum over days. The look-back compares it with single earlier days and with
+averages (see lookback_periods). A period's census days -- closing census
+summed over its days -- divided by its generated days is its average daily
+census; for a one-day period, that day's census. Whole months come from
+monthly_payer_census_facts and only the days at a period's edges from the
+daily table; a single day reads the daily table alone.
 Measured equal: the rollup's census_days matches the daily closing census summed
 in all 85,609 month, facility and payer rows. Last month's average is the sum of every day's closing census
 divided once by the days in the month -- per facility here, and because every
@@ -50,19 +53,32 @@ def _previous_month(day):
     return end.replace(day=1), end
 
 
-def _periods(census_date, first):
-    """The averages census is compared with, as Current Medicare PDPM's: last
-    month is the previous calendar month, and the trailing periods end
-    yesterday -- 6 and 12 calendar months back from the census day -- so today
-    is never inside an average it is compared with. All time runs from the first
-    generated day. Never before it, and never an empty period."""
+def lookback_periods(census_date, first):
+    """What a look-back compares the census day with, shared by Daily Census and
+    both Current PDPM reports. Both kinds, as the product owner asked: first
+    the real value on single earlier days, nearest first -- yesterday, and the
+    same day a week, a month, 6 months and a year back -- then the averages.
+    A single day is a period of one day, so the same sums give that day's value
+    alone. Of the averages, last month is the previous calendar month, and the
+    trailing periods end yesterday -- 6 and 12 calendar months back from the
+    census day -- so today is never inside an average it is compared with. All
+    time runs from the first generated day. Never before it, and never an
+    empty period.
+
+    Each is (key, label, start, end, average)."""
     yesterday = census_date - timedelta(days=1)
     month_start, month_end = _previous_month(census_date)
-    spans = [('month', 'Last month avg.', month_start, month_end),
-        ('month_6', 'Last 6 months avg.', _back(census_date, months=6), yesterday),
-        ('year', 'Last year avg.', _back(census_date, months=12), yesterday),
-        ('all_time', 'All time avg.', first, yesterday)]
-    return [(key, label, max(start, first), end) for key, label, start, end in spans if end >= max(start, first)]
+    days = [('day_1', 'Yesterday', yesterday), ('day_7', 'Week ago', _back(census_date, days=7)),
+        ('day_month', 'Month ago', _back(census_date, months=1)),
+        ('day_month_6', '6 months ago', _back(census_date, months=6)),
+        ('day_year', 'Year ago', _back(census_date, months=12))]
+    spans = [(key, label, day, day, False) for key, label, day in days] + [
+        ('month', 'Last month', month_start, month_end, True),
+        ('month_6', 'Last 6 months', _back(census_date, months=6), yesterday, True),
+        ('year', 'Last year', _back(census_date, months=12), yesterday, True),
+        ('all_time', 'All time', first, yesterday, True)]
+    return [(key, label, max(start, first), end, average) for key, label, start, end, average in spans
+        if end >= max(start, first)]
 
 
 def live(connection: Connection, today: date, payer_types: list[str] | None = None):
@@ -88,7 +104,9 @@ def live(connection: Connection, today: date, payer_types: list[str] | None = No
         daily_runs.c.simulation_date.between(month_start, month_end)))
     month_complete = covered == month_days
 
-    spans = _periods(census_date, first)
+    chosen_periods = lookback_periods(census_date, first)
+    spans = [(key, label, start, end) for key, label, start, end, _ in chosen_periods]
+    averages = {key: average for key, _, _, _, average in chosen_periods}
     generated = dict(connection.execute(select(*(
         func.count().filter(daily_runs.c.simulation_date.between(start, end)).label(key)
         for key, _, start, end in spans)).where(daily_runs.c.generator == GENERATOR)).one()._mapping)
@@ -118,9 +136,10 @@ def live(connection: Connection, today: date, payer_types: list[str] | None = No
         .where(facts.c.summary_date.between(month_start, census_date))
         .group_by(facts.c.facility_id)).mappings()}
 
-    # The averages' census days: whole months from the monthly rollup, and only
-    # the days at a period's edges from the daily facts (see rollup_plan). The
-    # rollup must reach yesterday, the last day any period holds.
+    # The periods' census days: whole months from the monthly rollup, and only
+    # the days at a period's edges from the daily facts (see rollup_plan); a
+    # single day is read from the daily facts alone. The rollup must reach
+    # yesterday, the last day any period holds.
     built = connection.scalar(select(func.max(daily_runs.c.simulation_date))
         .where(daily_runs.c.generator == ROLLUP))
     if spans and (built is None or built < census_date - timedelta(days=1)):
@@ -207,7 +226,7 @@ def live(connection: Connection, today: date, payer_types: list[str] | None = No
 
     return dict(as_of=today, census_date=census_date, previous_month=month_start,
         previous_month_days=month_days,
-        periods=[dict(key=key, label=label, start=start, end=end, days=generated[key])
+        periods=[dict(key=key, label=label, start=start, end=end, days=generated[key], average=averages[key])
             for key, label, start, end in spans],
         items=sorted(items, key=lambda item: (item['state'], item['portfolio'],
             item['region'], item['facility_name'])),

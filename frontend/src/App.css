@@ -197,9 +197,16 @@
   color: var(--color-surface);
 }
 
-/* The outer card every look-back card sits in, framed and white as the report
-   tables are. */
-.lookback-section {
+/* Loading and error hold the card's place. */
+.lookback-section__state {
+  min-height: 160px;
+  padding: var(--space-4);
+}
+
+/* The scope's look-back, full width and raised off the canvas as every report
+   card is. Overflow clips the header rule and hover fills to the rounded
+   corners. */
+.lookback-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -207,176 +214,147 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-}
-
-/* The section's header: a white bar ruled off from the tinted cards across the
-   full width, its heading and subtitle on the left and actions on the right,
-   as the report tables' headers are. */
-.lookback-section__header {
-  align-items: center;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
-  border-radius: 8px 8px 0 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  justify-content: space-between;
-  padding: var(--space-3) var(--space-4);
-}
-
-.lookback-section__title {
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.25;
-  margin: 0;
-}
-
-.lookback-section__subtitle {
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
-  margin: var(--space-1) 0 0;
-}
-
-/* Loading and error hold the space a row of cards would. */
-.lookback-section__state {
-  min-height: 160px;
-  padding: var(--space-4);
-}
-
-/* Inside the outer card, two to a row: one per location, each a small table
-   of its own past days with today's change beneath each. */
-.lookback-cards {
-  display: grid;
-  gap: var(--layout-report-grid-gap);
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding: var(--space-4);
-}
-
-/* A location's name above its card, outside it. */
-.lookback-card-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-/* Bordered without a shadow: the outer card carries the elevation. Corners
-   only just rounded, so the table still reads as a grid. No padding: the table
-   fills the card, so its lines meet the card's edge. */
-.lookback-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 3px;
-  min-width: 0;
   overflow: hidden;
 }
 
-/* A lone card, such as one facility's, takes the full width. */
-.lookback-cards--single {
-  grid-template-columns: 1fr;
+/* The card's header: name and its line, and its download on the right. */
+.lookback-card__header {
+  align-items: center;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
 }
 
+.lookback-card__heading {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
 
 .lookback-card__name {
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
   font-weight: 600;
+  line-height: 1.35;
   margin: 0;
-  min-width: 0;
   overflow-wrap: anywhere;
 }
 
-/* The scope's own total leads: its name a little larger and bolder, in the
-   same colour as the rest. */
-.lookback-card__name--total {
-  font-size: 0.875rem;
-  font-weight: 700;
+.lookback-card__detail {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  margin: 2px 0 0;
 }
 
+/* A table narrower screens cannot fit scrolls rather than being cut off. */
+.lookback-card__scroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+/* Never so narrow that a heading runs into the next column; a narrower screen
+   scrolls the table instead. */
 .lookback-card__table {
   border-collapse: collapse;
   font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
+  min-width: 35rem;
   table-layout: fixed;
   width: 100%;
 }
 
+/* Each value centred over the change beneath it, and its heading over both;
+   rows ruled, columns not. */
 .lookback-card__table th,
 .lookback-card__table td {
-  padding: var(--space-2) var(--space-2);
+  padding: var(--space-2) var(--space-3);
   text-align: center;
-  vertical-align: top;
+  vertical-align: middle;
   white-space: nowrap;
 }
 
-/* A line between every two cells, so each period reads as its own column. */
-.lookback-card__table :is(th, td) + :is(th, td) {
-  border-left: 1px solid var(--color-border);
-}
-
 .lookback-card__table tbody tr {
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-border-subtle);
 }
-
-/* The measure names and their heading: wider than a day's column, left aligned. */
+/* The measure names and their heading: wider than a period's column, left
+   aligned, in the text colour as row labels. */
 .lookback-card__table .lookback-card__measure-heading,
 .lookback-card__table tbody th {
-  color: var(--color-text-muted);
-  font-weight: 500;
-  padding-left: var(--space-3);
+  padding-left: var(--space-4);
   text-align: left;
+  white-space: normal;
   width: 7.5rem;
 }
 
-/* The header row tinted as the report tables' headers are. */
+.lookback-card__table tbody th {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* The header row a little taller than one line of text, shorter than a body
+   row's value over its change. */
+.lookback-card__table thead tr {
+  height: 2.5rem;
+}
+
+/* The header row coloured as the report tables' headers are: their tint and
+   muted text, ruled off from the body in their border colour. A heading too
+   long for its column ("Last 6 months avg." two to a row) wraps, balanced,
+   rather than running into the next. */
+.lookback-card__table thead tr {
+  border-bottom: 1px solid var(--color-border);
+}
+
 .lookback-card__table thead th {
   background: var(--color-surface-subtle);
   color: var(--color-text-muted);
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 600;
+  line-height: 1.3;
+  text-wrap: balance;
+  white-space: normal;
 }
 
-/* Today, the first column, in bold: the value every other column is read against. */
+/* A heading with dates behind it shows them on hover. */
+.lookback-card__table thead th[title] {
+  cursor: help;
+}
+
+/* The current column in bold: the value every other column is read against. */
 .lookback-card__table .lookback-card__today {
   color: var(--color-text);
   font-weight: 700;
 }
 
-/* A crosshair on hover: the hovered cell's measure row and day column light
-   up as the report tables' rows do, and the cell where they cross a shade
-   more. Columns need :has(), one rule per day column after the names,
-   and only cells (tr > ...) count, or the hovered row itself matches. */
+/* Its heading muted as every other heading is, as the report tables' are. */
+.lookback-card__table thead .lookback-card__today {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+/* The hovered measure's row lights up as the report tables' rows do; columns
+   do not. */
 .lookback-card__table tbody tr:hover > * {
   background: var(--color-surface-hover);
 }
 
-.lookback-card__table:has(tbody > tr > :nth-child(2):hover) tr > :nth-child(2),
-.lookback-card__table:has(tbody > tr > :nth-child(3):hover) tr > :nth-child(3),
-.lookback-card__table:has(tbody > tr > :nth-child(4):hover) tr > :nth-child(4),
-.lookback-card__table:has(tbody > tr > :nth-child(5):hover) tr > :nth-child(5),
-.lookback-card__table:has(tbody > tr > :nth-child(6):hover) tr > :nth-child(6),
-.lookback-card__table:has(tbody > tr > :nth-child(7):hover) tr > :nth-child(7),
-.lookback-card__table:has(tbody > tr > :nth-child(8):hover) tr > :nth-child(8),
-.lookback-card__table:has(tbody > tr > :nth-child(9):hover) tr > :nth-child(9),
-.lookback-card__table:has(tbody > tr > :nth-child(10):hover) tr > :nth-child(10),
-.lookback-card__table:has(tbody > tr > :nth-child(11):hover) tr > :nth-child(11),
-.lookback-card__table:has(tbody > tr > :nth-child(12):hover) tr > :nth-child(12) {
-  background: var(--color-surface-hover);
-}
-
-.lookback-card__table tbody td:hover {
-  background: var(--color-table-pinned-hover);
-}
-
-/* Today's change since that day, in brackets beside its value. */
+/* The current value's change since that period, signed, in its badge beneath
+   the value: a value and its change side by side are twice as wide as either. */
 .lookback-card__change {
+  display: block;
   font-size: 0.75rem;
-  margin-left: var(--space-1);
+  line-height: 1.5;
+  margin-top: var(--space-1);
 }
 
-@media (max-width: 1100px) {
-  .lookback-cards {
-    grid-template-columns: 1fr;
-  }
+/* Beneath the current value, in place of a change: a small neutral label,
+   not bold like the value above it. */
+.lookback-card__baseline {
+  color: var(--color-text-subtle);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .sidebar-account {
@@ -2129,6 +2107,49 @@ h1 {
   width: 14px;
 }
 
+/* DownloadButton: icon only, the blue arrow the one coloured thing in a quiet
+   frame; the control height header buttons share. */
+.download-button {
+  align-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-primary);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 36px;
+  justify-content: center;
+  padding: 0;
+  width: 36px;
+}
+
+.download-button:hover {
+  background: var(--color-primary-subtle);
+  border-color: var(--color-primary);
+  color: var(--color-primary-hover);
+}
+
+.download-button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.download-button:disabled {
+  background: var(--color-surface-hover);
+  color: var(--color-text-subtle);
+  cursor: not-allowed;
+}
+
+.download-button__icon {
+  height: 20px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 20px;
+}
+
 .report-table__export-icon {
   height: 14px;
   stroke: currentColor;
@@ -3717,7 +3738,13 @@ h1 {
   color: var(--color-text-muted);
   background: var(--color-surface-subtle);
 }
-
+/* Smaller than the value above it, such as a look-back card's change, and
+   unbordered: the tint alone marks it. */
+.status-badge--compact {
+  box-shadow: none;
+  font-size: 0.6875rem;
+  padding: 1px var(--space-1);
+}
 /* Tag: a label for one of many values, toned from the chart series colours by
    its text. */
 /* One line, however many: the column widens rather than the row growing. */

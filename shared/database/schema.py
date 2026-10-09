@@ -11,6 +11,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import DATERANGE, JSONB
 
+from shared.staffing import ROLE_CODES
+
 metadata = MetaData()
 migration_history = Table('sandbox_schema_migrations', metadata,
     Column('name', String, primary_key=True),
@@ -818,6 +820,36 @@ daily_payer_census_facts = Table('daily_payer_census_facts', metadata,
     Index('ix_daily_payer_census_facts_facility', 'facility_id', 'summary_date'),
 )
 
+daily_staffing_facts = Table('daily_staffing_facts', metadata,
+    # Hours worked per facility, role and day, for the Staffing PPD report. Census
+    # days are not repeated here: they are daily_payer_census_facts' closing census,
+    # which the targets were set against, read once per facility-day and never
+    # once per role.
+    #
+    # Excess and short hours are kept at the day's grain, not derived from the
+    # sums: a facility 40 hours over on Monday and 40 short on Tuesday has 40
+    # hours of each, and a parent scope adds them up without one cancelling the
+    # other. hours_worked - target_hours = excess_hours - short_hours on every row.
+    #
+    # Measured before choosing the grain: one row per facility, role and day is
+    # 253 x 11 x days -- about 3.8M rows over the history, near the size of
+    # daily_payer_census_facts. Role is the dimension the report exists to show.
+    Column('summary_date', Date, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('role', String, nullable=False),
+    Column('hours_worked', Numeric(7, 1), nullable=False),
+    Column('target_hours', Numeric(7, 1), nullable=False),
+    Column('excess_hours', Numeric(7, 1), nullable=False),
+    Column('short_hours', Numeric(7, 1), nullable=False),
+    Column('wages', Numeric(10, 2), nullable=False),
+    Column('excess_wages', Numeric(10, 2), nullable=False),
+    PrimaryKeyConstraint('summary_date', 'facility_id', 'role'),
+    CheckConstraint('role IN (' + ', '.join(f"'{code}'" for code in ROLE_CODES) + ')'),
+    CheckConstraint('hours_worked >= 0 AND target_hours >= 0 AND excess_hours >= 0 AND short_hours >= 0 '
+        'AND wages >= 0 AND excess_wages >= 0'),
+    CheckConstraint('hours_worked - target_hours = excess_hours - short_hours'),
+)
+
 monthly_payer_census_facts = Table('monthly_payer_census_facts', metadata,
     # A calendar-month rollup of daily_payer_census_facts, for the monthly ADT
     # trending report. Rolling the daily table up on every request measured
@@ -1098,6 +1130,7 @@ _descriptions = {
     'daily_discharge_facts': 'Additive daily discharge measures at facility/payer/destination/disposition grain. Length of stay is a sum beside its count so any grouping divides correctly.',
     'daily_payer_change_facts': 'Additive daily payer-change counts at facility/from-type/to-type grain. Residents affected is a distinct count and is read from res_payer_stays instead.',
     'daily_payer_census_facts': 'Daily census and movement by payer type: opening + admissions + changes in - discharges - changes out = closing. Sums back to adt_daily_census.',
+    'daily_staffing_facts': 'Hours worked, target hours and wages per facility, staffing role and day. Excess and short hours are measured each day, so a parent scope adds them up without one offsetting the other. PPD divides hours by daily_payer_census_facts closing census, summed.',
     'monthly_payer_census_facts': 'Calendar-month rollup of daily_payer_census_facts for monthly trending. Flows are summed; census is taken from the first and last day of each month.',
     'monthly_admission_facts': 'Calendar-month rollup of daily_admission_facts at facility/payer-type/source-type grain, for monthly admissions trending by referral source. monthly_payer_census_facts carries monthly admissions too but has no source dimension and cannot gain one, because census is a level rather than a flow.',
     'monthly_discharge_facts': 'Calendar-month rollup of daily_discharge_facts at facility/payer-type/destination-type grain, for monthly discharge trending by destination. Length of stay is a sum beside its count so any grouping divides correctly.',

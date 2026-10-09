@@ -46,6 +46,8 @@ SHARED_RULES = {
     'infection_logs': ('source_data_generators/draws.py',),
     'weight_logs': ('source_data_generators/draws.py',),
     'progress_notes': ('source_data_generators/draws.py',),
+    # Roles, targets and base rates, shared with the API; and the stable draws.
+    'staffing_summary': ('../shared/staffing.py', 'source_data_generators/draws.py'),
 }
 # Reference data rebuilt from its rules alone, as `<name> --regenerate` does.
 REFERENCE = ('payer_rates', 'facility_beds', 'referring_hospitals')
