@@ -48,7 +48,7 @@ def main():
     daily = args.generator in ('seed', 'update', 'all', 'admissions_summary', 'discharges_summary',
         'payer_changes_summary', 'net_change_summary', 'monthly_adt_summary', 'referrals_summary',
         'monthly_adt_facts', 'census_logs', 'pdpm_census_summary', 'medicaid_census_summary', 'resident_summaries', 'bed_assignments', 'transfer_logs', 'incident_logs', 'infection_logs', 'weight_logs', 'progress_notes',
-        'staffing_summary')
+        'staffing_summary', 'facility_staffing_summary', 'staff_hours')
     standalone = args.generator in ('res_stays', 'admission_logs', 'discharge_logs',
         'payer_change_logs')
     if args.date and (args.start or args.through):
@@ -72,7 +72,7 @@ def main():
             'net_change_summary',
             'monthly_adt_summary', 'referrals_summary', 'monthly_adt_facts', 'census_logs', 'pdpm_census_summary', 'medicaid_census_summary',
             'payer_change_logs', 'resident_summaries', 'bed_assignments', 'transfer_logs', 'incident_logs', 'infection_logs', 'weight_logs', 'progress_notes',
-            'staffing_summary')
+            'staffing_summary', 'facility_staffing_summary', 'staff_hours')
         daily_target = args.only or (args.generator if args.generator in summaries else 'all')
         daily_plan = BaseGenerator.daily_plan(daily_target) if daily else ()
         start = args.date or args.start
@@ -89,7 +89,7 @@ def main():
         # A reset drops every table, so the resident pool has to be rebuilt before ADT
         # runs; otherwise the simulation invents residents on demand under different IDs.
         reference = ('states', 'portfolios', 'regions', 'facilities', 'payers', 'payer_rates', 'facility_beds',
-            'referring_hospitals')
+            'referring_hospitals', 'staff_members')
         if args.reset_history:
             # The reset drops the users table too. Without admin_user here nobody
             # could sign in afterwards, and the API said only that the password

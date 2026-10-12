@@ -72,6 +72,7 @@ class BaseGenerator(ABC):
         'source_data_generators.aspire-infection-logs',
         'source_data_generators.aspire-weight-logs',
         'source_data_generators.aspire-progress-notes',
+        'source_data_generators.aspire-staff',
         'summary_generators.aspire-admissions',
         'summary_generators.aspire-discharges',
         'summary_generators.aspire-payer-changes',
@@ -82,13 +83,15 @@ class BaseGenerator(ABC):
         'summary_generators.aspire-pdpm-census',
         'summary_generators.aspire-medicaid-census',
         'summary_generators.aspire-staffing',
+        'summary_generators.aspire-facility-staffing',
     )
     RUN_ORDER = ('states', 'portfolios', 'regions', 'facilities', 'payers',
-        'payer_rates', 'facility_beds', 'referring_hospitals', 'admin_user', 'residents',
+        'payer_rates', 'facility_beds', 'referring_hospitals', 'staff_members', 'admin_user', 'residents',
         'res_stays', 'admission_logs', 'discharge_logs', 'payer_change_logs', 'census_logs', 'pdpm_census_summary', 'medicaid_census_summary', 'resident_summaries', 'bed_assignments', 'transfer_logs', 'incident_logs', 'infection_logs', 'weight_logs', 'progress_notes',
         'admissions_summary',
         'discharges_summary', 'payer_changes_summary', 'net_change_summary',
-        'monthly_adt_summary', 'referrals_summary', 'monthly_adt_facts', 'staffing_summary')
+        'monthly_adt_summary', 'referrals_summary', 'monthly_adt_facts', 'staffing_summary',
+        'facility_staffing_summary', 'staff_hours')
     metadata = schema.metadata
     migration_history = schema.migration_history
     run_history = schema.run_history

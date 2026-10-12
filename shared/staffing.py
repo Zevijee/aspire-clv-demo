@@ -31,3 +31,17 @@ ROLES = (
 )
 ROLE_CODES = tuple(code for code, *_ in ROLES)
 GROUPS = ('Nursing', 'Therapy', 'Support')
+
+# How a staff member is employed, and how often each kind works: the share of
+# days a member of the roster is drawn to work. Full time comes to five days
+# a week, part time three, PRN about one, and agency staff are called in rarely.
+EMPLOYMENT_TYPES = (
+    ('full_time', 'Full time', 0.71),
+    ('part_time', 'Part time', 0.43),
+    ('prn', 'PRN', 0.15),
+    ('agency', 'Agency', 0.10),
+)
+EMPLOYMENT_CODES = tuple(code for code, *_ in EMPLOYMENT_TYPES)
+# How many days of per-person hours daily_staff_hours keeps, ending on the
+# latest staffing day. The generator drops older days; the API clamps to it.
+STAFF_HOURS_DAYS = 120

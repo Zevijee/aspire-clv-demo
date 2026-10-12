@@ -8,14 +8,16 @@ import { CustomGroupingButton } from '../../../shared/components/CustomGroupingB
 import { LocationNavigation, locationColumn } from '../../../shared/components/LocationNavigation'
 import { useCustomGrouping } from '../../../shared/customGrouping'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
-import { useSearchParamList } from '../../../shared/hooks/useSearchParamList'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import {
   drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow,
 } from '../../../shared/utils/locationDrilldown'
-import { getPpd, ROLE_PARAM, STAFFING_ROLES, type FacilityStaffing, type PpdReport } from '../api'
+import { getPpd, STAFFING_ROLES, type FacilityStaffing, type PpdReport } from '../api'
 
 type Row = DrilldownRow<FacilityStaffing>
+// A row of the role table: a role over some facilities, or one breakdown item
+// under it. `codes` is the role, or every role shown for the Total row.
+type RoleRow = Row & { codes: string[] }
 type Kind = 'count' | 'average' | 'hours' | 'ppd' | 'variance' | 'rate' | 'money'
 
 const metrics: [id: string, header: string, kind: Kind][] = [
@@ -29,6 +31,9 @@ const metrics: [id: string, header: string, kind: Kind][] = [
   ['rate', 'Avg. hourly rate', 'rate'],
   ['excess_wages', 'Excess spend', 'money'],
 ]
+// The role table's columns: the drilldown's, in its order, without the census
+// columns, which are the same for every role.
+const ROLE_METRICS = ['hours', 'ppd', 'target', 'variance', 'excess_hours', 'rate', 'excess_wages']
 
 // The chosen roles' sums at this scope; census days once per facility, never per
 // role, so any set of roles divides by the same census days.
@@ -80,9 +85,11 @@ function format(value: number | string, kind: Kind) {
   return fixed(0)
 }
 
-/** PPD: hours worked per patient day for the header's roles and date range,
+/** PPD: hours worked per patient day over every role in the header's date range,
  * drilled from state to facility, against target, with the extra hours worked
- * over each day's target and what they cost. The drilldown is kept in the URL. */
+ * over each day's target and what they cost. Below it, one row per role for
+ * the drilldown's scope, each opening to the same breakdown for that role.
+ * The drilldown is kept in the URL. */
 export function PpdDrilldown() {
   const [params, setParams] = useReportSearchParams()
   const defaults = getDefaultReportDateRange()
@@ -103,11 +110,9 @@ export function PpdDrilldown() {
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
-  // Every role when none is chosen.
-  const selected = useSearchParamList(ROLE_PARAM).values
-  const roles = selected.length ? selected : STAFFING_ROLES.map(role => role.value)
-  const roleNames = selected.length
-    ? STAFFING_ROLES.filter(role => selected.includes(role.value)).map(role => role.label).join(', ') : 'every role'
+  // Every role: the table adds them all up, and the role table lists each.
+  const roles = STAFFING_ROLES.map(role => role.value)
+  const roleNames = 'every role'
   useEffect(() => {
     const controller = new AbortController()
     setError(null)
@@ -137,6 +142,25 @@ export function PpdDrilldown() {
     + 'hourly rate.'
   const file = `${startDate}-to-${endDate}`
 
+  // The role table follows the drilldown and custom grouping, as the table
+  // does: one row per role in the header filter, with that role's totals over
+  // the facilities shown, each summed at this scope and divided once.
+  const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
+  const scoped = rows.flatMap(row => row.facilities)
+  const roleRows: RoleRow[] = STAFFING_ROLES.filter(role => roles.includes(role.value))
+    .map(role => ({ key: role.value, name: role.label, path: [], facilities: scoped, codes: [role.value] }))
+  const roleColumns: TableColumn<RoleRow>[] = [
+    { id: 'name', header: 'Role', value: row => row.name, isRowHeader: true },
+    ...ROLE_METRICS.map((id): TableColumn<RoleRow> => {
+      const [, header, kind] = metrics.find(([metricId]) => metricId === id)!
+      return {
+        id, header, numeric: true, value: row => metric(row, id, days, row.codes) ?? '—',
+        format: (value: number | string) => format(value, kind),
+        ...(id === 'variance' ? { change: { favorable: 'neutral' as const } } : {}),
+      }
+    }),
+  ]
+
   return <>
     <LocationNavigation path={path} setPath={setPath} />
     <DrilldownTable<Row> title={`${levels[depth]} PPD`} columns={columns} rows={rows}
@@ -156,5 +180,17 @@ export function PpdDrilldown() {
       getName={row => row.name} getPath={row => [row.path[0], row.path[1], row.path[2]]}
       loading={loading} error={error} onRetry={onRetry}
       csvFileName={`ppd-facilities-${file}.csv`} />
+    <DrilldownTable<RoleRow> title="PPD by role" columns={roleColumns} rows={roleRows}
+      // No initial sort: the roles come in report order, nursing, therapy, support.
+      getRowKey={row => row.key}
+      loading={loading} error={error} onRetry={onRetry}
+      // Every role shown over the same facilities, divided once: the same
+      // figures as the Total row above, never the rows added together.
+      getFooterRow={visible => ({ key: 'total', name: 'Total', path: [], isTotal: true,
+        facilities: scoped, codes: visible.map(row => row.codes[0]) })}
+      subtitle={`${scopeName} · ${roleNames}, ${range}. Each role's hours over the facilities shown and their `
+        + 'census days. The Total row is every role shown, added up and divided once.'}
+      emptyMessage="No roles match this view."
+      csvFileName={`ppd-roles-${file}.csv`} />
   </>
 }

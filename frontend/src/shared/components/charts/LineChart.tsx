@@ -34,6 +34,11 @@ type LineChartProps = DataStateProps & {
   lineColor?: string
   interval?: 'day' | 'month'
   showDailyAverage?: boolean
+  /** Dashed horizontal lines at levels the series is read against -- a
+   * target, the edges of an acceptable band -- each with its label; the axis
+   * is sized to keep them in view. `adverse` draws a line in the shared
+   * adverse colour, for a level it is bad to cross. */
+  referenceLines?: { value: number; label: string; tone?: 'neutral' | 'adverse' }[]
   headerActions?: ReactNode
   onSelect?: (item: LineChartItem) => void
   /** How a value reads on the axis and in the tooltip, such as a currency.
@@ -48,12 +53,17 @@ type LineChartProps = DataStateProps & {
   baseline?: 'zero' | 'fit'
 }
 
-export function LineChart({ items, title, subtitle, loading, error, onRetry, signed = false, valueLabel = 'Admissions', variant = 'line', height, barColor = 'var(--color-table-change-favorable)', lineColor = 'var(--color-chart-series-primary)', interval = 'day', showDailyAverage = false, headerActions, onSelect, baseline = 'zero', formatValue, formatAxis = formatValue }: LineChartProps) {
+export function LineChart({ items, title, subtitle, loading, error, onRetry, signed = false, valueLabel = 'Admissions', variant = 'line', height, barColor = 'var(--color-table-change-favorable)', lineColor = 'var(--color-chart-series-primary)', interval = 'day', showDailyAverage = false, referenceLines = [], headerActions, onSelect, baseline = 'zero', formatValue, formatAxis = formatValue }: LineChartProps) {
   const Chart = variant === 'bar' ? BarChart : RechartsLineChart
-  const values = items.map((item) => item.value)
+  const values = [...items.map((item) => item.value), ...referenceLines.map((line) => line.value)]
   const minimumValue = Math.min(...(values.length ? values : [0]))
   const maximumValue = Math.max(...(values.length ? values : [0]))
-  const axisPadding = Math.max(1, Math.ceil((maximumValue - minimumValue) * 0.1))
+  // A tenth of the range above and below. Counts pad by whole units, at
+  // least one; a measure with decimals, such as a PPD moving by tenths, pads
+  // by its own range, or a whole unit would flatten every dip and peak.
+  const whole = values.every((value) => Number.isInteger(value))
+  const axisPadding = whole ? Math.max(1, Math.ceil((maximumValue - minimumValue) * 0.1))
+    : Math.max((maximumValue - minimumValue) * 0.1, Math.abs(maximumValue) * 0.01)
   const yAxisDomain: [number, number] = [
     signed ? Math.min(0, minimumValue - axisPadding)
       // A fitted baseline leaves the lowest bar about a third of the range tall.
@@ -75,7 +85,9 @@ export function LineChart({ items, title, subtitle, loading, error, onRetry, sig
         {loading || error || items.length === 0 ? (
           <DataState loading={loading} error={error} onRetry={onRetry} label={title} />
         ) : <ResponsiveContainer height="100%" width="100%">
-          <Chart data={items} barCategoryGap="12%" margin={{ bottom: 8, left: 0, right: 20, top: 24 }}
+          <Chart data={items} barCategoryGap="12%"
+            // Room on the right for reference-line labels drawn outside the plot.
+            margin={{ bottom: 8, left: 0, right: referenceLines.length ? 112 : 20, top: 24 }}
             style={{ cursor: onSelect ? 'pointer' : undefined }}
             onClick={state => {
               if (!onSelect || !state.isTooltipActive) return
@@ -101,7 +113,9 @@ export function LineChart({ items, title, subtitle, loading, error, onRetry, sig
               }
             />
             <YAxis
-              allowDecimals={false}
+              // Counts tick by whole numbers; a measure with decimals needs
+              // decimal ticks, or a PPD between 2.2 and 2.4 gets one tick at 2.
+              allowDecimals={!whole}
               axisLine={false}
               domain={yAxisDomain}
               tick={{ fill: 'var(--color-chart-axis)', fontSize: 10 }}
@@ -130,6 +144,14 @@ export function LineChart({ items, title, subtitle, loading, error, onRetry, sig
               </div>
             }} />
             {signed && <ReferenceLine y={0} stroke="var(--color-border-strong)" />}
+            {referenceLines.map((line) => {
+              const color = line.tone === 'adverse' ? 'var(--color-table-change-adverse)' : 'var(--color-text-muted)'
+              return <ReferenceLine key={line.label} y={line.value} stroke={color} strokeDasharray="5 4"
+                ifOverflow="extendDomain"
+                // Outside the plot, to the right of the line's end: inside it,
+                // the series ran over the label on the days it crossed the line.
+                label={{ value: line.label, position: 'right', fill: color, fontSize: 11 }} />
+            })}
             {variant === 'bar' ? <Bar dataKey="value" name={valueLabel}
               fill={barColor} radius={[2, 2, 0, 0]}
               maxBarSize={36} isAnimationActive={false}>

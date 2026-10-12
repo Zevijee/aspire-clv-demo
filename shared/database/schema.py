@@ -11,7 +11,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import DATERANGE, JSONB
 
-from shared.staffing import ROLE_CODES
+from shared.staffing import EMPLOYMENT_CODES, ROLE_CODES
 
 metadata = MetaData()
 migration_history = Table('sandbox_schema_migrations', metadata,
@@ -848,6 +848,67 @@ daily_staffing_facts = Table('daily_staffing_facts', metadata,
     CheckConstraint('hours_worked >= 0 AND target_hours >= 0 AND excess_hours >= 0 AND short_hours >= 0 '
         'AND wages >= 0 AND excess_wages >= 0'),
     CheckConstraint('hours_worked - target_hours = excess_hours - short_hours'),
+    # One role's days in a range, for the PPD trend of a role subset: by the
+    # primary key a year of one role read all eleven roles' rows and kept one.
+    Index('ix_daily_staffing_facts_role_date', 'role', 'summary_date'),
+)
+
+daily_facility_staffing_facts = Table('daily_facility_staffing_facts', metadata,
+    # Each facility's day across every role: hours worked and target hours
+    # summed over daily_staffing_facts, and the day's closing census from
+    # daily_payer_census_facts summed over payer types. A rollup over roles
+    # and payer types, one row per facility and day: 349,000 rows against
+    # 3.8M and 2.5M. Built for one measured reason: the PPD trend over every
+    # role read a million staffing rows for a year and rolled 740,000 payer
+    # rows up for the census, 1.5 s in the service and 3.6 s at the browser;
+    # from here a year is 92,000 rows. Hours and targets stay additive.
+    Column('summary_date', Date, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('hours_worked', Numeric(8, 1), nullable=False),
+    Column('target_hours', Numeric(8, 1), nullable=False),
+    Column('closing_census', Integer, nullable=False),
+    PrimaryKeyConstraint('summary_date', 'facility_id'),
+    CheckConstraint('hours_worked >= 0 AND target_hours >= 0 AND closing_census >= 0'),
+)
+
+staff_members = Table('staff_members', metadata,
+    # Each facility's staff roster, one row per person, for the Staffing PPD
+    # report's Employees tab. Reference data built from the facilities alone:
+    # a role's roster is sized from the facility's beds and the role's target
+    # PPD. The hourly rate is the role's base rate at the facility's pay, lifted
+    # by tenure; the facts' wages are split across workers in proportion to it.
+    Column('staff_id', Uuid, primary_key=True),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('role', String, nullable=False),
+    Column('first_name', String, nullable=False),
+    Column('last_name', String, nullable=False),
+    Column('employment_type', String, nullable=False),
+    Column('hire_date', Date, nullable=False),
+    Column('hourly_rate', Numeric(6, 2), nullable=False),
+    CheckConstraint('role IN (' + ', '.join(f"'{code}'" for code in ROLE_CODES) + ')'),
+    CheckConstraint('employment_type IN (' + ', '.join(f"'{code}'" for code in EMPLOYMENT_CODES) + ')'),
+    CheckConstraint('hourly_rate > 0'),
+    Index('ix_staff_members_facility_role', 'facility_id', 'role'),
+)
+
+daily_staff_hours = Table('daily_staff_hours', metadata,
+    # One row per staff member per day worked: the hours and wages of that
+    # person that day. A day's rows for a facility and role add up to that
+    # day's daily_staffing_facts row, to the rounding, because they are that
+    # row split across the roster members drawn to be working. Only the last
+    # STAFF_HOURS_DAYS days are kept (shared/staffing.py): the whole history
+    # would be some 26M rows, ten times the largest table.
+    Column('work_date', Date, nullable=False),
+    Column('staff_id', Uuid, ForeignKey('staff_members.staff_id'), nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('role', String, nullable=False),
+    Column('hours', Numeric(5, 2), nullable=False),
+    Column('wages', Numeric(9, 2), nullable=False),
+    PrimaryKeyConstraint('work_date', 'staff_id'),
+    CheckConstraint('role IN (' + ', '.join(f"'{code}'" for code in ROLE_CODES) + ')'),
+    CheckConstraint('hours > 0 AND wages >= 0'),
+    Index('ix_daily_staff_hours_staff', 'staff_id', 'work_date'),
+    Index('ix_daily_staff_hours_facility', 'facility_id', 'work_date'),
 )
 
 monthly_payer_census_facts = Table('monthly_payer_census_facts', metadata,

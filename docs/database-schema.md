@@ -102,6 +102,11 @@ erDiagram
     }
     facilities ||--o{ daily_discharge_facts : "facility_id"
     payers ||--o{ daily_discharge_facts : "payer_id"
+    daily_facility_staffing_facts {
+        Date summary_date PK
+        Uuid facility_id PK
+    }
+    facilities ||--o{ daily_facility_staffing_facts : "facility_id"
     daily_payer_census_facts {
         Date summary_date PK
         Uuid facility_id PK
@@ -174,12 +179,22 @@ erDiagram
         Uuid resident_id PK
     }
     facilities ||--o{ residents : "facility_id"
+    staff_members {
+        Uuid staff_id PK
+    }
+    facilities ||--o{ staff_members : "facility_id"
     bed_assignments {
         Uuid stay_id PK
         SmallInteger move PK
     }
     facilities ||--o{ bed_assignments : "facility_id"
     facility_beds ||--o{ bed_assignments : "bed_id"
+    daily_staff_hours {
+        Date work_date PK
+        Uuid staff_id PK
+    }
+    facilities ||--o{ daily_staff_hours : "facility_id"
+    staff_members ||--o{ daily_staff_hours : "staff_id"
     res_stays {
         Uuid stay_id PK
     }
@@ -254,8 +269,8 @@ erDiagram
         Uuid payer_stay_id PK
     }
     facilities ||--o{ payer_change_logs : "facility_id"
-    payers ||--o{ payer_change_logs : "new_payer_id"
     payers ||--o{ payer_change_logs : "previous_payer_id"
+    payers ||--o{ payer_change_logs : "new_payer_id"
     res_payer_stays ||--o| payer_change_logs : "payer_stay_id"
     res_stays ||--o{ payer_change_logs : "stay_id"
     residents ||--o{ payer_change_logs : "resident_id"
@@ -606,6 +621,20 @@ Additive daily discharge measures at facility/payer/destination/disposition grai
 - CHECK: `length_of_stay_days >= discharges`
 - INDEX `ix_daily_discharge_facts_facility`: facility_id, summary_date
 
+## daily_facility_staffing_facts
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| summary_date | DATE | no | PK |  |  |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| hours_worked | NUMERIC(8, 1) | no |  |  |  |
+| target_hours | NUMERIC(8, 1) | no |  |  |  |
+| closing_census | INTEGER | no |  |  |  |
+
+- CHECK: `hours_worked >= 0 AND target_hours >= 0 AND closing_census >= 0`
+
 ## daily_payer_census_facts
 
 Daily census and movement by payer type: opening + admissions + changes in - discharges - changes out = closing. Sums back to adt_daily_census.
@@ -660,6 +689,7 @@ Hours worked, target hours and wages per facility, staffing role and day. Excess
 - CHECK: `hours_worked - target_hours = excess_hours - short_hours`
 - CHECK: `hours_worked >= 0 AND target_hours >= 0 AND excess_hours >= 0 AND short_hours >= 0 AND wages >= 0 AND excess_wages >= 0`
 - CHECK: `role IN ('rn', 'lpn', 'cna', 'pt', 'pta', 'ot', 'cota', 'slp', 'dietary_aide', 'cook', 'evs')`
+- INDEX `ix_daily_staffing_facts_role_date`: role, summary_date
 
 ## facility_beds
 
@@ -824,6 +854,26 @@ Saved resident identities associated with a facility. Stays reference these save
 - INDEX `ix_residents_facility_id`: facility_id
 - UNIQUE: `first_name, last_name; DEFERRABLE INITIALLY DEFERRED`
 
+## staff_members
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| staff_id | UUID | no | PK |  |  |
+| facility_id | UUID | no | FK → facilities.facility_id |  |  |
+| role | VARCHAR | no |  |  |  |
+| first_name | VARCHAR | no |  |  |  |
+| last_name | VARCHAR | no |  |  |  |
+| employment_type | VARCHAR | no |  |  |  |
+| hire_date | DATE | no |  |  |  |
+| hourly_rate | NUMERIC(6, 2) | no |  |  |  |
+
+- CHECK: `employment_type IN ('full_time', 'part_time', 'prn', 'agency')`
+- CHECK: `hourly_rate > 0`
+- CHECK: `role IN ('rn', 'lpn', 'cna', 'pt', 'pta', 'ot', 'cota', 'slp', 'dietary_aide', 'cook', 'evs')`
+- INDEX `ix_staff_members_facility_role`: facility_id, role
+
 ## bed_assignments
 
 
@@ -839,6 +889,24 @@ Saved resident identities associated with a facility. Stays reference these save
 
 - CHECK: `NOT isempty(in_bed) AND NOT lower_inf(in_bed)`
 - INDEX `ix_bed_assignments_facility`: facility_id
+
+## daily_staff_hours
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| work_date | DATE | no | PK |  |  |
+| staff_id | UUID | no | PK, FK → staff_members.staff_id |  |  |
+| facility_id | UUID | no | FK → facilities.facility_id |  |  |
+| role | VARCHAR | no |  |  |  |
+| hours | NUMERIC(5, 2) | no |  |  |  |
+| wages | NUMERIC(9, 2) | no |  |  |  |
+
+- CHECK: `hours > 0 AND wages >= 0`
+- CHECK: `role IN ('rn', 'lpn', 'cna', 'pt', 'pta', 'ot', 'cota', 'slp', 'dietary_aide', 'cook', 'evs')`
+- INDEX `ix_daily_staff_hours_facility`: facility_id, work_date
+- INDEX `ix_daily_staff_hours_staff`: staff_id, work_date
 
 ## res_stays
 

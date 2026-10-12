@@ -73,7 +73,11 @@ Breaking one of these is a design change, not a refactor. Each was measured; see
   new event sources, and both were built because a report reads whole years at
   once. Referring Hospital still needs no new *event* table — `source_name` was
   already at the grain of `daily_admission_facts`, which is what
-  `monthly_referral_facts` rolls up.
+  `monthly_referral_facts` rolls up. `daily_facility_staffing_facts` is a
+  *dimension* rollup of the same kind, roles and payer types collapsed to one row
+  per facility and day, and earned its place the same way: the PPD trend over
+  every role read a million staffing rows and 740,000 payer rows for a year, 3.6 s
+  at the browser; from the rollup it reads 92,000 and answers in 0.4 s.
 - **Keep dimension keys at the grain** (`payer_id`, not `payer_type`) *when the
   finer grain is close to free*. For admissions and discharges it measured free.
   It is not a universal rule: at `payer_id` grain `daily_payer_change_facts` came to
@@ -125,6 +129,9 @@ list it in `SHARED_RULES` there, or a change to that file goes unnoticed.
 | Resident incidents, for the Clinical reports | `incident_logs --regenerate`, ~20 s |
 | Resident weigh-ins, for Weight Surveillance | `weight_logs --regenerate`, ~3.5 min |
 | Progress notes and their flag terms, for Flagged Progress Notes | `progress_notes --regenerate`, ~6 min; updates only move dates |
+| Each facility's day across every role, with its census, for the PPD trend | `facility_staffing_summary --regenerate`, ~10 s |
+| Staff roster size, employment mix, hire dates, pay, for PPD's Employees tab | `staff_members --regenerate`, ~12 s, then `staff_hours --regenerate` |
+| Who worked which day and for how long, the last 120 days | `staff_hours --regenerate`, ~3 min |
 | Resident infections and outbreaks, for Fever / Infections | `infection_logs --regenerate`, ~15 s |
 | Room layout (wings, rooms, private share) | `facility_beds --regenerate`, ~2 s, then `bed_assignments --regenerate` |
 | Who sleeps in which bed | `bed_assignments --regenerate`, ~36 s |
@@ -163,6 +170,9 @@ python manage.py transfer_logs --regenerate           # hospital transfers with 
 python manage.py incident_logs --regenerate           # resident incidents; ~20 s
 python manage.py weight_logs --regenerate             # resident weigh-ins; ~3.5 min
 python manage.py progress_notes --regenerate          # last 10 days of notes; ~6 min, then dates move
+python manage.py facility_staffing_summary --regenerate # each facility's day across every role, with census; ~10 s
+python manage.py staff_members --regenerate           # each facility's staff roster; ~12 s, drops the hours too
+python manage.py staff_hours --regenerate             # who worked each of the last 120 days; ~3 min
 python manage.py infection_logs --regenerate          # infections and outbreaks; ~15 s
 python manage.py facility_beds --regenerate           # wings, rooms and beds per facility; ~2 s
 python manage.py bed_assignments --regenerate         # which stay was in which bed; ~36 s

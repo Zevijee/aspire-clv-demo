@@ -2045,7 +2045,10 @@ h1 {
   font-size: 0.75rem;
   font-weight: 600;
   gap: var(--space-1);
-  min-height: 36px;
+  /* The control height whether the button stands alone or sits in the actions
+     row, so a header does not change height when a clear link or a filter
+     appears beside Export. */
+  min-height: var(--table-control-height, 34px);
   padding: 0 var(--space-3);
   white-space: nowrap;
 }
@@ -2159,9 +2162,13 @@ h1 {
   width: 14px;
 }
 
+/* No overscroll-behavior here. Measured: with overscroll-behavior-x: contain
+   on this box, a wheel event carrying any sideways component -- every trackpad
+   scroll -- stopped the page scrolling while the pointer was over a table, even
+   a table with no sideways overflow at all. The page scroller (.content-area)
+   already contains overscroll on both axes, so back-swipe stays blocked. */
 .report-table__scroll {
   overflow-x: auto;
-  overscroll-behavior-x: contain;
 }
 
 .report-table__pagination {

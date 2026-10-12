@@ -29,7 +29,8 @@ import { WeightSurveillance } from '../features/clinical/components/WeightSurvei
 import { FlaggedProgressNotes } from '../features/clinical/components/FlaggedProgressNotes'
 import { IncidentLogs } from '../features/clinical/components/IncidentLogs'
 import { PpdDrilldown } from '../features/staffing/components/PpdDrilldown'
-import { StaffingRoleFilter } from '../features/staffing/components/StaffingRoleFilter'
+import { StaffingEmployees } from '../features/staffing/components/StaffingEmployees'
+import { PpdTrending } from '../features/staffing/components/PpdTrending'
 import { HistoricalResidents } from '../features/mds/components/HistoricalResidents'
 import { worksheetDateBasis } from '../features/mds/worksheetApi'
 import { Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
@@ -84,6 +85,12 @@ const clinicalTabs = [
 const liveCensusTabs = [
   { id: 'overview', label: 'Overview' },
   { id: 'residents', label: 'Residents', noScroll: true },
+]
+// PPD: the drilldown by location and role, and one row per staff member.
+const staffingTabs = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'trending', label: 'Trending' },
+  { id: 'employees', label: 'Employees', noScroll: true },
 ]
 const monthlyMedicareTabs = [
   { id: 'overview', label: 'Overview' },
@@ -188,6 +195,7 @@ function App() {
   const activeLiveCensusTab = admissionsView === 'residents' ? 'residents' : 'overview'
   const isClinicalReport = currentReport.path === '/clinical/hospital-transfers' || currentReport.path === '/clinical/incidents'
   const activeClinicalTab = clinicalTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
+  const activeStaffingTab = staffingTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeMedicareTab = medicareTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeHistoricalMedicareTab = historicalMedicareTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeMonthlyMedicareTab = monthlyMedicareTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
@@ -441,7 +449,6 @@ function App() {
             {isMonthlyAdtReport && <MonthlyAdtFilters />}
             {currentReport.path === '/clinical/hospital-transfers' && <TransferFilters />}
             {currentReport.path === '/clinical/incidents' && <IncidentFilters />}
-            {currentReport.path === '/staffing/ppd' && <StaffingRoleFilter />}
             {/* Left of the date range: which date the range applies to. */}
             {(isWorksheetReport || isHistoricalMdsReport) && <WorksheetDateBasisToggle />}
             {isMonthlyReport ? <ReportMonthRangeFilter /> : currentReport.path !== '/adt/referring-hospital' && currentReport.path !== '/census/daily-census'
@@ -482,6 +489,15 @@ function App() {
               } : currentReport.path === '/census/daily-census' ? {
                 activeTabId: activeLiveCensusTab,
                 tabs: liveCensusTabs,
+                onTabChange: (id: string) => {
+                  const next = new URLSearchParams(searchParams)
+                  if (id === 'overview') next.delete('view')
+                  else next.set('view', id)
+                  setSearchParams(next)
+                },
+              } : currentReport.path === '/staffing/ppd' ? {
+                activeTabId: activeStaffingTab,
+                tabs: staffingTabs,
                 onTabChange: (id: string) => {
                   const next = new URLSearchParams(searchParams)
                   if (id === 'overview') next.delete('view')
@@ -564,7 +580,8 @@ function App() {
                   : report.path === '/clinical/fever-infections' ? <FeverInfections />
                   : report.path === '/clinical/weight-surveillance' ? <WeightSurveillance />
                   : report.path === '/clinical/flagged-progress-notes' ? <FlaggedProgressNotes />
-                  : report.path === '/staffing/ppd' ? <PpdDrilldown />
+                  : report.path === '/staffing/ppd' ? (activeStaffingTab === 'employees' ? <StaffingEmployees />
+                    : activeStaffingTab === 'trending' ? <PpdTrending /> : <PpdDrilldown />)
                   : report.path === '/mds/historical-medicare' ? (activeHistoricalMedicareTab === 'categories'
                     ? <HistoricalCategoryBreakdown /> : activeHistoricalMedicareTab === 'residents'
                     ? <HistoricalResidents /> : <HistoricalOverview />) : report.path === '/census/residents' ? <ResidentsReport /> :report.path === '/census/bed-board' ? <BedBoard /> : report.path === '/census/monthly-trending' ? <MonthlyCensusTrending /> : report.path === '/census/trending' ? <CensusTrending /> : report.path === '/census/daily-census' ? (
