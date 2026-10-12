@@ -1,5 +1,5 @@
 """Bounded table queries; features explicitly own their permitted columns."""
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -26,11 +26,20 @@ class Page(BaseModel, Generic[Row]):
 
 
 def paginate(statement: Select, query: PageQuery, *, columns: Mapping[str, ColumnElement],
-        default_sort: str, unique_key: ColumnElement) -> Select:
+        default_sort: str, unique_key: ColumnElement | Sequence[ColumnElement]) -> Select:
     key = query.sort or default_sort
     if key not in columns:
         raise ApiError('invalid_sort', 'Unsupported sort column.')
     column = columns[key]
-    order = column.desc() if query.direction == 'desc' else column.asc()
+    descending = query.direction == 'desc'
+    order = column.desc() if descending else column.asc()
     # Stable ties keep residents/events from moving unpredictably between pages.
-    return statement.order_by(None).order_by(order, unique_key.asc()).limit(query.limit).offset(query.offset)
+    # A single key breaks ties ascending, as every table always has. Several
+    # keys -- a row keyed by (date, person), say -- break them in the sort's own
+    # direction, so a sort on the first of them reads an index on those columns
+    # in order and stops at the page, instead of sorting every matching row.
+    if isinstance(unique_key, Sequence):
+        ties = [part.desc() if descending else part.asc() for part in unique_key]
+    else:
+        ties = [unique_key.asc()]
+    return statement.order_by(None).order_by(order, *ties).limit(query.limit).offset(query.offset)

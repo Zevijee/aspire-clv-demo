@@ -19,6 +19,9 @@ type LineChartItem = {
   value: number
   end_date?: string
   color?: string
+  /** Further rows for the point's tooltip, already formatted: the figures the
+   * value was made from, such as the hours behind a share. */
+  details?: { label: string; value: string }[]
 }
 
 type LineChartProps = DataStateProps & {
@@ -140,6 +143,9 @@ export function LineChart({ items, title, subtitle, loading, error, onRetry, sig
                     <dd>{formatValue ? formatValue(item.value / days)
                       : (item.value / days).toLocaleString(undefined, { maximumFractionDigits: 1 })}</dd>
                   </div>}
+                  {item.details?.map((detail) => <div key={detail.label}>
+                    <dt>{detail.label}</dt><dd>{detail.value}</dd>
+                  </div>)}
                 </dl>
               </div>
             }} />

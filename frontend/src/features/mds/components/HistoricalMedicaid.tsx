@@ -296,8 +296,8 @@ function HistoricalMedicaidResidentsTable({ startDate, endDate, dateBasis, initi
     title="Medicaid stays"
     subtitle={`${scopeNote} Every stay ${basis} from ${startDate} to ${endDate}, the stays the Overview counts. `
       + `Payer name shows the plan. Medicaid days run through the stay's end, or ${censusDate || 'the census day'} `
-      + 'while it is active. ARD is the first assessment\'s reference date and the code its two letters, nursing '
-      + 'and NTA; until it is coded the care code is missing and the ARD blank. Revenue is every day of the stay '
+      + 'while it is active. ARD is the first assessment\'s reference date and the code its nursing letter, cognitive '
+      + 'impairment digit (0 intact to 3 severe) and NTA letter; until it is coded the care code is missing and the ARD blank. Revenue is every day of the stay '
       + 'at its Medicaid rate; the average rate is revenue per Medicaid day.'}
     columns={residentColumns} rows={result?.items ?? []} getRowKey={row => row.payer_stay_id}
     initialSort={{ columnId: 'resident', direction: 'ascending' }}

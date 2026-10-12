@@ -48,7 +48,7 @@ def main():
     daily = args.generator in ('seed', 'update', 'all', 'admissions_summary', 'discharges_summary',
         'payer_changes_summary', 'net_change_summary', 'monthly_adt_summary', 'referrals_summary',
         'monthly_adt_facts', 'census_logs', 'pdpm_census_summary', 'medicaid_census_summary', 'resident_summaries', 'bed_assignments', 'transfer_logs', 'incident_logs', 'infection_logs', 'weight_logs', 'progress_notes',
-        'staffing_summary', 'facility_staffing_summary', 'staff_hours')
+        'staffing_summary', 'facility_staffing_summary', 'staff_hours', 'agency_summary', 'overtime_summary')
     standalone = args.generator in ('res_stays', 'admission_logs', 'discharge_logs',
         'payer_change_logs')
     if args.date and (args.start or args.through):
@@ -72,7 +72,7 @@ def main():
             'net_change_summary',
             'monthly_adt_summary', 'referrals_summary', 'monthly_adt_facts', 'census_logs', 'pdpm_census_summary', 'medicaid_census_summary',
             'payer_change_logs', 'resident_summaries', 'bed_assignments', 'transfer_logs', 'incident_logs', 'infection_logs', 'weight_logs', 'progress_notes',
-            'staffing_summary', 'facility_staffing_summary', 'staff_hours')
+            'staffing_summary', 'facility_staffing_summary', 'staff_hours', 'agency_summary', 'overtime_summary')
         daily_target = args.only or (args.generator if args.generator in summaries else 'all')
         daily_plan = BaseGenerator.daily_plan(daily_target) if daily else ()
         start = args.date or args.start
@@ -199,6 +199,22 @@ def main():
             lifecycle.status(database_url)
             from shared.database.staging import describe
             describe()
+            # What the next update would rebuild, from the generator code as it
+            # is now, so a rule change's cost is seen before it is paid: a
+            # Medicaid code edit once rebuilt the census logs and the progress
+            # notes, locking every report for ten minutes, where the one table
+            # could have been regenerated on its own in seconds.
+            import generator_rules
+            rebuild, reset_needed, _ = generator_rules.changes(database_url)
+            if rebuild:
+                message('  Rules changed  the next update rebuilds ' + ', '.join(
+                    name for name in BaseGenerator.RUN_ORDER if name in rebuild))
+                message('                 (see the cost table in AGENTS.md; a change confined to one table may be '
+                    'cheaper as <name> --regenerate)')
+            for name in reset_needed:
+                message(f'  Rules changed  {name}: needs seed --reset-history')
+            if not rebuild and not reset_needed:
+                message('  Rules          unchanged; the next update only adds missing days')
         elif args.generator == 'check':
             lifecycle.check(database_url)
             write_documentation(check=True)

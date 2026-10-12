@@ -21,6 +21,7 @@ export const categories = [
   { id: 'speech-comorbidity', label: 'Speech Comorbidity' },
   { id: 'nursing', label: 'Nursing' },
   { id: 'nursing-category', label: 'Nursing Category' },
+  { id: 'cognitive', label: 'Cognitive Impairment' },
   { id: 'nta', label: 'NTA' },
   { id: 'depression', label: 'Depression' },
 ] as const
@@ -33,7 +34,7 @@ const residentLocationFilters = ['state', 'portfolio', 'region', 'facility']
  * reads, and the parts in the order the report shows them, each with the one
  * colour it has wherever it appears. */
 export type Breakdown = {
-  field: 'primary_diagnosis' | 'pt_ot' | 'slp' | 'nursing' | 'nursing_category' | 'nta' | 'depression' | 'speech'
+  field: 'primary_diagnosis' | 'pt_ot' | 'slp' | 'nursing' | 'nursing_category' | 'cognitive' | 'nta' | 'depression' | 'speech'
   /** Chart and table titles, e.g. "Primary diagnosis by state". */
   name: string
   /** What the bars are split by, for the chart's subtitle. */
@@ -120,6 +121,17 @@ const nta: Breakdown = {
   ],
 }
 
+// The cognitive impairment level, the digit of a Texas Medicaid code.
+const cognitive: Breakdown = {
+  field: 'cognitive', name: 'Cognitive impairment', splitBy: 'cognitive impairment level', slug: 'cognitive-impairment',
+  parts: [
+    ['intact', '0 - Intact', 'var(--color-pdpm-major-joint)'],
+    ['mild', '1 - Mild', 'var(--color-pdpm-ortho)'],
+    ['moderate', '2 - Moderate', 'var(--color-pdpm-acute-neuro)'],
+    ['severe', '3 - Severe', 'var(--color-pdpm-medical-management)'],
+  ],
+}
+
 // Signs of depression, a yes / no flag on the assessment.
 const depression: Breakdown = {
   field: 'depression', name: 'Depression', splitBy: 'depression', slug: 'depression',
@@ -144,11 +156,11 @@ const speech: Breakdown = {
 
 // Every category button has one; the type makes a new button bring its breakdown.
 export const breakdowns: Record<(typeof categories)[number]['id'], Breakdown> = {
-  'primary-diagnosis': primaryDiagnosis, 'pt-ot': ptOt, slp, 'speech-comorbidity': speech, nursing, 'nursing-category': nursingCategory, nta, depression,
+  'primary-diagnosis': primaryDiagnosis, 'pt-ot': ptOt, slp, 'speech-comorbidity': speech, nursing, 'nursing-category': nursingCategory, cognitive, nta, depression,
 }
 
 /** A facility's category counts: every category Medicare PDPM has, or only the
- * nursing and NTA ones Medicaid's two-letter code has. Every code has a nursing
+ * nursing, cognitive and NTA ones Medicaid's code has. Every code has a nursing
  * letter, so the nursing categories always sum to the residents with a code. */
 export type CategoryFacility = Partial<CategoryCounts> & { nursing_category: Record<string, number> }
 export type CategoryId = (typeof categories)[number]['id']

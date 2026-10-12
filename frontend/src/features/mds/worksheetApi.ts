@@ -47,7 +47,8 @@ export type WorksheetNtaItem = {
 }
 
 /** A HIPPS code priced over a 100-day Medicare stay at the stay's contract rate. */
-export type StayRates = { average_rate: number; neutral_rate: number; total_revenue: number }
+// days: 100 for a Medicare stay, 30 for a Medicaid month.
+export type StayRates = { average_rate: number; neutral_rate: number; total_revenue: number; days?: number }
 
 export type WorksheetRow = {
   payer_stay_id: string
@@ -149,13 +150,13 @@ export async function addWorksheetEntry(payerStayId: string, entry: NewWorksheet
 
 /** One Texas Medicaid stay on the Medicaid PDPM Worksheet. */
 export type MedicaidWorksheetRow = Omit<WorksheetRow, 'payer_label' | 'medicare_start' | 'start_reason'
-    | 'final_hipps' | 'final_rates' | 'projected_rates'> & {
+    | 'final_hipps'> & {
   payer_name: string
   // First day of this Medicaid payer period.
   medicaid_start: string
   // How it began: at admission, or by a payer change, as from Medicare.
   start_reason: 'Admission' | 'Payer change'
-  // The first assessment's two-letter code, nursing then NTA; null until coded.
+  // The first assessment's code, nursing letter, cognitive digit, NTA letter; null until coded.
   final_code: string | null
 }
 

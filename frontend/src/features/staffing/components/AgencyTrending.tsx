@@ -1,0 +1,201 @@
+import { useEffect, useState } from 'react'
+import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
+import { DrilldownTable } from '../../../shared/components/DrilldownTable'
+import { type TableColumn } from '../../../shared/components/Table'
+import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
+import { OpenViewButton } from '../../../shared/components/OpenViewButton'
+import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
+import { LocationNavigation, locationColumn } from '../../../shared/components/LocationNavigation'
+import { LineChart } from '../../../shared/components/charts/LineChart'
+import { useCustomGrouping } from '../../../shared/customGrouping'
+import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
+import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
+import {
+  drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow,
+} from '../../../shared/utils/locationDrilldown'
+import { AGENCY_ROLE_PARAM, getAgencyTrend, type AgencyTrend, type FacilityAgencyTrend } from '../api'
+import { useStaffingRoles } from './StaffingRolePicker'
+
+type Row = DrilldownRow<FacilityAgencyTrend>
+const dateFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+const day = (value: string) => dateFormat.format(new Date(`${value}T00:00:00Z`))
+const percent = (value: number) => `${(value * 100).toLocaleString(undefined,
+  { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
+
+/** The scope's series: the facilities' agency hours, in-house hours and
+ * agency wages added up day by day, so any day's share is the scope's agency
+ * hours over all its hours. */
+function series(row: Row, days: number) {
+  const agency = new Array<number>(days).fill(0)
+  const inhouse = new Array<number>(days).fill(0)
+  const wages = new Array<number>(days).fill(0)
+  for (const facility of row.facilities) {
+    for (let index = 0; index < days; index++) {
+      agency[index] += facility.agency_hours[index] ?? 0
+      inhouse[index] += facility.inhouse_hours[index] ?? 0
+      wages[index] += facility.agency_wages[index] ?? 0
+    }
+  }
+  return { agency, inhouse, wages }
+}
+
+const ratio = (numerator: number, denominator: number) => denominator > 0 ? numerator / denominator : null
+const sum = (values: number[], from = 0, to = values.length) => {
+  let total = 0
+  for (let index = from; index < to; index++) total += values[index]
+  return total
+}
+
+/** The trend's figures at one scope, each a sum divided once: never an
+ * average of facility shares. */
+function stats(row: Row, dates: string[]) {
+  const days = dates.length
+  const { agency, inhouse, wages } = series(row, days)
+  let highest: { value: number; date: string } | null = null
+  let withAgency = 0
+  for (let index = 0; index < days; index++) {
+    const total = agency[index] + inhouse[index]
+    if (total <= 0) continue
+    const value = agency[index] / total
+    if (!highest || value > highest.value) highest = { value, date: dates[index] }
+    if (agency[index] > 0) withAgency += 1
+  }
+  const shareOf = (from: number, to: number) => ratio(sum(agency, from, to), sum(agency, from, to) + sum(inhouse, from, to))
+  return {
+    hours: sum(agency), wages: sum(wages), share: shareOf(0, days),
+    highest, days: withAgency,
+  }
+}
+
+type Stats = ReturnType<typeof stats>
+type Kind = 'hours' | 'money' | 'share' | 'day' | 'count'
+const metrics: [id: keyof Stats, header: string, kind: Kind][] = [
+  ['hours', 'Agency hours', 'hours'],
+  ['wages', 'Agency wages', 'money'],
+  ['share', 'Agency share', 'share'],
+  ['highest', 'Highest day', 'day'],
+  ['days', 'Days with agency', 'count'],
+]
+
+function format(value: number | string, kind: Kind) {
+  if (typeof value !== 'number') return value
+  if (kind === 'share' || kind === 'day') return percent(value)
+  if (kind === 'money') return `$${Math.round(value).toLocaleString()}`
+  return value.toLocaleString(undefined, { maximumFractionDigits: 0 })
+}
+
+/** Agency vs In-house's Trending tab: how much of the work is agency, drilled
+ * from state to facility, each scope's trend read from its day-by-day agency
+ * share -- its highest day, the days agency worked
+ * at all -- and the scope's share charted day over day. The drilldown is kept in the URL. */
+export function AgencyTrending() {
+  const [params, setParams] = useReportSearchParams()
+  const defaults = getDefaultReportDateRange()
+  const startDate = params.get('start_date') ?? defaults.startDate
+  const endDate = params.get('end_date') ?? defaults.endDate
+  // One drill= per level, in order.
+  const path = params.getAll('drill')
+  const setPath = (next: string[]) => {
+    const updated = new URLSearchParams(params)
+    updated.delete('drill')
+    next.forEach(name => updated.append('drill', name))
+    updated.delete('all_facilities')
+    setParams(updated)
+  }
+  const [data, setData] = useState<AgencyTrend | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [retry, setRetry] = useState(0)
+  const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
+  // The bar's picker: the chosen roles added up by the API, or every role.
+  const { roles, roleName, picker } = useStaffingRoles(AGENCY_ROLE_PARAM)
+  const rolesKey = roles.join(',')
+  useEffect(() => {
+    const controller = new AbortController()
+    setError(null)
+    getAgencyTrend(startDate, endDate, rolesKey ? rolesKey.split(',') : [], controller.signal)
+      .then(body => { if (!controller.signal.aborted) setData(body) })
+      .catch((failure: Error) => { if (!controller.signal.aborted) setError(failure.message) })
+    return () => controller.abort()
+  }, [startDate, endDate, rolesKey, retry])
+  const onRetry = () => setRetry(count => count + 1)
+  const loading = !data && !error
+  const dates = data?.dates ?? []
+
+  const { grouping } = useCustomGrouping()
+  const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  const columns: TableColumn<Row>[] = [
+    locationColumn<FacilityAgencyTrend>(depth, path, setPath),
+    ...metrics.map(([id, header, kind]): TableColumn<Row> => ({
+      id, numeric: true,
+      header,
+      value: row => {
+        const value = stats(row, dates)[id]
+        if (value === null) return '—'
+        return typeof value === 'number' ? value : value.value
+      },
+      format: (value: number | string, row) => {
+        if (kind !== 'day' || typeof value !== 'number') return format(value, kind)
+        const found = stats(row, dates)[id] as { value: number; date: string } | null
+        return found ? `${percent(found.value)} · ${day(found.date)}` : value
+      },
+    })),
+  ]
+  const shownStart = data?.start_date ?? startDate
+  const shownEnd = data?.end_date ?? endDate
+  const range = `${shownStart} to ${shownEnd}`
+  const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
+  const subtitle = `Agency hours day by day, ${roleName}, ${range}. Each day's agency share is that day's agency `
+    + `hours over all its hours; Agency share is the range's. Days with agency count the days any agency person `
+    + `worked.`
+  const file = `${shownStart}-to-${shownEnd}`
+
+  // The chart follows the drilldown, as the table does: the facilities shown,
+  // added up day by day, a point per day whatever the range.
+  const scope: Row = { key: 'scope', name: scopeName, path: [], facilities: rows.flatMap(row => row.facilities) }
+  const daily = series(scope, dates.length)
+  const hoursLabel = (value: number) => `${value.toLocaleString(undefined, { maximumFractionDigits: 0 })} h`
+  const money = (value: number) => `$${Math.round(value).toLocaleString()}`
+  // Each day's agency hours as a share of all its hours, with the figures
+  // behind it for the tooltip.
+  const trend = dates.map((date, index) => {
+    const total = daily.agency[index] + daily.inhouse[index]
+    return { date, total, value: total > 0 ? Math.round(daily.agency[index] / total * 1000) / 10 : 0,
+      details: [
+        { label: 'Agency hours', value: hoursLabel(daily.agency[index]) },
+        { label: 'Hours worked', value: hoursLabel(total) },
+        { label: 'Agency wages', value: money(daily.wages[index]) },
+      ] }
+  }).filter(point => point.total > 0)
+  const average = ratio(sum(daily.agency), sum(daily.agency) + sum(daily.inhouse))
+  const percentPoints = (value: number) => `${value.toLocaleString(undefined,
+    { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
+
+  return <>
+    <LocationNavigation path={path} setPath={setPath} controls={picker} />
+    <DrilldownTable<Row> title={`${levels[depth]} agency trend`} columns={columns} rows={rows}
+      getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
+      loading={loading} error={error} onRetry={onRetry}
+      getFooterRow={visible => ({ key: 'total', name: 'Total', path: [], isTotal: true,
+        facilities: visible.flatMap(row => row.facilities) })}
+      subtitle={subtitle}
+      headerActions={<><OpenViewButton kind="facilities" label="Show all facilities"
+        onClick={() => setShowFacilities(true)} /><CustomGroupingButton onApply={() => setPath([])} /></>}
+      emptyMessage="No facilities match this view."
+      csvFileName={`agency-trend-${file}.csv`} />
+    <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      onSelect={next => setPath(next)}
+      title={`All facilities · Agency trend, ${roleName}, ${range}`} subtitle={subtitle}
+      rows={facilityRows(data?.items ?? [])} columns={columns.slice(1)} getRowKey={row => row.key}
+      getName={row => row.name} getPath={row => [row.path[0], row.path[1], row.path[2]]}
+      loading={loading} error={error} onRetry={onRetry}
+      csvFileName={`agency-trend-facilities-${file}.csv`} />
+    <LineChart items={trend} title="Agency share day over day" valueLabel="Agency share"
+      height={360} formatValue={percentPoints}
+      referenceLines={average === null ? [] : [
+        { value: Math.round(average * 1000) / 10, label: `Range ${percent(average)}` },
+      ]}
+      subtitle={`${scopeName} · ${roleName} · Each day's agency hours as a share of all its hours. The dashed line `
+        + 'is the range\'s share, every day added up and divided once. Hover a day for its hours and wages.'}
+      loading={loading} error={error} onRetry={onRetry} />
+  </>
+}

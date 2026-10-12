@@ -5,7 +5,7 @@ import { clinicalReports } from '../clinical/reports'
 import { staffingReports } from '../staffing/reports'
 import type { AnalyticsModule, ReportDefinition } from '../../shared/types/report'
 
-export const analyticsModules: AnalyticsModule[] = ['ADT', 'Census', 'MDS', 'Clinical', 'Staffing']
+export const analyticsModules: AnalyticsModule[] = ['ADT', 'Census', 'PDPM', 'Clinical', 'Staffing']
 
 export const reports = [...adtReports, ...censusReports, ...mdsReports, ...clinicalReports, ...staffingReports]
 

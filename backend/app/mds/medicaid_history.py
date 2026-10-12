@@ -37,7 +37,7 @@ from ..common.errors import ApiError
 from ..common.locations import LocationSelection, facility_locations
 from ..common.tables import Page, PageQuery
 from .historical import MAX_RANGE_DAYS
-from .medicaid import NOT_CODED, NTA, NURSING, NURSING_CATEGORY, STATES, _part_conditions
+from .medicaid import COGNITIVE, NOT_CODED, NTA, NURSING, NURSING_CATEGORY, STATES, _part_conditions, code_parts
 from .monthly import MonthlyQuery, month_list
 from .service import GENERATOR, census_day
 
@@ -244,13 +244,14 @@ def categories(connection: Connection, query: HistoricalQuery, today: date):
     census day; stays not yet coded are in no_score."""
     census_date = census_day(connection, today)
     selected = _stays(query, census_date)
-    nursing, nta = func.substr(selected.c.code, 1, 1), func.substr(selected.c.code, 2, 1)
+    nursing, cognitive, nta = code_parts(selected.c.code)
     coded = selected.c.code.is_not(None)
     columns = [func.count().filter(~coded).label('no_score')]
     columns += [func.count().filter(selected.c.nursing_function_score.between(low, high)).label(f'nursing.{field}')
         for field, (low, high) in NURSING.items()]
     columns += [func.count().filter(nursing.in_(list(letters))).label(f'nursing_category.{field}')
         for field, letters in NURSING_CATEGORY.items()]
+    columns += [func.count().filter(cognitive == digit).label(f'cognitive.{field}') for field, digit in COGNITIVE.items()]
     columns += [func.count().filter(nta == letter).label(f'nta.{field}') for field, letter in NTA.items()]
     totals = {row['facility_id']: row for row in connection.execute(
         select(selected.c.facility_id, *columns).group_by(selected.c.facility_id)).mappings()}
@@ -261,6 +262,7 @@ def categories(connection: Connection, query: HistoricalQuery, today: date):
         items.append(_located(location, no_score=get('no_score'),
             nursing={field: get(f'nursing.{field}') for field in NURSING},
             nursing_category={field: get(f'nursing_category.{field}') for field in NURSING_CATEGORY},
+            cognitive={field: get(f'cognitive.{field}') for field in COGNITIVE},
             nta={field: get(f'nta.{field}') for field in NTA}))
     return dict(census_date=census_date, items=_sorted(items))
 

@@ -16,7 +16,12 @@ gives the shifts a day; and 1.8 people per daily shift covers days off, since a
 roster is 55% full time, 25% part time, 12% PRN and 8% agency. Everyone has a
 name, a hire date -- most before 2023, the rest since -- and an hourly rate: the
 role's base rate at the facility's pay, as the facts price it, moved up to 15%
-by tenure.
+by tenure. Agency people bill AGENCY_PREMIUM times the base pay instead and earn
+no tenure: a contract, not a career. Wages are split by rate, so on a day an
+agency person works they take the premium share of the day's wages and the
+in-house staff a little less, and the day still adds up to the facts; the
+Agency vs In-house report reads the difference as what agency cost over
+in-house.
 
 The hours (daily_staff_hours) are one row per person per day worked. On each
 day a roster member is drawn to work by their employment type's habit (see
@@ -26,6 +31,18 @@ each worker's shift weight -- full-timers a little longer than part-timers,
 everyone +/-20% -- so shifts come out around eight hours; wages are split by
 the same weights at each person's rate, so a day's wages add up too, to the
 cent on each side but for rounding.
+
+Each row also carries its overtime: the person's hours over WEEKLY_HOURS in
+their week (Monday to Sunday), spread over the days they worked that week in
+proportion to each day's hours. A week's overtime is the sum of its days', so
+the Overtime report reads sums at any grain instead of grouping every row by
+person and week, which measured 8 s for 120 days. Spread, not placed on the
+day the person crossed the line: nobody reaches 40 hours before Friday, so
+placed that way every week's overtime fell on its last shifts -- 70% of a
+Sunday's hours, zero Monday to Thursday -- which is true of a pay week and
+useless on a chart; spread, each day runs 5-10%. A day added to a week in
+progress moves the week's other days' share, so those are set again after it
+is written.
 
 Only the last 120 days are kept: at some 20,000 shifts a day over 253
 facilities, the whole history would be ten times the largest table, on a
@@ -43,7 +60,7 @@ from psycopg import sql
 from sqlalchemy import func, select
 
 from shared.database import schema
-from shared.staffing import EMPLOYMENT_TYPES, ROLES
+from shared.staffing import EMPLOYMENT_TYPES, ROLES, WEEKLY_HOURS
 from base import BaseGenerator, DailyGenerator, GenerationResult
 from source_data_generators.draws import draw
 
@@ -58,6 +75,12 @@ TYPE_MIX = (0.55, 0.25, 0.12, 0.08)
 WAGE_INDEX = {'PA': 1.10, 'FL': 1.04}
 FACILITY_PAY_RANGE = (0.94, 0.12)
 TENURE_LIFT_PER_YEAR, TENURE_LIFT_MAX = 0.012, 0.15
+# What an agency hour bills against the role's base pay. Wages are split by rate
+# among the people who worked a day, so this is diluted on the way to the report:
+# with in-house rates lifted ~7% by tenure and six or so people a day, agency
+# reads about 1.75x in-house (measured: 1.45 here gave 1.28x; 1.9 gives ~1.75x),
+# which is where agency bill rates sit against staff wages.
+AGENCY_PREMIUM = 1.9
 HIRED_BEFORE_HISTORY = 0.55
 EARLIEST_HIRE = date(2012, 1, 1)
 # A worker's shift against the roster's average, by employment type, before
@@ -137,8 +160,9 @@ class StaffMembersGenerator(BaseGenerator):
                 FACILITY_PAY_RANGE[0] + FACILITY_PAY_RANGE[1] * sql_draw(f'staff-pay:{facility_id}:{code}'))
             if True:
                 tenure_years = (latest_hire - hired).days / 365.25
-                rate = Decimal(pay * (1 + min(TENURE_LIFT_MAX, TENURE_LIFT_PER_YEAR * tenure_years))
-                    * rng.uniform(0.97, 1.03))
+                lift = AGENCY_PREMIUM if kind == 'agency' else (
+                    1 + min(TENURE_LIFT_MAX, TENURE_LIFT_PER_YEAR * tenure_years))
+                rate = Decimal(pay * lift * rng.uniform(0.97, 1.03))
                 person = next(names)
                 yield dict(staff_id=self.source_id('staff-member', SEED, facility_id, code, number),
                     facility_id=facility['facility_id'], role=code, first_name=person['first_name'],
@@ -189,10 +213,70 @@ shares AS (
     FROM working w
     WINDOW day AS (PARTITION BY w.summary_date, w.facility_id, w.role)
 )
-INSERT INTO __STAGE__ (work_date, staff_id, facility_id, role, hours, wages)
+INSERT INTO __STAGE__ (work_date, staff_id, facility_id, role, hours, wages, overtime_hours)
 SELECT summary_date, staff_id, facility_id, role,
-    greatest(0.01, round((hours_worked * share)::numeric, 2)), round((wages * pay_share)::numeric, 2)
+    greatest(0.01, round((hours_worked * share)::numeric, 2)), round((wages * pay_share)::numeric, 2),
+    -- Set once the rows are in the table, over whole weeks (OVERTIME_SQL).
+    0
 FROM shares
+"""
+
+
+# Each day's share of the person's overtime for the week, Monday to Sunday:
+# the week's hours over the line, spread over its days by hours.
+OVERTIME_EXPR = f"round((greatest(total - {WEEKLY_HOURS}, 0) * hours / total)::numeric, 2)"
+WEEK_TOTAL = "sum(hours) OVER (PARTITION BY staff_id, date_trunc('week', work_date))"
+
+# The staged rows into the table with their overtime, from a window over the
+# staged rows and the table's own rows in the weeks they touch: a whole build
+# stages every row and the table is empty, so this is one sort of the stage
+# and no join at all -- an UPDATE joining the rows back after the insert, with
+# the keys suspended, joined 2.5M rows against 2.5M and crawled for ten
+# minutes; by the week it was no better. A daily run stages a day or two and
+# reads back the rest of their weeks, a few hundred thousand rows by date.
+INSERT_SQL = f"""
+INSERT INTO daily_staff_hours (work_date, staff_id, facility_id, role, hours, wages, overtime_hours)
+SELECT work_date, staff_id, facility_id, role, hours, wages, {OVERTIME_EXPR}
+FROM (
+    SELECT r.*, {WEEK_TOTAL} AS total
+    FROM (
+        SELECT work_date, staff_id, facility_id, role, hours, wages, true AS staged FROM __STAGE__
+        UNION ALL
+        SELECT work_date, staff_id, facility_id, role, hours, wages, false
+        FROM daily_staff_hours
+        WHERE work_date >= %(week_start)s::date AND work_date < %(week_end)s::date
+    ) r
+) w
+WHERE staged
+"""
+
+# A day written into a week already in the table moves the share of that
+# week's other days: set those again, from the week's rows. Only rows the
+# write did not cover are targets, and only when there are any -- a whole
+# build writes every day, so there are none and this never runs. It must
+# never run over the whole window: joined back against 2.5M unindexed rows
+# it crawled for ten minutes, on three attempts. A daily run touches a week
+# or two of rows, through the keys.
+OTHER_ROWS_SQL = """
+SELECT count(*) FROM daily_staff_hours
+WHERE work_date >= %(week_start)s::date AND work_date < %(week_end)s::date AND work_date <> ALL(%(days)s::date[])
+"""
+OVERTIME_SQL = f"""
+WITH weeks AS (
+    SELECT work_date, staff_id, hours, {WEEK_TOTAL} AS total
+    FROM daily_staff_hours
+    WHERE work_date >= %(week_start)s::date AND work_date < %(week_end)s::date
+),
+overtime AS (
+    SELECT work_date, staff_id, {OVERTIME_EXPR} AS hours FROM weeks
+    WHERE work_date <> ALL(%(days)s::date[])
+)
+UPDATE daily_staff_hours h
+SET overtime_hours = o.hours
+FROM overtime o
+WHERE h.work_date = o.work_date AND h.staff_id = o.staff_id
+  AND h.work_date >= %(week_start)s::date AND h.work_date < %(week_end)s::date
+  AND h.overtime_hours IS DISTINCT FROM o.hours
 """
 
 
@@ -276,14 +360,25 @@ class StaffHoursGenerator(BaseGenerator):
         suspended = None
         if replace_all or self.replaces_most_rows(connection, self.table, generated):
             suspended = self.suspend_indexes(connection, self.table)
-        columns = sql.SQL(', ').join(map(sql.Identifier, self.table.c.keys()))
+        # The weeks the written days touch, Monday to the Sunday after the last.
+        week_start = min(kept) - timedelta(days=min(kept).weekday())
+        week_end = max(kept) + timedelta(days=7 - max(kept).weekday())
+        weeks = dict(week_start=week_start, week_end=week_end)
         if self.progress:
-            self.progress.set_phase('Insert hours', details=f'{generated:,} rows')
-        inserted = connection.exec_driver_sql(sql.SQL('INSERT INTO {} ({}) SELECT {} FROM {}')
-            .format(self._table_identifier(self.table), columns, columns, sql.Identifier(stage))
-            .as_string(driver)).rowcount
+            self.progress.set_phase('Insert hours with overtime', details=f'{generated:,} rows')
+        # The window sorts every staged row by person and day: 2.5M rows on a
+        # whole build, which the default 4 MB spills to disk many times over.
+        # Local to this transaction; the server's deploy sets the same.
+        connection.exec_driver_sql("SET LOCAL work_mem = '256MB'")
+        inserted = connection.exec_driver_sql(
+            INSERT_SQL.replace('__STAGE__', sql.Identifier(stage).as_string(driver)), weeks).rowcount
         if inserted != generated:
             raise ValueError('Published staff hour row count did not match staging.')
+        others = dict(weeks, days=kept)
+        if not replace_all and connection.exec_driver_sql(OTHER_ROWS_SQL, others).scalar():
+            if self.progress:
+                self.progress.set_phase('Set overtime on the written days\' weeks', details=f'{week_start} to {week_end}')
+            connection.exec_driver_sql(OVERTIME_SQL, others)
         if suspended is not None:
             if self.progress:
                 self.progress.set_phase('Rebuild keys', details=f'{inserted:,} rows')

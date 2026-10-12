@@ -195,7 +195,7 @@ export function PdpmCalculator() {
   return <section className={`pdpm-calc pdpm-calc--codes-${Math.max(1, items.length)}`} aria-labelledby={`${id}-title`}>
     {/* The page has no report header (see App.tsx), so the card names itself. */}
     <header className="pdpm-calc__header">
-      <h1 id={`${id}-title`}>PDPM Calculator</h1>
+      <h1 id={`${id}-title`}>Medicare Calculator</h1>
       <p>What a Medicare PDPM code pays over a full 100-day stay at one facility.</p>
     </header>
     <div className="pdpm-calc__inputs">

@@ -22,7 +22,7 @@ type Row = DrilldownRow<FacilityMedicaid>
 type LookbackRow = DrilldownRow<FacilityMedicaidLookback>
 // Texas pays Medicaid on the nursing and NTA components alone, so its code has
 // only these categories.
-export const medicaidCategories: CategoryId[] = ['nursing', 'nursing-category', 'nta']
+export const medicaidCategories: CategoryId[] = ['nursing', 'nursing-category', 'cognitive', 'nta']
 // The Residents tab's filter for each level of a location path, in path order.
 export const residentLocationFilters = ['state', 'portfolio', 'region', 'facility']
 export const scopeNote = 'Texas Medicaid residents, whose Medicaid pays on the PDPM nursing and NTA components; Florida '
@@ -320,7 +320,8 @@ function MedicaidResidentsTable({ initialFilters }: { initialFilters: Record<str
   return <Table<MedicaidResident> {...status}
     title="Medicaid residents"
     subtitle={`${scopeNote}${censusDate ? ` In a bed on ${censusDate}.` : ''} Payer name shows the plan. Length of stay `
-      + 'is days since admission. The case-mix code is two letters, nursing and NTA; until the assessment is coded the '
+      + 'is days since admission. The case-mix code is a letter, a digit and a letter: nursing, cognitive impairment '
+      + '(0 intact to 3 severe) and NTA; until the assessment is coded the '
       + 'care code is missing and the ARD blank. Total revenue is Medicaid revenue on this payer to date.'}
     columns={residentColumns} rows={result?.items ?? []} getRowKey={row => row.payer_stay_id}
     initialSort={{ columnId: 'resident', direction: 'ascending' }}

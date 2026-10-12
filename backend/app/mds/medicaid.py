@@ -1,5 +1,6 @@
 """Current Medicaid: Texas Medicaid residents in a bed on the census day, with
-their two-letter case-mix code -- nursing and NTA -- from medicaid_assessments.
+their case-mix code -- nursing letter, cognitive impairment digit, NTA letter --
+from medicaid_assessments.
 
 Texas pays Medicaid on the PDPM nursing and NTA components alone; Florida and
 Pennsylvania use other systems and are left out until they are modelled. The
@@ -42,6 +43,14 @@ NURSING = {'score_0_5': (0, 5), 'score_6_14': (6, 14), 'score_15_16': (15, 16)}
 NURSING_CATEGORY = {field: letters for field, _, letters in pdpm_rates.NURSING_CATEGORIES}
 NTA = {'points_0': 'F', 'points_1_2': 'E', 'points_3_5': 'D', 'points_6_8': 'C', 'points_9_11': 'B',
     'points_12_plus': 'A'}
+# Cognitive impairment, the code's digit.
+COGNITIVE = {'intact': '0', 'mild': '1', 'moderate': '2', 'severe': '3'}
+COGNITIVE_LABELS = {'intact': 'Intact', 'mild': 'Mild', 'moderate': 'Moderate', 'severe': 'Severe'}
+
+
+def code_parts(code):
+    """The nursing letter, the cognitive digit and the NTA letter of a code column."""
+    return func.substr(code, 1, 1), func.substr(code, 2, 1), func.substr(code, 3, 1)
 
 
 def _current(day):
@@ -72,12 +81,14 @@ def _current(day):
 def _part_conditions(rows):
     """Label -> condition for every part of every category, in page order. Labels
     are "Category: part" as the page names them, so a chart click can open one."""
-    nursing, nta = func.substr(rows.c.code, 1, 1), func.substr(rows.c.code, 2, 1)
+    nursing, cognitive, nta = code_parts(rows.c.code)
     parts = {}
     for (low, high), label in zip(NURSING.values(), ('0-5', '6-14', '15-16')):
         parts[f'Nursing: {label}'] = rows.c.nursing_function_score.between(low, high)
     for _, name, letters in pdpm_rates.NURSING_CATEGORIES:
         parts[f'Nursing Category: {name}'] = nursing.in_(list(letters))
+    for field, digit in COGNITIVE.items():
+        parts[f'Cognitive Impairment: {COGNITIVE_LABELS[field]}'] = cognitive == digit
     for letter, label in zip(NTA.values(), ('0', '1-2', '3-5', '6-8', '9-11', '12+')):
         parts[f'NTA: {label}'] = nta == letter
     return parts
@@ -87,14 +98,14 @@ class Overview(BaseModel):
     census_date: date
     items: list[dict] = Field(description='Per Texas facility: residents, summed daily rates and days since '
         'admission, the residents not yet coded and their days, and the coded residents counted by nursing '
-        'function score band, nursing category and NTA band.')
+        'function score band, nursing category, cognitive impairment level and NTA band.')
 
 
 def overview(connection: Connection, today: date):
     census_date = census_day(connection, today)
     day = literal(census_date, Date)
     current = _current(day)
-    nursing, nta = func.substr(current.c.code, 1, 1), func.substr(current.c.code, 2, 1)
+    nursing, cognitive, nta = code_parts(current.c.code)
     coded = current.c.code.is_not(None)
     columns = [func.count().label('residents'), func.sum(current.c.daily_rate).label('actual_rates'),
         func.sum(day - current.c.admission_date).label('resident_days'),
@@ -104,6 +115,7 @@ def overview(connection: Connection, today: date):
         for field, (low, high) in NURSING.items()]
     columns += [func.count().filter(nursing.in_(list(letters))).label(f'nursing_category.{field}')
         for field, letters in NURSING_CATEGORY.items()]
+    columns += [func.count().filter(cognitive == digit).label(f'cognitive.{field}') for field, digit in COGNITIVE.items()]
     columns += [func.count().filter(nta == letter).label(f'nta.{field}') for field, letter in NTA.items()]
     totals = {row['facility_id']: row for row in connection.execute(
         select(current.c.facility_id, *columns).group_by(current.c.facility_id)).mappings()}
@@ -117,6 +129,7 @@ def overview(connection: Connection, today: date):
             no_score=get('no_score'), no_score_days=int(get('no_score_days')),
             nursing={field: get(f'nursing.{field}') for field in NURSING},
             nursing_category={field: get(f'nursing_category.{field}') for field in NURSING_CATEGORY},
+            cognitive={field: get(f'cognitive.{field}') for field in COGNITIVE},
             nta={field: get(f'nta.{field}') for field in NTA})
     items = [item(location) for location in connection.execute(facility_locations(LocationSelection())).mappings()
         if location['state'] in STATES]
@@ -222,7 +235,8 @@ class MedicaidResident(BaseModel):
     admission_date: date
     length_of_stay: int = Field(description='Days from admission to the census day.')
     ard: date | None = Field(description="The current code's assessment reference date; null until coded.")
-    case_mix_code: str = Field(description='Two letters, nursing and NTA, or "Missing care code" until coded.')
+    case_mix_code: str = Field(description='Nursing letter, cognitive impairment digit and NTA letter, or '
+        '"Missing care code" until coded.')
     daily_rate: float = Field(description='The Medicaid rate on the census day.')
     total_revenue: float = Field(description='Medicaid revenue on this payer through the census day.')
 

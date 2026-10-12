@@ -19,6 +19,7 @@ import {
 import { MonthlyMedicaid } from '../features/mds/components/MonthlyMedicaid'
 import { MedicaidWorksheet } from '../features/mds/components/MedicaidWorksheet'
 import { PdpmCalculator } from '../features/mds/components/PdpmCalculator'
+import { MedicaidCalculator } from '../features/mds/components/MedicaidCalculator'
 import { HospitalTransfers } from '../features/clinical/components/HospitalTransfers'
 import { TransferLogs } from '../features/clinical/components/TransferLogs'
 import { TransferFilters } from '../features/clinical/components/TransferFilters'
@@ -31,6 +32,12 @@ import { IncidentLogs } from '../features/clinical/components/IncidentLogs'
 import { PpdDrilldown } from '../features/staffing/components/PpdDrilldown'
 import { StaffingEmployees } from '../features/staffing/components/StaffingEmployees'
 import { PpdTrending } from '../features/staffing/components/PpdTrending'
+import { AgencyDrilldown } from '../features/staffing/components/AgencyDrilldown'
+import { AgencyTrending } from '../features/staffing/components/AgencyTrending'
+import { AgencyLogs } from '../features/staffing/components/AgencyLogs'
+import { OvertimeDrilldown } from '../features/staffing/components/OvertimeDrilldown'
+import { OvertimeTrending } from '../features/staffing/components/OvertimeTrending'
+import { OvertimeLogs } from '../features/staffing/components/OvertimeLogs'
 import { HistoricalResidents } from '../features/mds/components/HistoricalResidents'
 import { worksheetDateBasis } from '../features/mds/worksheetApi'
 import { Navigate, NavLink, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
@@ -91,6 +98,13 @@ const staffingTabs = [
   { id: 'overview', label: 'Overview' },
   { id: 'trending', label: 'Trending' },
   { id: 'employees', label: 'Employees', noScroll: true },
+]
+// Agency vs In-house and Overtime: the drilldown, the share day by day, and
+// one row per shift.
+const agencyTabs = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'trending', label: 'Trending' },
+  { id: 'logs', label: 'Logs', noScroll: true },
 ]
 const monthlyMedicareTabs = [
   { id: 'overview', label: 'Overview' },
@@ -196,6 +210,9 @@ function App() {
   const isClinicalReport = currentReport.path === '/clinical/hospital-transfers' || currentReport.path === '/clinical/incidents'
   const activeClinicalTab = clinicalTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeStaffingTab = staffingTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
+  const isAgencyStyleReport = currentReport.path === '/staffing/agency-vs-inhouse'
+    || currentReport.path === '/staffing/overtime'
+  const activeAgencyTab = agencyTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeMedicareTab = medicareTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeHistoricalMedicareTab = historicalMedicareTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeMonthlyMedicareTab = monthlyMedicareTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
@@ -355,10 +372,11 @@ function App() {
         >
           {pathname !== '/' && <Navigate replace to="/" />}
         </ReportLayout>
-      ) : currentReport.path === '/mds/pdpm-calculator' ? (
-        // The one report outside the report template, by explicit decision: the
-        // calculator is a card floating in the page, with no report header. Every
-        // other report, and every report added later, uses ReportLayout. See
+      ) : currentReport.path === '/mds/pdpm-calculator' || currentReport.path === '/mds/medicaid-calculator' ? (
+        // The two reports outside the report template, each by the product
+        // owner's explicit decision (2026-10-08 and 2026-10-12): a calculator is
+        // a card floating in the page, with no report header. Every other
+        // report, and every report added later, uses ReportLayout. See
         // "Report template" in frontend/STYLE_GUIDE.md before changing this.
         <div className="main-panel">
           <main className="content-area pdpm-calculator-page" id="main-content">
@@ -372,7 +390,7 @@ function App() {
             >
               <span /><span /><span />
             </button>
-            <PdpmCalculator />
+            {currentReport.path === '/mds/medicaid-calculator' ? <MedicaidCalculator /> : <PdpmCalculator />}
           </main>
         </div>
       ) : (
@@ -504,6 +522,15 @@ function App() {
                   else next.set('view', id)
                   setSearchParams(next)
                 },
+              } : isAgencyStyleReport ? {
+                activeTabId: activeAgencyTab,
+                tabs: agencyTabs,
+                onTabChange: (id: string) => {
+                  const next = new URLSearchParams(searchParams)
+                  if (id === 'overview') next.delete('view')
+                  else next.set('view', id)
+                  setSearchParams(next)
+                },
               } : currentReport.path === '/mds/monthly-medicare' || currentReport.path === '/mds/monthly-medicaid' ? {
                 activeTabId: activeMonthlyMedicareTab,
                 tabs: monthlyMedicareTabs,
@@ -582,6 +609,10 @@ function App() {
                   : report.path === '/clinical/flagged-progress-notes' ? <FlaggedProgressNotes />
                   : report.path === '/staffing/ppd' ? (activeStaffingTab === 'employees' ? <StaffingEmployees />
                     : activeStaffingTab === 'trending' ? <PpdTrending /> : <PpdDrilldown />)
+                  : report.path === '/staffing/agency-vs-inhouse' ? (activeAgencyTab === 'logs' ? <AgencyLogs />
+                    : activeAgencyTab === 'trending' ? <AgencyTrending /> : <AgencyDrilldown />)
+                  : report.path === '/staffing/overtime' ? (activeAgencyTab === 'logs' ? <OvertimeLogs />
+                    : activeAgencyTab === 'trending' ? <OvertimeTrending /> : <OvertimeDrilldown />)
                   : report.path === '/mds/historical-medicare' ? (activeHistoricalMedicareTab === 'categories'
                     ? <HistoricalCategoryBreakdown /> : activeHistoricalMedicareTab === 'residents'
                     ? <HistoricalResidents /> : <HistoricalOverview />) : report.path === '/census/residents' ? <ResidentsReport /> :report.path === '/census/bed-board' ? <BedBoard /> : report.path === '/census/monthly-trending' ? <MonthlyCensusTrending /> : report.path === '/census/trending' ? <CensusTrending /> : report.path === '/census/daily-census' ? (

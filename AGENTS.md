@@ -43,10 +43,11 @@ before changing anything structural.
 - Before changing UI, read [frontend/STYLE_GUIDE.md](frontend/STYLE_GUIDE.md),
   including its shared interaction patterns and component map. Report-specific
   historical choices live in [docs/ui-context.md](docs/ui-context.md).
-- Every report renders inside the shared report template (`ReportLayout`). The PDPM
-  Calculator is the one deliberate exception, chosen by the product owner for that page
-  only; never extend it to another report, or treat it as a pattern, without an
-  explicit request naming that report.
+- Every report renders inside the shared report template (`ReportLayout`). The two
+  calculators (Medicare, chosen 2026-10-08, and Medicaid, chosen 2026-10-12) are the
+  deliberate exceptions, each named by the product owner for that page only; never
+  extend it to another report, or treat it as a pattern, without an explicit request
+  naming that report.
 - Reuse shared components and tokens. Fix shared behaviour in its owning component
   rather than creating report-specific copies or CSS workarounds.
 - Preserve UI choices outside the requested change; verify dated implementation
@@ -106,6 +107,15 @@ Breaking one of these is a design change, not a refactor. Each was measured; see
 Check this before editing a generator. Full detail in
 [docs/generators.md](docs/generators.md).
 
+**Run `status` before `update` after editing a generator.** It prints what the
+next `update` will rebuild, through the dependency chain, before anything is
+paid for. A generator that writes several tables rebuilds them all, and
+everything built from them: a change to the Medicaid code rule inside
+`aspire-census-logs.py` rebuilt the census logs and then the progress notes,
+six minutes under locks that stalled every report. When the change is confined
+to one table, regenerate that table on its own instead, and record the
+generator's fingerprint as `update` would (`generator_rules.record`).
+
 **`update` runs these rebuilds itself.** It fingerprints each generator's code
 (`sandbox-data/generator_rules.py`, saved in `sandbox_generator_rules`) and rebuilds
 any generator whose rules changed, plus everything built from it, before generating
@@ -132,6 +142,8 @@ list it in `SHARED_RULES` there, or a change to that file goes unnoticed.
 | Each facility's day across every role, with its census, for the PPD trend | `facility_staffing_summary --regenerate`, ~10 s |
 | Staff roster size, employment mix, hire dates, pay, for PPD's Employees tab | `staff_members --regenerate`, ~12 s, then `staff_hours --regenerate` |
 | Who worked which day and for how long, the last 120 days | `staff_hours --regenerate`, ~3 min |
+| Agency hours and pay per facility, role and day, for Agency vs In-house | `agency_summary --regenerate`, ~1 min, from the staffing facts |
+| Overtime hours and pay per facility, role and day, for Overtime | `overtime_summary --regenerate`, ~1 min, from the staffing facts |
 | Resident infections and outbreaks, for Fever / Infections | `infection_logs --regenerate`, ~15 s |
 | Room layout (wings, rooms, private share) | `facility_beds --regenerate`, ~2 s, then `bed_assignments --regenerate` |
 | Who sleeps in which bed | `bed_assignments --regenerate`, ~36 s |
@@ -173,6 +185,8 @@ python manage.py progress_notes --regenerate          # last 10 days of notes; ~
 python manage.py facility_staffing_summary --regenerate # each facility's day across every role, with census; ~10 s
 python manage.py staff_members --regenerate           # each facility's staff roster; ~12 s, drops the hours too
 python manage.py staff_hours --regenerate             # who worked each of the last 120 days; ~3 min
+python manage.py agency_summary --regenerate          # agency hours and pay per facility, role and day; ~1 min
+python manage.py overtime_summary --regenerate        # overtime hours and pay per facility, role and day; ~1 min
 python manage.py infection_logs --regenerate          # infections and outbreaks; ~15 s
 python manage.py facility_beds --regenerate           # wings, rooms and beds per facility; ~2 s
 python manage.py bed_assignments --regenerate         # which stay was in which bed; ~36 s

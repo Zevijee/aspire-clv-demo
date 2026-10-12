@@ -239,8 +239,11 @@ class WorksheetRow(BaseModel):
 
 class StayRates(BaseModel):
     average_rate: float = Field(description='Total revenue over the days, per day.')
-    neutral_rate: float = Field(description='The case-mix-neutral average: $720 national, every CMI 1.0.')
-    total_revenue: float = Field(description='Every day of a full 100-day Medicare stay at this code.')
+    neutral_rate: float = Field(description='The case-mix-neutral average: $720 national, every CMI 1.0; on the '
+        'Medicaid worksheet, the plan rate itself.')
+    total_revenue: float = Field(description='Every day of the stay at this code.')
+    days: int = Field(default=100, description='The days priced: a full 100-day Medicare stay, or a 30-day '
+        'Medicaid month.')
 
 
 WorksheetRow.model_rebuild()

@@ -8,14 +8,14 @@ import {
   getMedicaidWorksheet, getWorksheetCatalog, medicaidWorksheetBase, worksheetDateBasis, worksheetFilterOptions,
   type MedicaidWorksheetRow, type WorksheetCatalog, type WorksheetField, type WorksheetQuery,
 } from '../worksheetApi'
-import { CellPart, NtaCell, dateLabel, type OpenEditor } from './PdpmWorksheet'
+import { CellPart, HippsRates, NtaCell, dateLabel, type OpenEditor } from './PdpmWorksheet'
 import { WorksheetCellEditor } from './WorksheetCellEditor'
 
 const pageSize = 50
 
 /** Medicaid PDPM Worksheet: the Medicare PDPM Worksheet for Texas Medicaid
- * stays, with the cells Texas's case mix needs -- nursing, NTA and a projected
- * two-letter code -- in the same shared, append-only log. */
+ * stays, with the cells Texas's case mix needs -- nursing, cognitive impairment, NTA
+ * and a projected code -- in the same shared, append-only log. */
 export function MedicaidWorksheet() {
   const [params] = useReportSearchParams()
   const defaults = getDefaultReportDateRange()
@@ -119,8 +119,12 @@ export function MedicaidWorksheet() {
     ...componentColumns.filter(column => column.id !== 'cell-Projected code'),
     ...componentColumns.filter(column => column.id === 'cell-Projected code'),
     { id: 'final-code', header: 'Final code', sortable: false, truncate: false, value: row => row.final_code ?? '',
+      exportValue: row => row.final_rates ? `${row.final_code} (${row.final_rates.average_rate.toFixed(2)}/day)` : row.final_code ?? '',
       format: (_, row) => row.final_code
-        ? <span className="care-code worksheet-cell__value">{row.final_code}</span>
+        ? <div className="worksheet-cell__part">
+          <span className="care-code worksheet-cell__value">{row.final_code}</span>
+          {row.final_rates && <HippsRates rates={row.final_rates} medicaid />}
+        </div>
         : <span className="worksheet-cell__value--empty">Not coded yet</span> },
     { id: 'active', header: 'Active', filterable: true, truncate: false, value: row => row.active,
       exportValue: row => row.end_reason ? `No (${row.end_reason}, ${row.ended_on})` : row.active,
@@ -143,8 +147,10 @@ export function MedicaidWorksheet() {
         + `falls from ${startDate} to ${endDate}, including stays that have since ended. Stay start is the first `
         + `day on this Medicaid payer. Active is whether this Medicaid stay is still running${censusDate
           ? ` on ${censusDate}` : ''}. MDS due is ${catalog?.mds_due_days ?? 14} days after the ARD, or Complete `
-        + 'once coded. The code is two letters, nursing then NTA; the final code fills in from the first '
-        + 'assessment once it is coded. A number beside a title shows how many entries it has.'}
+        + 'once coded. The code is a letter, a digit and a letter: nursing, cognitive impairment (0 intact to 3 '
+        + 'severe), then NTA; the final code fills in from the first '
+        + 'assessment once it is coded, and each code shows its daily rate at the stay\'s plan rate, as the Medicaid '
+        + 'Calculator prices it. A number beside a title shows how many entries it has.'}
       columns={tableColumns} rows={result?.items ?? []} getRowKey={row => row.payer_stay_id}
       initialSort={{ columnId: 'resident', direction: 'ascending' }}
       internalScroll alignTop resizableColumns stickyFirstColumn searchable serverSide clearableFilters

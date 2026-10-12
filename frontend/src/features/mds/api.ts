@@ -120,6 +120,9 @@ export type FacilityCategories = {
   // PDPM residents per nursing clinical category (extensive_services, ...),
   // the third letter of the code.
   nursing_category: Record<string, number>
+  // The cognitive impairment level, the digit of a Texas Medicaid code; a
+  // Medicare code has none, so the Medicare report never carries it.
+  cognitive?: Record<string, number>
   nta: Nta
   depression: Depression
   speech: Speech
@@ -401,6 +404,8 @@ export type FacilityMedicaid = {
   no_score_days: number
   nursing: Nursing
   nursing_category: Record<string, number>
+  // The cognitive impairment level, the code's digit: intact, mild, moderate, severe.
+  cognitive: Record<string, number>
   nta: Nta
 }
 
@@ -539,7 +544,7 @@ export function getHistoricalMedicaidDaily(startDate: string, endDate: string, d
 }
 
 export type FacilityMedicaidCategories = Pick<FacilityMedicaid,
-  'facility_id' | 'facility_name' | 'state' | 'portfolio' | 'region' | 'no_score' | 'nursing' | 'nursing_category' | 'nta'>
+  'facility_id' | 'facility_name' | 'state' | 'portfolio' | 'region' | 'no_score' | 'nursing' | 'nursing_category' | 'cognitive' | 'nta'>
 
 export type MedicaidCategoriesReport = { census_date: string; items: FacilityMedicaidCategories[] }
 
@@ -674,6 +679,41 @@ export type PdpmCalculation = {
   // The NTA boost's extra over three ordinary NTA days.
   nta_premium: number
   benefit_days: number
+}
+
+// --- Medicaid Calculator ---------------------------------------------------
+
+const medicaidCalculatorBase = `${base}/api/v1/mds/medicaid-calculator`
+
+/** Every Texas facility with its State Medicaid rate, the base a code scales. */
+export function getMedicaidCalculatorFacilities(signal?: AbortSignal) {
+  return readJson<{ items: CalculatorFacility[] }>(`${medicaidCalculatorBase}/facilities`, signal)
+}
+
+export type MedicaidCalculation = {
+  facility: CalculatorFacility
+  code: string
+  components: {
+    id: 'nursing' | 'cognitive' | 'nta' | 'non_case_mix'
+    label: string
+    letter: string | null
+    // Its share of the base (the whole base for the add-on), the CMI or add-on
+    // share, and what it pays a day.
+    base: number
+    cmi: number | null
+    adjusted: number
+  }[]
+  cognitive_level: string
+  daily_rate: number
+  // The base: what the average resident pays.
+  neutral_rate: number
+  stay_days: number
+  total_revenue: number
+}
+
+/** A Texas Medicaid code priced at one facility, a day and over a 30-day month. */
+export function getMedicaidCalculation(facilityId: string, code: string, signal?: AbortSignal) {
+  return readJson<MedicaidCalculation>(`${medicaidCalculatorBase}?${new URLSearchParams({ facility_id: facilityId, code })}`, signal)
 }
 
 /** A PDPM code priced at one facility over a full 100-day Medicare stay. */

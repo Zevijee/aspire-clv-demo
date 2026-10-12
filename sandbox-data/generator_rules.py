@@ -48,6 +48,9 @@ SHARED_RULES = {
     'progress_notes': ('source_data_generators/draws.py',),
     # Roles, targets and base rates, shared with the API; and the stable draws.
     'staffing_summary': ('../shared/staffing.py', 'source_data_generators/draws.py'),
+    # The agency and overtime draws for each facility, role and day.
+    'agency_summary': ('source_data_generators/draws.py',),
+    'overtime_summary': ('source_data_generators/draws.py',),
     # The roster's roles, targets and rates; the hours' employment habits and draws.
     'staff_members': ('../shared/staffing.py',),
     'staff_hours': ('../shared/staffing.py', 'source_data_generators/draws.py'),

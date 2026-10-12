@@ -8,4 +8,16 @@ export const staffingReports: ReportDefinition[] = [
     path: '/staffing/ppd',
     title: 'PPD',
   },
+  {
+    description: 'Compare agency and in-house staffing.',
+    module: 'Staffing',
+    path: '/staffing/agency-vs-inhouse',
+    title: 'Agency vs In-house',
+  },
+  {
+    description: 'Review hours over 40 a week per person, and what they cost.',
+    module: 'Staffing',
+    path: '/staffing/overtime',
+    title: 'Overtime',
+  },
 ]

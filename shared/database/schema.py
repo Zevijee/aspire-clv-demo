@@ -366,10 +366,12 @@ pdpm_assessments = Table('pdpm_assessments', metadata,
 
 medicaid_assessments = Table('medicaid_assessments', metadata,
     # The case-mix code of every Texas Medicaid resident, for Current Medicaid.
-    # Texas pays Medicaid on the PDPM nursing and NTA components alone, so the
-    # code is two letters: nursing (A-Y) and NTA (A-F), with the same meanings
-    # as letters three and four of a Medicare PDPM code. Florida and
-    # Pennsylvania use other systems and have no rows here.
+    # Texas pays Medicaid on the PDPM nursing and NTA components with a
+    # cognitive impairment level between them, so the code is a letter, a
+    # digit and a letter: nursing (A-Y) and NTA (A-F), with the same meanings
+    # as letters three and four of a Medicare PDPM code, and cognitive
+    # impairment 0 (intact) to 3 (severe). Florida and Pennsylvania use other
+    # systems and have no rows here.
     #
     # One row per census_logs segment of a Medicaid payer period: a segment is a
     # stretch at one care level, and a change of care level is a reassessment
@@ -379,10 +381,13 @@ medicaid_assessments = Table('medicaid_assessments', metadata,
     # census_logs rate. Rebuilt with census_logs, from it.
     Column('payer_stay_id', Uuid, nullable=False),
     Column('segment', SmallInteger, nullable=False),
-    Column('code', String(2), nullable=False),
+    Column('code', String(3), nullable=False),
     # The nursing function score (0-16) behind the nursing letter, as on
     # pdpm_assessments: the letter alone cannot place every report band.
     Column('nursing_function_score', SmallInteger, nullable=False),
+    # The cognitive impairment level, the code's digit: 0 intact, 1 mild, 2
+    # moderate, 3 severe. Drawn once per payer period, as the NTA band is.
+    Column('cognitive_impairment', SmallInteger, nullable=False, server_default='0'),
     # The assessment reference date: within a week of the payer period's start
     # for its first segment, the day the care level changed for the others.
     Column('ard', Date, nullable=False),
@@ -390,8 +395,9 @@ medicaid_assessments = Table('medicaid_assessments', metadata,
     # the resident has no code and reports count them as not coded.
     Column('coded_date', Date, nullable=False),
     PrimaryKeyConstraint('payer_stay_id', 'segment'),
-    CheckConstraint("code ~ '^[A-Y][A-F]$'"),
+    CheckConstraint("code ~ '^[A-Y][0-3][A-F]$'"),
     CheckConstraint('nursing_function_score BETWEEN 0 AND 16', name='ck_medicaid_assessments_nursing_function_score'),
+    CheckConstraint('cognitive_impairment BETWEEN 0 AND 3', name='ck_medicaid_assessments_cognitive_impairment'),
     CheckConstraint('coded_date >= ard'),
 )
 
@@ -904,11 +910,69 @@ daily_staff_hours = Table('daily_staff_hours', metadata,
     Column('role', String, nullable=False),
     Column('hours', Numeric(5, 2), nullable=False),
     Column('wages', Numeric(9, 2), nullable=False),
+    # The part of this day's hours over WEEKLY_HOURS for the person's week so
+    # far (shared/staffing.py): the running total of their week's hours, day by
+    # day, less the threshold, clipped to this day. A week's overtime is the
+    # sum of its days', so the Overtime report reads sums at any grain where
+    # grouping every hour row by person and week measured 8 s for 120 days.
+    Column('overtime_hours', Numeric(5, 2), nullable=False, server_default='0'),
     PrimaryKeyConstraint('work_date', 'staff_id'),
     CheckConstraint('role IN (' + ', '.join(f"'{code}'" for code in ROLE_CODES) + ')'),
     CheckConstraint('hours > 0 AND wages >= 0'),
+    CheckConstraint('overtime_hours >= 0 AND overtime_hours <= hours'),
     Index('ix_daily_staff_hours_staff', 'staff_id', 'work_date'),
     Index('ix_daily_staff_hours_facility', 'facility_id', 'work_date'),
+    # The Overtime logs: the rows with overtime in a date range, 12% of the
+    # table, with every column the page lists, so they come from the index
+    # alone. Through the table the page read 640,000 rows' blocks to keep
+    # 82,000: 0.8 s for 30 days and 1.4 s for 120.
+    Index('ix_daily_staff_hours_overtime', 'work_date', 'staff_id',
+        postgresql_include=['facility_id', 'role', 'hours', 'overtime_hours', 'wages'],
+        postgresql_where=text('overtime_hours > 0')),
+)
+
+daily_agency_facts = Table('daily_agency_facts', metadata,
+    # Each facility, role and day's hours split between agency staff and the
+    # facility's own, with the pay of each, for the Agency vs In-house report:
+    # one row per facility, role and day with hours, for the whole history,
+    # drawn from daily_staffing_facts as those are drawn from the census (see
+    # aspire-agency.py). Every column is additive. In-house hours are at the
+    # facts' rate; agency hours bill a premium over it, on top of the facts'
+    # wages, so the report's extra spent is agency_wages less agency_hours at
+    # the in-house rate.
+    Column('summary_date', Date, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('role', String, nullable=False),
+    Column('agency_hours', Numeric(8, 2), nullable=False),
+    Column('agency_wages', Numeric(11, 2), nullable=False),
+    Column('inhouse_hours', Numeric(8, 2), nullable=False),
+    Column('inhouse_wages', Numeric(11, 2), nullable=False),
+    PrimaryKeyConstraint('summary_date', 'facility_id', 'role'),
+    CheckConstraint('role IN (' + ', '.join(f"'{code}'" for code in ROLE_CODES) + ')'),
+    CheckConstraint('agency_hours >= 0 AND agency_wages >= 0 AND inhouse_hours >= 0 AND inhouse_wages >= 0'),
+)
+
+daily_overtime_facts = Table('daily_overtime_facts', metadata,
+    # Each facility, role and day's hours and wages from daily_staffing_facts
+    # and how much of them was overtime -- hours over a person's 40 for the
+    # week -- with the overtime's straight-time pay and the shifts it took,
+    # for the Overtime report: one row per facility, role and day with hours,
+    # for the whole history, drawn as the facts are (see aspire-overtime.py).
+    # Every column is additive; the report prices what time-and-a-half would
+    # add from overtime_wages.
+    Column('summary_date', Date, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('role', String, nullable=False),
+    Column('hours_worked', Numeric(7, 1), nullable=False),
+    Column('wages', Numeric(10, 2), nullable=False),
+    Column('overtime_hours', Numeric(8, 2), nullable=False),
+    Column('overtime_wages', Numeric(11, 2), nullable=False),
+    Column('overtime_shifts', Integer, nullable=False),
+    PrimaryKeyConstraint('summary_date', 'facility_id', 'role'),
+    CheckConstraint('role IN (' + ', '.join(f"'{code}'" for code in ROLE_CODES) + ')'),
+    CheckConstraint('hours_worked >= 0 AND wages >= 0 AND overtime_hours >= 0 AND overtime_wages >= 0 '
+        'AND overtime_shifts >= 0'),
+    CheckConstraint('overtime_hours <= hours_worked'),
 )
 
 monthly_payer_census_facts = Table('monthly_payer_census_facts', metadata,

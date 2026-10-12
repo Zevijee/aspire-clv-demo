@@ -93,6 +93,12 @@ erDiagram
     }
     facilities ||--o{ daily_admission_facts : "facility_id"
     payers ||--o{ daily_admission_facts : "payer_id"
+    daily_agency_facts {
+        Date summary_date PK
+        Uuid facility_id PK
+        String role PK
+    }
+    facilities ||--o{ daily_agency_facts : "facility_id"
     daily_discharge_facts {
         Date summary_date PK
         Uuid facility_id PK
@@ -107,6 +113,12 @@ erDiagram
         Uuid facility_id PK
     }
     facilities ||--o{ daily_facility_staffing_facts : "facility_id"
+    daily_overtime_facts {
+        Date summary_date PK
+        Uuid facility_id PK
+        String role PK
+    }
+    facilities ||--o{ daily_overtime_facts : "facility_id"
     daily_payer_census_facts {
         Date summary_date PK
         Uuid facility_id PK
@@ -311,13 +323,15 @@ Checksums of applied Alembic revisions and their frozen artifacts.
 | --- | --- | --- | --- | --- | --- |
 | payer_stay_id | UUID | no | PK |  |  |
 | segment | SMALLINT | no | PK |  |  |
-| code | VARCHAR(2) | no |  |  |  |
+| code | VARCHAR(3) | no |  |  |  |
 | nursing_function_score | SMALLINT | no |  |  |  |
+| cognitive_impairment | SMALLINT | no |  | 0 |  |
 | ard | DATE | no |  |  |  |
 | coded_date | DATE | no |  |  |  |
 
-- CHECK: `code ~ '^[A-Y][A-F]$'`
+- CHECK: `code ~ '^[A-Y][0-3][A-F]$'`
 - CHECK: `coded_date >= ard`
+- CHECK: `cognitive_impairment BETWEEN 0 AND 3`
 - CHECK: `nursing_function_score BETWEEN 0 AND 16`
 
 ## payers
@@ -599,6 +613,23 @@ Additive daily admission measures at facility/payer/source grain. Reports group 
 - CHECK: `source_type IN ('Hospital', 'Skilled Nursing', 'Home', 'Rehab Facility', 'Assisted Living', 'Community')`
 - INDEX `ix_daily_admission_facts_facility`: facility_id, summary_date
 
+## daily_agency_facts
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| summary_date | DATE | no | PK |  |  |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| role | VARCHAR | no | PK |  |  |
+| agency_hours | NUMERIC(8, 2) | no |  |  |  |
+| agency_wages | NUMERIC(11, 2) | no |  |  |  |
+| inhouse_hours | NUMERIC(8, 2) | no |  |  |  |
+| inhouse_wages | NUMERIC(11, 2) | no |  |  |  |
+
+- CHECK: `agency_hours >= 0 AND agency_wages >= 0 AND inhouse_hours >= 0 AND inhouse_wages >= 0`
+- CHECK: `role IN ('rn', 'lpn', 'cna', 'pt', 'pta', 'ot', 'cota', 'slp', 'dietary_aide', 'cook', 'evs')`
+
 ## daily_discharge_facts
 
 Additive daily discharge measures at facility/payer/destination/disposition grain. Length of stay is a sum beside its count so any grouping divides correctly.
@@ -634,6 +665,25 @@ Additive daily discharge measures at facility/payer/destination/disposition grai
 | closing_census | INTEGER | no |  |  |  |
 
 - CHECK: `hours_worked >= 0 AND target_hours >= 0 AND closing_census >= 0`
+
+## daily_overtime_facts
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| summary_date | DATE | no | PK |  |  |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| role | VARCHAR | no | PK |  |  |
+| hours_worked | NUMERIC(7, 1) | no |  |  |  |
+| wages | NUMERIC(10, 2) | no |  |  |  |
+| overtime_hours | NUMERIC(8, 2) | no |  |  |  |
+| overtime_wages | NUMERIC(11, 2) | no |  |  |  |
+| overtime_shifts | INTEGER | no |  |  |  |
+
+- CHECK: `hours_worked >= 0 AND wages >= 0 AND overtime_hours >= 0 AND overtime_wages >= 0 AND overtime_shifts >= 0`
+- CHECK: `overtime_hours <= hours_worked`
+- CHECK: `role IN ('rn', 'lpn', 'cna', 'pt', 'pta', 'ot', 'cota', 'slp', 'dietary_aide', 'cook', 'evs')`
 
 ## daily_payer_census_facts
 
@@ -902,10 +952,13 @@ Saved resident identities associated with a facility. Stays reference these save
 | role | VARCHAR | no |  |  |  |
 | hours | NUMERIC(5, 2) | no |  |  |  |
 | wages | NUMERIC(9, 2) | no |  |  |  |
+| overtime_hours | NUMERIC(5, 2) | no |  | 0 |  |
 
 - CHECK: `hours > 0 AND wages >= 0`
+- CHECK: `overtime_hours >= 0 AND overtime_hours <= hours`
 - CHECK: `role IN ('rn', 'lpn', 'cna', 'pt', 'pta', 'ot', 'cota', 'slp', 'dietary_aide', 'cook', 'evs')`
 - INDEX `ix_daily_staff_hours_facility`: facility_id, work_date
+- INDEX `ix_daily_staff_hours_overtime`: work_date, staff_id
 - INDEX `ix_daily_staff_hours_staff`: staff_id, work_date
 
 ## res_stays

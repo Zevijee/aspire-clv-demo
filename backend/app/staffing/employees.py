@@ -21,12 +21,11 @@ from sqlalchemy.engine import Connection
 from shared.database.schema import (
     daily_facility_staffing_facts as census, daily_staff_hours as hours, facilities, portfolios, regions,
     staff_members as staff)
-from shared.staffing import EMPLOYMENT_TYPES, ROLE_CODES, ROLES, STAFF_HOURS_DAYS
+from shared.staffing import EMPLOYMENT_TYPES, ROLE_CODES, ROLES, STAFF_HOURS_DAYS, WEEKLY_HOURS
 from ..common.dates import DateRange
 from ..common.errors import ApiError
 from ..common.tables import PageQuery, paginate
 
-WEEKLY_HOURS = 40
 ROLE_LABELS = {code: label for code, label, *_ in ROLES}
 TYPE_LABELS = {code: label for code, label, _ in EMPLOYMENT_TYPES}
 employee_name = staff.c.first_name + ' ' + staff.c.last_name

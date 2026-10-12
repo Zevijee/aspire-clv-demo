@@ -84,6 +84,8 @@ class BaseGenerator(ABC):
         'summary_generators.aspire-medicaid-census',
         'summary_generators.aspire-staffing',
         'summary_generators.aspire-facility-staffing',
+        'summary_generators.aspire-agency',
+        'summary_generators.aspire-overtime',
     )
     RUN_ORDER = ('states', 'portfolios', 'regions', 'facilities', 'payers',
         'payer_rates', 'facility_beds', 'referring_hospitals', 'staff_members', 'admin_user', 'residents',
@@ -91,7 +93,7 @@ class BaseGenerator(ABC):
         'admissions_summary',
         'discharges_summary', 'payer_changes_summary', 'net_change_summary',
         'monthly_adt_summary', 'referrals_summary', 'monthly_adt_facts', 'staffing_summary',
-        'facility_staffing_summary', 'staff_hours')
+        'facility_staffing_summary', 'staff_hours', 'agency_summary', 'overtime_summary')
     metadata = schema.metadata
     migration_history = schema.migration_history
     run_history = schema.run_history
@@ -769,6 +771,11 @@ class BaseGenerator(ABC):
             connection.exec_driver_sql(prefix + definition)
         for _, definition in indexes:
             connection.exec_driver_sql(definition)
+        # A table just loaded whole has no statistics until autovacuum gets to
+        # it, and the planner guessed 19,000 rows for a 3.8M-row range on
+        # daily_overtime_facts and sorted them all: 4.6 s where a hash takes
+        # 0.4 s. Statistics are a sample, a second here.
+        connection.exec_driver_sql(sql.SQL('ANALYZE {}').format(self._table_identifier(table)).as_string(driver))
 
     def replaces_most_rows(self, connection, table, incoming):
         """True when a write replaces enough of a table to justify rebuilding keys."""

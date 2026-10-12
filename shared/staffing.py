@@ -45,3 +45,7 @@ EMPLOYMENT_CODES = tuple(code for code, *_ in EMPLOYMENT_TYPES)
 # How many days of per-person hours daily_staff_hours keeps, ending on the
 # latest staffing day. The generator drops older days; the API clamps to it.
 STAFF_HOURS_DAYS = 120
+# Hours in a week (Monday to Sunday) beyond which a person's hours are
+# overtime. The generator stores each day's share of it on daily_staff_hours;
+# the Employees tab and the Overtime report use the same line.
+WEEKLY_HOURS = 40

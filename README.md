@@ -122,7 +122,7 @@ each bed, from `facility_beds` and `bed_assignments`. **Monthly Census Trending*
 shows census days by calendar month, with the highest and lowest month, from
 `census_days` on `monthly_payer_census_facts`.
 
-**Current Medicare PDPM**, the first MDS report, counts today's PDPM residents --
+**Current Medicare**, the first report of the PDPM module (its URLs still start `/mds/`), counts today's PDPM residents --
 Federal Medicare and Managed Medicare PDPM; per diem contract residents are left
 out -- by PDPM category, drilled from state to facility, with a Residents tab
 listing each one, from `census_logs`, `pdpm_rate_logs` and `pdpm_assessments`. Its Overview
@@ -142,6 +142,18 @@ Its **Employees** tab lists every staff member with hours in the range -- shifts
 hours, overtime, hours per patient day, rate and wages -- from a generated roster
 (`staff_members`) and per-person daily hours (`daily_staff_hours`) that add up to
 the facility and role facts. Per-person hours are kept for the last 120 days only.
+**Agency vs In-house**, the second Staffing report, splits those hours between
+agency staff and each facility's own, drilled from state to facility with a role
+table beneath: hours of each, the average rate of each, and what the agency hours
+cost over the same hours at the in-house rate, from `daily_agency_facts` over the
+whole history. Its
+**Trending** tab charts the agency share of hours day by day, with each
+location's first and last week, highest day and days with agency; its **Logs**
+tab lists every agency shift, who worked where, for how long and at what rate.
+**Overtime**, the third, has the same three tabs for hours over 40 a week per
+person: the hours, their share, who went over, and what time-and-a-half would
+add, from `daily_overtime_facts` over the whole history. Both reports' Logs tabs
+name people from the per-person hours, which exist for the last 120 days only.
 
 Measured response times on the full dataset, 30-day and 1-year ranges:
 

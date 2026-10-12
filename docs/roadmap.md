@@ -8,11 +8,11 @@ against work already done; it is the list of things consciously left.
 The backend was rebuilt from per-report SQL into feature packages over fact tables.
 Every report in the navigation is complete end to end: Admissions, Discharges,
 Payer Changes, Net Change, Monthly ADT Trending, Referring Hospital, Daily Census,
-Census Trending, Bed Board, Monthly Census Trending and Residents. In MDS, Current
+Census Trending, Bed Board, Monthly Census Trending and Residents. In the PDPM module (named MDS until 2026-10-12; its URLs still start `/mds/`), Current
 Medicare has an Overview by PDPM category (Primary Diagnosis, PT/OT, SLP,
 Speech Comorbidity, Nursing, NTA and Depression, all built) and a Residents tab;
 Historical Medicare PDPM, Monthly Medicare PDPM Trending, the Medicare PDPM Worksheet, and Current,
-Historical and Monthly Medicaid PDPM and the Medicaid PDPM Worksheet (Texas only) and the PDPM Calculator are built; both monthly reports'
+Historical and Monthly Medicaid PDPM and the Medicaid PDPM Worksheet (Texas only), the PDPM Calculator and the Medicaid Calculator are built; both monthly reports'
 Category breakdown tabs are still placeholders. The Clinical module has two reports: Hospital
 Transfers, a drilldown of transfers to hospital with payer and reason breakdowns and a Logs tab, and
 Incidents, a drilldown of resident incidents.

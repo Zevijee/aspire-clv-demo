@@ -24,8 +24,14 @@ const entriesLabel = (count: number) => `${count} entr${count === 1 ? 'y' : 'ies
  * editor. Hovering shows what was entered: the value, its note, who and when. */
 const money = (value: number) => value.toLocaleString(undefined, { style: 'currency', currency: 'USD' })
 
-/** A HIPPS code's rates over a full 100-day stay, under the code. */
-function HippsRates({ rates }: { rates: StayRates }) {
+/** A code's rates under the code: a HIPPS code's over a full 100-day
+ * Medicare stay, against the neutral rate; a Medicaid code's is one line,
+ * its daily rate, since a Medicaid day pays the same throughout and has no
+ * neutral rate to compare with. */
+export function HippsRates({ rates, medicaid = false }: { rates: StayRates; medicaid?: boolean }) {
+  if (medicaid) return <dl className="worksheet-rates">
+    <div><dt>Daily rate</dt><dd>{money(rates.average_rate)}</dd></div>
+  </dl>
   return <dl className="worksheet-rates">
     <div><dt>Average rate</dt><dd>{money(rates.average_rate)}</dd></div>
     <div><dt>Neutral rate</dt><dd>{money(rates.neutral_rate)}</dd></div>
@@ -66,8 +72,9 @@ export function CellPart({ field, row, onOpen }: {
       : `worksheet-cell__value${field.kind === 'hipps' || field.kind === 'code' ? ' care-code' : ''}`}>{shown}</span>
       : <span className="worksheet-cell__empty-tag">Empty</span>}
     {activity > 1 && <span className="worksheet-cell__activity" aria-label={entriesLabel(activity)}>{activity}</span>}
-    {/* A projected HIPPS, once entered, is priced like the final one. */}
-    {field.kind === 'hipps' && row.projected_rates && <HippsRates rates={row.projected_rates} />}
+    {/* A projected HIPPS or Medicaid code, once entered, is priced like the final one. */}
+    {(field.kind === 'hipps' || field.kind === 'code') && row.projected_rates
+      && <HippsRates rates={row.projected_rates} medicaid={field.kind === 'code'} />}
     {!text && cell?.note && <span className="worksheet-cell__note">{cell.note}</span>}
   </div>
 }

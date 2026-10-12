@@ -10,7 +10,7 @@ from ..auth.routes import require_user
 from ..database import DbConnection, DbWriteConnection
 from .schemas import CurrentMedicare
 from .service import current
-from . import (calculator, categories, historical, historical_residents, lookback, medicaid, medicaid_history, medicaid_worksheet,
+from . import (medicaid_calculator, calculator, categories, historical, historical_residents, lookback, medicaid, medicaid_history, medicaid_worksheet,
     monthly, residents, worksheet)
 
 router = APIRouter(prefix='/mds', tags=['MDS'])
@@ -312,3 +312,19 @@ def medicaid_worksheet_add(connection: DbWriteConnection, payer_stay_id: UUID, e
     """Append one entry to a cell's log, in the same append-only log as the
     Medicare worksheet's; only a Texas Medicaid stay takes one."""
     return medicaid_worksheet.add_entry(connection, payer_stay_id, entry, user)
+
+
+@router.get('/medicaid-calculator/facilities')
+def medicaid_calculator_facilities(connection: DbConnection):
+    """Every Texas facility with its State Medicaid rate, the base the Medicaid
+    Calculator prices a code against."""
+    return medicaid_calculator.facility_list(connection)
+
+
+@router.get('/medicaid-calculator', responses={400: {'model': ErrorResponse}, 404: {'model': ErrorResponse}})
+def medicaid_calculation(connection: DbConnection, query: Annotated[medicaid_calculator.CalculatorQuery, Query()]):
+    """The Medicaid Calculator: a Texas Medicaid code -- nursing letter, cognitive
+    impairment digit, NTA letter -- priced at one facility a day and over a
+    30-day month by shared/medicaid_pdpm.py, the rule the Medicaid Worksheet
+    prices its codes with, by component."""
+    return medicaid_calculator.calculate(connection, query)

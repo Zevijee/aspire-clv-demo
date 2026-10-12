@@ -18,8 +18,6 @@ import {
 import { getPpdTrend, STAFFING_ROLES, TREND_ROLE_PARAM, type FacilityTrend, type PpdTrend } from '../api'
 
 type Row = DrilldownRow<FacilityTrend>
-// A week of days at each end of the range, compared to read the trend.
-const EDGE_DAYS = 7
 // How far from target counts as overstaffed or understaffed on the chart: a
 // demo rule, 5% either side, not a regulatory line.
 const STAFFING_BAND = 0.05
@@ -55,7 +53,6 @@ const sum = (values: number[], from = 0, to = values.length) => {
 function stats(row: Row, dates: string[]) {
   const days = dates.length
   const { hours, targets, census } = series(row, days)
-  const edge = Math.min(EDGE_DAYS, days)
   let highest: { value: number; date: string } | null = null
   let lowest: { value: number; date: string } | null = null
   let over = 0, under = 0
@@ -67,23 +64,17 @@ function stats(row: Row, dates: string[]) {
     if (hours[index] > targets[index]) over += 1
     else if (hours[index] < targets[index]) under += 1
   }
-  const first = ratio(sum(hours, 0, edge), sum(census, 0, edge))
-  const last = ratio(sum(hours, days - edge), sum(census, days - edge))
   return {
     ppd: ratio(sum(hours), sum(census)), target: ratio(sum(targets), sum(census)),
-    first, last, change: first !== null && last !== null ? last - first : null,
     highest, lowest, over, under,
   }
 }
 
 type Stats = ReturnType<typeof stats>
-type Kind = 'ppd' | 'change' | 'day' | 'count'
+type Kind = 'ppd' | 'day' | 'count'
 const metrics: [id: keyof Stats, header: string, kind: Kind][] = [
   ['ppd', 'Avg. PPD', 'ppd'],
   ['target', 'Target PPD', 'ppd'],
-  ['first', `First ${EDGE_DAYS} days`, 'ppd'],
-  ['last', `Last ${EDGE_DAYS} days`, 'ppd'],
-  ['change', 'Change', 'change'],
   ['highest', 'Highest day', 'day'],
   ['lowest', 'Lowest day', 'day'],
   ['over', 'Days over target', 'count'],
@@ -93,17 +84,12 @@ const metrics: [id: keyof Stats, header: string, kind: Kind][] = [
 function format(value: number | string, kind: Kind) {
   if (typeof value !== 'number') return value
   if (kind === 'ppd' || kind === 'day') return ppdFormat(value)
-  if (kind === 'change') {
-    // Rounded first, so a change too small to show reads 0.00, never −0.00.
-    const shown = Math.round(value * 100) / 100
-    return shown === 0 ? '0.00' : `${shown > 0 ? '+' : '−'}${Math.abs(shown).toFixed(2)}`
-  }
   return value.toLocaleString()
 }
 
 /** PPD's Trending tab: one role, or every role, drilled from state to
- * facility, each scope's trend read from its day-by-day PPD -- its first and
- * last week, its highest and lowest day, the days over and under target --
+ * facility, each scope's trend read from its day-by-day PPD -- its highest
+ * and lowest day, the days over and under target --
  * and the scope's PPD charted day over day against the range. The role and
  * the drilldown are kept in the URL. */
 export function PpdTrending() {
@@ -154,7 +140,8 @@ export function PpdTrending() {
   const columns: TableColumn<Row>[] = [
     locationColumn<FacilityTrend>(depth, path, setPath),
     ...metrics.map(([id, header, kind]): TableColumn<Row> => ({
-      id, header, numeric: true,
+      id, numeric: true,
+      header,
       value: row => {
         const value = stats(row, dates)[id]
         if (value === null) return '—'
@@ -165,15 +152,12 @@ export function PpdTrending() {
         const found = stats(row, dates)[id] as { value: number; date: string } | null
         return found ? `${ppdFormat(found.value)} · ${day(found.date)}` : value
       },
-      // Over target costs money and under it risks care: neither direction is good.
-      ...(id === 'change' ? { change: { favorable: 'neutral' as const } } : {}),
     })),
   ]
   const range = `${startDate} to ${endDate}`
   const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
   const subtitle = `PPD day by day, ${roleName}, ${range}. Each day's PPD is that day's hours over its closing census; `
-    + `Avg. PPD is the range's hours over its census days. The first and last ${EDGE_DAYS} days are each added up and `
-    + 'divided once, and Change is the difference. Days over and under target count the days hours were above or below '
+    + `Avg. PPD is the range's hours over its census days. Days over and under target count the days hours were above or below `
     + 'the day\'s target hours.'
   const file = `${startDate}-to-${endDate}`
 

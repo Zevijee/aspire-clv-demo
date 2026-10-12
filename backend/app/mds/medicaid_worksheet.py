@@ -1,9 +1,9 @@
 """Medicaid PDPM Worksheet: the Medicare PDPM Worksheet for Texas Medicaid. One
 row per Texas Medicaid payer period whose start -- or first assessment's ARD --
 falls in the chosen range, with the cells Texas's case mix needs: the nursing
-component, the NTA comorbidities and a projected two-letter code, nursing
-letter then NTA letter. The final code is not entered: it is the first
-assessment's own, once coded.
+component, the cognitive impairment level, the NTA comorbidities, the HIV
+add-on and a projected code, nursing letter, cognitive digit then NTA letter.
+The final code is not entered: it is the first assessment's own, once coded.
 
 Texas only, as the other Medicaid reports: its Medicaid pays on the PDPM
 nursing and NTA components; Florida and Pennsylvania use other systems.
@@ -11,8 +11,9 @@ nursing and NTA components; Florida and Pennsylvania use other systems.
 Entries go to the same append-only pdpm_worksheet_entries log as Medicare's,
 one worksheet per payer period, so a Medicaid period's cells never mix with a
 Medicare one's. Reading and writing the log is worksheet.py's, given this
-worksheet's catalogue. No code is priced: a Texas Medicaid rate here is the
-census day's rate, not a function of the code.
+worksheet's catalogue. The projected and final codes are priced over a
+30-day month at the stay's plan rate by shared/medicaid_pdpm.py, the rule the
+Medicaid Calculator uses.
 """
 import json
 from datetime import date
@@ -22,23 +23,40 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import Date, String, and_, case, cast, func, literal, or_, select
 from sqlalchemy.engine import Connection
 
+from shared import medicaid_pdpm as pricing
 from shared.database.schema import (
-    facilities, medicaid_assessments as assessments, payers, portfolios, regions, res_payer_stays as periods,
-    res_stays as stays, residents)
+    facilities, facility_payer_rates as contracts, medicaid_assessments as assessments, payers, portfolios, regions,
+    res_payer_stays as periods, res_stays as stays, residents)
 from ..common.errors import ApiError
 from ..common.tables import Page
 from . import worksheet
 from .medicaid import STATES
 from .service import census_day
-from .worksheet import FIELDS as MEDICARE_FIELDS, MDS_DUE_DAYS, Cell, Nta
+from .medicaid import COGNITIVE, COGNITIVE_LABELS
+from .worksheet import FIELDS as MEDICARE_FIELDS, MDS_DUE_DAYS, YES_NO, Cell, Nta, StayRates
 
 # The Medicare worksheet's nursing and NTA cells, as they are: Texas codes the
-# same components. Then a projected code in place of the projected HIPPS.
-FIELDS = {field: spec for field, spec in MEDICARE_FIELDS.items() if spec['group'] in ('Nursing', 'NTA')}
+# same components, with its cognitive impairment level between them. Then a
+# projected code in place of the projected HIPPS.
+FIELDS = {field: spec for field, spec in MEDICARE_FIELDS.items() if spec['group'] == 'Nursing'}
 FIELDS |= {
-    'projected_code': dict(group='Projected code', label='Projected code', kind='code', length=2,
-        example='e.g. KC', pattern=r'^[A-Y][A-F]$',
-        hint='A Texas Medicaid code is two letters: nursing A-Y, then NTA A-F.'),
+    'cognitive.level': dict(group='Cognitive impairment', label='Level', kind='choice',
+        options=[dict(value=f'{digit} - {COGNITIVE_LABELS[field]}', label=f'{digit} - {COGNITIVE_LABELS[field]}')
+            for field, digit in COGNITIVE.items()]),
+    'cognitive.reply': dict(group='Cognitive impairment', label='Notes', kind='text'),
+}
+FIELDS |= {field: spec for field, spec in MEDICARE_FIELDS.items() if spec['group'] == 'NTA'}
+# Texas pays an HIV/AIDS add-on on top of the case-mix rate: entered here,
+# not part of the code.
+FIELDS |= {
+    'hiv.status': dict(group='HIV', label='HIV', kind='choice', options=YES_NO),
+    'hiv.reply': dict(group='HIV', label='Notes', kind='text'),
+}
+FIELDS |= {
+    'projected_code': dict(group='Projected code', label='Projected code', kind='code', length=3,
+        example='e.g. K2C', pattern=r'^[A-Y][0-3][A-F]$',
+        hint='A Texas Medicaid code is a letter, a digit and a letter: nursing A-Y, cognitive impairment 0-3, '
+            'then NTA A-F.'),
     'projected_code.reply': dict(group='Projected code', label='Notes', kind='text'),
 }
 
@@ -86,7 +104,9 @@ class WorksheetRow(BaseModel):
     ard: date | None = Field(description="The first assessment's reference date.")
     due_date: date | None = Field(description='ARD plus 14 days; null once the MDS is complete.')
     mds_status: str = Field(description='Complete, Due or Overdue.')
-    final_code: str | None = Field(description="The first assessment's two-letter code; null until coded.")
+    final_code: str | None = Field(description="The first assessment's code; null until coded.")
+    final_rates: StayRates | None = Field(description='The final code priced over a 30-day month at the plan rate.')
+    projected_rates: StayRates | None = Field(description='The projected code, once entered, priced the same way.')
     cells: dict[str, Cell]
     nta: Nta
     activity: dict[str, int]
@@ -111,9 +131,9 @@ def _rows(query: WorksheetQuery, census_date: date, exclude=None):
     basis = (select(assessments.c.payer_stay_id).where(assessments.c.segment == 1,
             assessments.c.ard.between(query.start_date, query.end_date)) if by_ard
         else select(periods.c.payer_stay_id).where(periods.c.start_date.between(query.start_date, query.end_date)))
-    candidates = (select(periods.c.payer_stay_id, periods.c.stay_id, periods.c.start_date, periods.c.end_date,
-            periods.c.start_reason, periods.c.end_reason, payers.c.payer_name, stays.c.facility_id,
-            stays.c.resident_id)
+    candidates = (select(periods.c.payer_stay_id, periods.c.stay_id, periods.c.payer_id, periods.c.start_date,
+            periods.c.end_date, periods.c.start_reason, periods.c.end_reason, payers.c.payer_name,
+            stays.c.facility_id, stays.c.resident_id)
         .select_from(periods.join(payers, payers.c.payer_id == periods.c.payer_id)
             .join(stays, stays.c.stay_id == periods.c.stay_id))
         .where(periods.c.payer_stay_id.in_(basis), payers.c.payer_type == 'medicaid', periods.c.start_date <= day)
@@ -136,9 +156,13 @@ def _rows(query: WorksheetQuery, census_date: date, exclude=None):
             case((complete, None), else_=due).label('due_date'),
             case((complete, 'Complete'), (due < day, 'Overdue'), else_='Due').label('mds_status'),
             case((complete, first.c.code), else_=None).label('final_code'),
+            # The stay's plan rate at its facility: the base a code is priced on.
+            contracts.c.daily_rate.label('contract_rate'),
             # Complete sorts after every date, as the column reads.
             case((complete, None), else_=due).label('due_sort'))
         .select_from(candidates
+            .outerjoin(contracts, and_(contracts.c.facility_id == candidates.c.facility_id,
+                contracts.c.payer_id == candidates.c.payer_id))
             .join(facilities, facilities.c.facility_id == candidates.c.facility_id).join(regions).join(portfolios)
             .join(residents, residents.c.resident_id == candidates.c.resident_id)
             # By stay start, a stay is listed even before it has an assessment.
@@ -166,7 +190,16 @@ def page(connection: Connection, query: WorksheetQuery, today: date):
         .order_by(order, listed.c.payer_stay_id).limit(query.limit).offset(query.offset)).mappings().all()
     total = rows[0]['total'] if rows else connection.scalar(select(func.count()).select_from(result.subquery()))
     sheets = worksheet._cells(connection, [row['payer_stay_id'] for row in rows])
-    return dict(items=[dict(row, **sheets[row['payer_stay_id']]) for row in rows], total=total,
+
+    def priced(code):
+        # Over a 30-day month at the stay's plan rate, by the rule the Medicaid
+        # Calculator prices a code with.
+        return lambda row: (pricing.stay(code(row), row['contract_rate'])
+            if code(row) and row['contract_rate'] is not None else None)
+    final = priced(lambda row: row['final_code'])
+    projected = priced(lambda row: (sheets[row['payer_stay_id']]['cells'].get('projected_code') or {}).get('value'))
+    return dict(items=[dict(row, **sheets[row['payer_stay_id']], final_rates=final(row), projected_rates=projected(row))
+            for row in rows], total=total,
         limit=query.limit, offset=query.offset, census_date=census_date)
 
 

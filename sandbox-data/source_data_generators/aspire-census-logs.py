@@ -103,10 +103,13 @@ DEPRESSION_SHARE = 0.30
 ARD_DAYS = (0, 7)
 CODING_DAYS = (2, 4)
 NURSING_BANDS = {'Complex': 'ABCDEFG', 'High': 'DEFGHIJK', 'Moderate': 'HIJKLMNOPQ', 'Low': 'RSTUVWXY'}
-# States whose Medicaid pays on the PDPM nursing and NTA components, so their
-# Medicaid residents carry a two-letter code. Florida and Pennsylvania use
-# other systems.
+# States whose Medicaid pays on the PDPM nursing and NTA components with a
+# cognitive impairment level between them, so their Medicaid residents carry
+# a letter-digit-letter code. Florida and Pennsylvania use other systems.
 MEDICAID_CASE_MIX_STATES = ('TX',)
+# Cognitive impairment, the code's digit: 0 intact through 3 severe. Shares
+# of a nursing home's long-stay residents, cumulative, as NTA_SHARES are.
+COGNITIVE_SHARES = (0.35, 0.55, 0.80)
 
 THROUGH = "SELECT max(simulation_date) AS day FROM sandbox_daily_runs WHERE generator = 'adt'"
 
@@ -194,11 +197,12 @@ FROM (
 
 
 def medicaid_sql(table, census):
-    """One two-letter case-mix code -- nursing and NTA -- per census segment of a
-    Medicaid payer period in a state that pays on them. A segment is one care
-    level, and a change of care level is a reassessment, so each gets its own
-    code: the nursing letter drawn from that care level as Medicare's is, the
-    NTA band once per payer period, since comorbidities persist. The first
+    """One case-mix code -- nursing letter, cognitive impairment digit, NTA
+    letter -- per census segment of a Medicaid payer period in a state that
+    pays on them. A segment is one care level, and a change of care level is a
+    reassessment, so each gets its own code: the nursing letter drawn from that
+    care level as Medicare's is, the cognitive level and the NTA band once per
+    payer period, since both persist. The first
     segment's ARD falls in its first week, as an admission assessment's does;
     a later one's on the day its care level changed. Coding takes 2-4 days."""
     segment = "c.payer_stay_id::text || ':' || c.segment"
@@ -206,17 +210,18 @@ def medicaid_sql(table, census):
         f"WHEN '{level}' THEN substr('{letters}', 1 + floor({_draw(segment, 'medicaid-nursing')} * {len(letters)})::int, 1)"
         for level, letters in NURSING_BANDS.items()) + ' END'
     nta = _letter(_index(_draw('c.payer_stay_id', 'medicaid-nta'), NTA_SHARES))
+    cognitive = _index(_draw('c.payer_stay_id', 'medicaid-cognitive'), COGNITIVE_SHARES)
     states = ', '.join(f"'{state}'" for state in MEDICAID_CASE_MIX_STATES)
     low, high = (('CASE nursing ' + ' '.join(f"WHEN '{letter}' THEN {bounds[end]}"
         for letter, bounds in NURSING_FUNCTION_RANGES.items()) + ' END') for end in (0, 1))
     return f"""
-INSERT INTO {table} (payer_stay_id, segment, code, nursing_function_score, ard, coded_date)
-SELECT payer_stay_id, segment, nursing || nta,
+INSERT INTO {table} (payer_stay_id, segment, code, nursing_function_score, cognitive_impairment, ard, coded_date)
+SELECT payer_stay_id, segment, nursing || cognitive::text || nta,
        {low} + floor({_draw("payer_stay_id::text || ':' || segment", 'medicaid-nursing-function')} * ({high} - {low} + 1))::int,
-       ard, ard + {CODING_DAYS[0]}
+       cognitive, ard, ard + {CODING_DAYS[0]}
          + floor({_draw("payer_stay_id::text || ':' || segment", 'medicaid-coding')} * {CODING_DAYS[1] - CODING_DAYS[0] + 1})::int
 FROM (
-  SELECT c.payer_stay_id, c.segment, {nursing} AS nursing, {nta} AS nta,
+  SELECT c.payer_stay_id, c.segment, {nursing} AS nursing, {nta} AS nta, {cognitive} AS cognitive,
          CASE WHEN c.segment = 1 THEN lower(c.in_bed) + {ARD_DAYS[0]}
               + floor({_draw(segment, 'medicaid-ard')} * {ARD_DAYS[1] - ARD_DAYS[0] + 1})::int
               ELSE lower(c.in_bed) END AS ard
