@@ -536,6 +536,9 @@
   height: 0.5px;
   inset-inline: var(--layout-report-inline-padding);
   position: absolute;
+  /* Above the drill-down bar (z-index 4), whose blank strip starts on the same
+     pixel row as this half-pixel line and would otherwise paint over it. */
+  z-index: 5;
 }
 
 .mobile-menu-button {
@@ -887,6 +890,53 @@ h1 {
   overflow-wrap: anywhere;
 }
 
+/* A heading over a picker's options for one context (groupByContext), as
+   the shared labels are: small, bold, muted, letter-spaced capitals. */
+.filter-value-picker__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.filter-value-picker__group + .filter-value-picker__group {
+  border-top: 1px solid var(--color-border);
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+}
+
+/* A group's options sit indented under its heading. */
+.filter-value-picker__group > .filter-value-picker__option {
+  margin-left: var(--space-5);
+}
+
+.filter-value-picker__group-label {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: var(--space-1) var(--space-2) 0;
+  text-transform: uppercase;
+}
+
+/* The heading as a checkbox for its whole group, lined up with the options':
+   their 1px border and padding before the box, their gap after it. */
+.filter-value-picker__group-toggle {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: var(--space-3);
+  padding-left: calc(var(--space-2) + 1px);
+}
+
+.filter-value-picker__group-toggle input {
+  accent-color: var(--color-info);
+  cursor: pointer;
+  flex-shrink: 0;
+  height: 16px;
+  margin: 0;
+  width: 16px;
+}
+
 .filter-value-picker__context {
   color: var(--color-text-muted);
   display: block;
@@ -1179,6 +1229,16 @@ h1 {
   display: flex;
   flex-wrap: wrap;
   margin-left: auto;
+}
+
+/* The picker in a dropdown (FilterValuePicker compact): smaller buttons. */
+.filter-value-picker--compact .location-filter__selection-bar {
+  min-height: 0;
+}
+
+.filter-value-picker--compact .location-filter__selection-bar button {
+  font-size: 0.75rem;
+  min-height: 28px;
 }
 
 .location-filter__selection-bar .filter-value-picker__select-all {
@@ -2259,6 +2319,100 @@ h1 {
   white-space: nowrap;
 }
 
+/* Column groups (TableColumn.group): a band of group names above the column
+   headers, and a rule down the left of each group, header to footer. */
+.report-table__table .report-table__group-row th {
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: var(--space-2) var(--space-4);
+  text-align: center;
+}
+
+.report-table__table .report-table__cell--group-start {
+  border-left: 1px solid var(--color-border-strong);
+}
+
+/* A tall table's title bar and header row, moved down together to stay in
+   view as the page scrolls past it (Table): opaque and above the rows they
+   cover, the header row with a shadow so the block reads as lifted. */
+.report-table .report-table__floating {
+  position: relative;
+  z-index: 3;
+}
+
+/* The floating title bar is drawn as the card's top: its rounded corners, with
+   the card's border and shadow set round it by Table. */
+.report-table .report-table__header.report-table__floating {
+  background: var(--color-surface);
+  border-radius: 8px 8px 0 0;
+}
+
+/* Blank page on the card above the floating block, up to the top of the
+   page's scroller and a little behind the block's rounded corners
+   (--float-band-*, set by Table): over the rows and the card's own border and
+   shadow, reaching past the card's sides through shadows to cover its shadow
+   (a wider box would widen the page); under the block (z-index 3) and the
+   drilldown bar. */
+.report-table.report-table--floating {
+  position: relative;
+}
+
+.report-table.report-table--floating::before {
+  background: var(--color-canvas);
+  content: '';
+  box-shadow: calc(-1 * var(--space-4)) 0 0 var(--color-canvas), var(--space-4) 0 0 var(--color-canvas);
+  height: var(--float-band-height, 0px);
+  left: -1px;
+  pointer-events: none;
+  position: absolute;
+  right: -1px;
+  top: var(--float-band-top, 0px);
+  z-index: 2;
+}
+
+.report-table__table thead.report-table__head--floating {
+  box-shadow: var(--shadow-report-card);
+}
+
+/* Moved, the header can sit at a fractional pixel, and the line between its
+   rows then falls mid-pixel: neither row's background covers it fully, and the
+   rows it floats over showed through as a thin see-through seam. A panel in
+   the header's colour backs it, hung below the floating title bar at the
+   header's height (--float-head-height, set by Table): above the rows, under
+   the header, so that pixel blends with the header's own colour -- the pinned
+   column's colour under a pinned first column (--float-pin-width). */
+/* A moved header row group gets none of the table's shared borders drawn: they
+   stay where the header was. While floating, its cells draw the lines
+   themselves -- the line under the column groups, and each group's left rule. */
+.report-table__table thead.report-table__head--floating tr + tr th {
+  box-shadow: inset 0 1px 0 var(--color-border);
+}
+
+/* The group rule just outside the cell's left edge, where the rows' shared
+   border falls: drawn inside the cell, it sat a pixel right of theirs. */
+.report-table__table thead.report-table__head--floating th.report-table__cell--group-start {
+  box-shadow: -1px 0 0 var(--color-border-strong);
+}
+
+.report-table__table thead.report-table__head--floating tr + tr th.report-table__cell--group-start {
+  box-shadow: -1px 0 0 var(--color-border-strong), inset 0 1px 0 var(--color-border);
+}
+
+.report-table .report-table__header.report-table__floating::after {
+  background: linear-gradient(to right,
+    var(--color-table-pinned-background) var(--float-pin-width, 0px),
+    var(--color-surface-subtle) var(--float-pin-width, 0px));
+  content: '';
+  height: var(--float-head-height, 0px);
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: 100%;
+}
+
 .report-table--internal-scroll .report-table__table thead {
   background: var(--color-surface-subtle);
   position: sticky;
@@ -2656,6 +2810,29 @@ h1 {
 .report-table__table tfoot th {
   color: var(--color-text);
   text-align: left;
+}
+
+/* A section of a sectioned table (TableSections): one row exactly like any
+   other table's -- same background, size and weights -- followed by its
+   subsections, each indented a step, and at the innermost level its rows, which
+   read as its children: tinted, indented, names in regular weight. */
+/* A section's rows: a slight tint, and indented. The tint is on the row, so
+   hovering still highlights it. */
+.report-table__table .report-table__row--in-section {
+  background: var(--color-table-section-child-background);
+}
+
+.report-table__table .report-table__row--in-section > :first-child {
+  font-weight: 400;
+}
+
+/* Each level in, its first cell indented one step further. */
+.report-table__table .report-table__row--depth-1 > :first-child {
+  padding-left: calc(var(--space-4) + var(--space-6));
+}
+
+.report-table__table .report-table__row--depth-2 > :first-child {
+  padding-left: calc(var(--space-4) + 2 * var(--space-6));
 }
 
 .report-table__numeric {
@@ -3183,6 +3360,25 @@ h1 {
   min-height: 24px;
 }
 
+/* The strip between the stuck bar and the top of the report area -- the area's
+   top padding -- is blank page, so what scrolls up past the bar disappears
+   instead of showing above it. Out of the way when the bar is not stuck: above
+   it then is the section gap, which is blank page anyway. It reaches the
+   area's side edges through shadows, which never widen the page as a wider
+   box would. */
+.drilldown-navigation::before {
+  background: var(--color-canvas);
+  bottom: calc(100% + 1px);
+  box-shadow: calc(-1 * var(--layout-report-inline-padding)) 0 0 var(--color-canvas),
+    var(--layout-report-inline-padding) 0 0 var(--color-canvas);
+  content: '';
+  height: var(--space-4);
+  left: -1px;
+  pointer-events: none;
+  position: absolute;
+  right: -1px;
+}
+
 .drilldown-navigation__breadcrumbs {
   align-items: center;
   display: flex;
@@ -3578,6 +3774,17 @@ h1 {
   overscroll-behavior-x: contain;
 }
 
+/* On a table that scrolls with the page, the sideways scrollbar stays at the
+   bottom of the screen while the table is in view: below its last row, a tall
+   table could only be scrolled sideways from its foot. */
+.report-table:not(.report-table--internal-scroll) > .report-table__horizontal-scroll {
+  background: var(--color-surface);
+  /* Down through the report area's bottom padding, to the window's edge. */
+  bottom: calc(-1 * var(--space-4));
+  position: sticky;
+  z-index: 3;
+}
+
 .report-table__horizontal-scroll:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: -2px;
@@ -3591,6 +3798,13 @@ h1 {
 .report-table__table--sticky-first tfoot tr > :first-child:not([colspan]) {
   background-color: var(--color-table-pinned-background);
 }
+
+/* A section's rows (TableSections) keep their own colour in the pinned column,
+   so they never match the section row above them. */
+.report-table__table--sticky-first tbody tr.report-table__row--in-section > :first-child:not([colspan]) {
+  background-color: var(--color-table-section-child-pinned);
+}
+
 
 .report-table__table--sticky-first tbody tr:hover > :first-child:not([colspan]) {
   background-color: var(--color-table-pinned-hover);
@@ -4275,6 +4489,25 @@ h1 {
   white-space: nowrap;
 }
 
+/* The summary and its invisible widest texts share one cell, so the trigger
+   keeps one width whatever is selected. */
+.filter-dropdown__summary {
+  display: grid;
+  /* A button centres its text; the summary reads from the left. */
+  text-align: left;
+}
+
+.filter-dropdown__summary > span {
+  grid-area: 1 / 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-dropdown__sizer {
+  visibility: hidden;
+}
+
 .filter-dropdown__trigger:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
@@ -4289,6 +4522,16 @@ h1 {
   max-height: min(480px, 65dvh);
   overflow: auto;
   font-family: var(--font-sans);
+}
+
+/* The detailed picker in a dropdown, as in the side drawer: the panel holds it
+   to its height, so the search and buttons stay put and only the list scrolls.
+   Left to grow, the list never overflows its own scroller, and since it keeps
+   the wheel to itself (overscroll-behavior), nothing scrolls at all. */
+.filter-dropdown__panel--detailed {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .daily-change-chart__header {
@@ -5274,4 +5517,42 @@ button.bed-card:focus-visible {
   .pdpm-calc--codes-3 .pdpm-calc__table {
     min-width: 520px;
   }
+}
+
+/* A staffing figure's share of its total, after the figure in the same cell:
+   "1,431,267, 90.8%". Smaller and lighter, so the figure still leads. */
+.staffing-share {
+  color: var(--color-text-muted);
+  font-size: 0.875em;
+  font-weight: 500;
+}
+
+/* The report header's Export: a labelled field as the date range beside it is
+   -- the label above, the button at the foot of the row, lined up with the
+   date picker -- and the button in the accent orange at the header's 32 px. */
+.report-export-field {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  height: 100%;
+  justify-content: space-between;
+  padding: 2px 0 0;
+}
+
+.report-export-field__label {
+  color: var(--color-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.report-table__export.report-export-button {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  min-height: 32px;
+}
+
+.report-table__export.report-export-button:hover {
+  background: color-mix(in srgb, var(--color-accent) 85%, black);
+  border-color: color-mix(in srgb, var(--color-accent) 85%, black);
 }

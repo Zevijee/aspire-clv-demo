@@ -76,7 +76,7 @@ Breaking one of these is a design change, not a refactor. Each was measured; see
   already at the grain of `daily_admission_facts`, which is what
   `monthly_referral_facts` rolls up. `daily_facility_staffing_facts` is a
   *dimension* rollup of the same kind, roles and payer types collapsed to one row
-  per facility and day, and earned its place the same way: the PPD trend over
+  per facility and day, and earned its place the same way: the HPPD trend over
   every role read a million staffing rows and 740,000 payer rows for a year, 3.6 s
   at the browser; from the rollup it reads 92,000 and answers in 0.4 s.
 - **Keep dimension keys at the grain** (`payer_id`, not `payer_type`) *when the
@@ -139,11 +139,15 @@ list it in `SHARED_RULES` there, or a change to that file goes unnoticed.
 | Resident incidents, for the Clinical reports | `incident_logs --regenerate`, ~20 s |
 | Resident weigh-ins, for Weight Surveillance | `weight_logs --regenerate`, ~3.5 min |
 | Progress notes and their flag terms, for Flagged Progress Notes | `progress_notes --regenerate`, ~6 min; updates only move dates |
-| Each facility's day across every role, with its census, for the PPD trend | `facility_staffing_summary --regenerate`, ~10 s |
-| Staff roster size, employment mix, hire dates, pay, for PPD's Employees tab | `staff_members --regenerate`, ~12 s, then `staff_hours --regenerate` |
+| Each facility's day across every role, with its census and labour cost, for the HPPD and PPD cost trends | `facility_staffing_summary --regenerate`, ~3 min, after the overtime, agency, onboarding and training facts |
+| Staff roster size, employment mix, hire dates, pay, departures, for the Staffing Overview's Employees tab | `staff_members --regenerate`, ~30 s, then `staff_hours` and `staff_bonuses --regenerate`; `update` runs all three, ~5.5 min |
 | Who worked which day and for how long, the last 120 days | `staff_hours --regenerate`, ~3 min |
+| Each employee's pickup, 90-day retention and anniversary bonuses, the last 120 days | `staff_bonuses --regenerate`, ~10 s, from the staff hours and roster |
 | Agency hours and pay per facility, role and day, for Agency vs In-house | `agency_summary --regenerate`, ~1 min, from the staffing facts |
 | Overtime hours and pay per facility, role and day, for Overtime | `overtime_summary --regenerate`, ~1 min, from the staffing facts |
+| New hires, orientation and sign-on bonuses, for the Staffing Overview | `onboarding_summary --regenerate`, ~45 s, from the staffing facts. Its turnover also sets the roster's departures, so `update` rebuilds the roster, hours and bonuses too, ~5.5 min more |
+| In-service training hours and pay per facility, role and day, for the Staffing Overview | `training_summary --regenerate`, ~1.7 min, from the staffing facts |
+| Monthly staffing cost per facility and role, for the Staffing Overview and PPD | `staffing_cost_summary --regenerate`, ~2.7 min, from the staffing, overtime, agency, onboarding and training facts |
 | Resident infections and outbreaks, for Fever / Infections | `infection_logs --regenerate`, ~15 s |
 | Room layout (wings, rooms, private share) | `facility_beds --regenerate`, ~2 s, then `bed_assignments --regenerate` |
 | Who sleeps in which bed | `bed_assignments --regenerate`, ~36 s |
@@ -182,11 +186,15 @@ python manage.py transfer_logs --regenerate           # hospital transfers with 
 python manage.py incident_logs --regenerate           # resident incidents; ~20 s
 python manage.py weight_logs --regenerate             # resident weigh-ins; ~3.5 min
 python manage.py progress_notes --regenerate          # last 10 days of notes; ~6 min, then dates move
-python manage.py facility_staffing_summary --regenerate # each facility's day across every role, with census; ~10 s
+python manage.py facility_staffing_summary --regenerate # each facility's day across every role, with census and cost; ~3 min
 python manage.py staff_members --regenerate           # each facility's staff roster; ~12 s, drops the hours too
 python manage.py staff_hours --regenerate             # who worked each of the last 120 days; ~3 min
+python manage.py staff_bonuses --regenerate           # each employee's pickup and retention bonuses, last 120 days; ~10 s
 python manage.py agency_summary --regenerate          # agency hours and pay per facility, role and day; ~1 min
 python manage.py overtime_summary --regenerate        # overtime hours and pay per facility, role and day; ~1 min
+python manage.py onboarding_summary --regenerate      # new hires, orientation and sign-on bonuses per facility, role and day; ~45 s
+python manage.py training_summary --regenerate        # in-service training hours and pay per facility, role and day; ~1.7 min
+python manage.py staffing_cost_summary --regenerate   # every Staffing Overview measure per facility, role and month; ~2.7 min
 python manage.py infection_logs --regenerate          # infections and outbreaks; ~15 s
 python manage.py facility_beds --regenerate           # wings, rooms and beds per facility; ~2 s
 python manage.py bed_assignments --regenerate         # which stay was in which bed; ~36 s
@@ -258,6 +266,17 @@ generation job. See [docs/deploying.md](docs/deploying.md).
   load Windows moves PostgreSQL onto the slow ones: every plan step runs 2-3x
   slower, with an identical plan. Compare first runs, and compare before and
   after in the same conditions.
+- **Fact tables must be stored in date order.** A rebuild that inserts from a
+  hashed stage leaves the rows in no order, and a range then reads pages from
+  the whole table: 30 days of the 1.4 GB agency facts read 166,850 pages, 1.1 s
+  cold; in date order 2,736, 0.16 s. The staffing generators insert `ORDER BY`
+  the date; after a rebuild that did not, `CLUSTER <table> USING <table>_pkey`
+  (about 45 s for the largest) and record the fingerprints if only the order
+  changed.
+- **The Employees tab's rows are kept in the API process.** Each date range is
+  built once and reused until a generator writing the roster, hours or bonuses
+  records a run (`employees.data_stamp`). An edit made straight in the database
+  is not seen until the API restarts; regenerate through `manage.py` instead.
 - **A generator that carries a running balance cannot be rebuilt for one day.**
   `net_change_summary` and `monthly_adt_summary` recompute from the first affected
   row onward. `net_change_summary` has an `extend` path for a contiguous tail only,

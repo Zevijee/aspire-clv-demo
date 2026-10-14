@@ -6,16 +6,15 @@ import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModa
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { LocationNavigation, locationColumn } from '../../../shared/components/LocationNavigation'
-import { SegmentedControl } from '../../../shared/components/SegmentedControl'
 import { LineChart } from '../../../shared/components/charts/LineChart'
 import { useCustomGrouping } from '../../../shared/customGrouping'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
-import { useSearchParamList } from '../../../shared/hooks/useSearchParamList'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import {
   drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow,
 } from '../../../shared/utils/locationDrilldown'
-import { getPpdTrend, STAFFING_ROLES, TREND_ROLE_PARAM, type FacilityTrend, type PpdTrend } from '../api'
+import { getPpdTrend, TREND_ROLE_PARAM, type FacilityTrend, type PpdTrend } from '../api'
+import { useStaffingRoles } from './StaffingRolePicker'
 
 type Row = DrilldownRow<FacilityTrend>
 // How far from target counts as overstaffed or understaffed on the chart: a
@@ -26,7 +25,7 @@ const day = (value: string) => dateFormat.format(new Date(`${value}T00:00:00Z`))
 const ppdFormat = (value: number) => value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /** The scope's series: the facilities' hours, targets and census added up
- * day by day, so any day's PPD is the scope's hours over its census. */
+ * day by day, so any day's HPPD is the scope's hours over its census. */
 function series(row: Row, days: number) {
   const hours = new Array<number>(days).fill(0)
   const targets = new Array<number>(days).fill(0)
@@ -49,7 +48,7 @@ const sum = (values: number[], from = 0, to = values.length) => {
 }
 
 /** The trend's figures at one scope, each a sum divided once: never an
- * average of facility PPDs. */
+ * average of facility HPPDs. */
 function stats(row: Row, dates: string[]) {
   const days = dates.length
   const { hours, targets, census } = series(row, days)
@@ -73,8 +72,8 @@ function stats(row: Row, dates: string[]) {
 type Stats = ReturnType<typeof stats>
 type Kind = 'ppd' | 'day' | 'count'
 const metrics: [id: keyof Stats, header: string, kind: Kind][] = [
-  ['ppd', 'Avg. PPD', 'ppd'],
-  ['target', 'Target PPD', 'ppd'],
+  ['ppd', 'Avg. HPPD', 'ppd'],
+  ['target', 'Target HPPD', 'ppd'],
   ['highest', 'Highest day', 'day'],
   ['lowest', 'Lowest day', 'day'],
   ['over', 'Days over target', 'count'],
@@ -87,10 +86,10 @@ function format(value: number | string, kind: Kind) {
   return value.toLocaleString()
 }
 
-/** PPD's Trending tab: one role, or every role, drilled from state to
- * facility, each scope's trend read from its day-by-day PPD -- its highest
+/** HPPD's Trending tab: one role, or every role, drilled from state to
+ * facility, each scope's trend read from its day-by-day HPPD -- its highest
  * and lowest day, the days over and under target --
- * and the scope's PPD charted day over day against the range. The role and
+ * and the scope's HPPD charted day over day against the range. The role and
  * the drilldown are kept in the URL. */
 export function PpdTrending() {
   const [params, setParams] = useReportSearchParams()
@@ -106,17 +105,9 @@ export function PpdTrending() {
     updated.delete('all_facilities')
     setParams(updated)
   }
-  // The bar's picker: any set of roles, added up together, or with none picked
-  // every role. All roles clears the picks.
-  const picks = useSearchParamList(TREND_ROLE_PARAM)
-  const picked = picks.values.filter(code => STAFFING_ROLES.some(role => role.value === code))
-  const roles = picked
-  const roleName = roles.length
-    ? STAFFING_ROLES.filter(role => roles.includes(role.value)).map(role => role.label).join(', ') : 'every role'
-  const picker = <SegmentedControl fullWidth separate tone="accent" label="Roles"
-    options={[{ id: 'all', label: 'All roles' }, ...STAFFING_ROLES.map(role => ({ id: role.value, label: role.label }))]}
-    values={picked.length ? picked : ['all']}
-    onChange={id => id === 'all' ? picks.clear() : picks.toggle(id)} />
+  // The trend table's role filter: any set of roles, added up together, or with
+  // none picked every role.
+  const { roles, roleName, picker } = useStaffingRoles(TREND_ROLE_PARAM)
 
   const [data, setData] = useState<PpdTrend | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -156,8 +147,8 @@ export function PpdTrending() {
   ]
   const range = `${startDate} to ${endDate}`
   const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
-  const subtitle = `PPD day by day, ${roleName}, ${range}. Each day's PPD is that day's hours over its closing census; `
-    + `Avg. PPD is the range's hours over its census days. Days over and under target count the days hours were above or below `
+  const subtitle = `HPPD day by day, ${roleName}, ${range}. Each day's HPPD is that day's hours over its closing census; `
+    + `Avg. HPPD is the range's hours over its census days. Days over and under target count the days hours were above or below `
     + 'the day\'s target hours.'
   const file = `${startDate}-to-${endDate}`
 
@@ -172,25 +163,26 @@ export function PpdTrending() {
   const targetPpd = ratio(sum(daily.targets), sum(daily.census))
 
   return <>
-    <LocationNavigation path={path} setPath={setPath} controls={picker} />
-    <DrilldownTable<Row> title={`${levels[depth]} PPD trend`} columns={columns} rows={rows}
+    <LocationNavigation path={path} setPath={setPath} />
+    <DrilldownTable<Row> title={`${levels[depth]} HPPD trend`} columns={columns} rows={rows}
       getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
       loading={loading} error={error} onRetry={onRetry}
       getFooterRow={visible => ({ key: 'total', name: 'Total', path: [], isTotal: true,
         facilities: visible.flatMap(row => row.facilities) })}
       subtitle={subtitle}
+      filters={picker}
       headerActions={<><OpenViewButton kind="facilities" label="Show all facilities"
         onClick={() => setShowFacilities(true)} /><CustomGroupingButton onApply={() => setPath([])} /></>}
       emptyMessage="No facilities match this view."
-      csvFileName={`ppd-trend-${file}.csv`} />
-    <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      csvFileName={`hppd-trend-${file}.csv`} />
+    <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)} filters={picker}
       onSelect={next => setPath(next)}
-      title={`All facilities · PPD trend, ${roleName}, ${range}`} subtitle={subtitle}
+      title={`All facilities · HPPD trend, ${roleName}, ${range}`} subtitle={subtitle}
       rows={facilityRows(data?.items ?? [])} columns={columns.slice(1)} getRowKey={row => row.key}
       getName={row => row.name} getPath={row => [row.path[0], row.path[1], row.path[2]]}
       loading={loading} error={error} onRetry={onRetry}
-      csvFileName={`ppd-trend-facilities-${file}.csv`} />
-    <LineChart items={trend} title="PPD day over day" valueLabel="PPD"
+      csvFileName={`hppd-trend-facilities-${file}.csv`} />
+    <LineChart items={trend} title="HPPD day over day" valueLabel="HPPD"
       height={360} formatValue={ppdFormat}
       referenceLines={targetPpd === null ? [] : [
         { value: targetPpd * (1 + STAFFING_BAND), label: `Overstaffed ${ppdFormat(targetPpd * (1 + STAFFING_BAND))}`,
@@ -200,7 +192,7 @@ export function PpdTrending() {
           tone: 'adverse' },
       ]}
       subtitle={`${scopeName} · ${roleName} · Each day's hours over its census. The grey dashed line is the `
-        + `target PPD; the red ones are ${Math.round(STAFFING_BAND * 100)}% above and below it, overstaffed and `
+        + `target HPPD; the red ones are ${Math.round(STAFFING_BAND * 100)}% above and below it, overstaffed and `
         + 'understaffed.'}
       loading={loading} error={error} onRetry={onRetry} />
   </>

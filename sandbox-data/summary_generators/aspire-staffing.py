@@ -13,19 +13,22 @@ buildings differ.
 - building: the whole facility's habit, -6% to +10%, so some buildings run
   heavy across every role and a few run lean.
 - role: this role at this facility, -10% to +12%: the over-scheduled CNA floor
-  or the PT department a hire short.
-- weekend: Saturday and Sunday run lighter, therapy most (-35%), nursing a
-  little (-4%), support barely (-2%).
+  or the dietary department a hire short.
+- weekend: Saturday and Sunday run lighter by department: the office
+  departments, Admin & General and Nursing Admin, are mostly off (-85%: a
+  manager on call), Non-Nursing a little (-5%), Direct Care barely (-4%).
 - day: scheduling noise, +/-8%, so even a building on target overall has days
   over and days short.
 
 Census is daily_payer_census_facts' closing census, the same census the report
-divides by, so target hours are exactly target PPD x census days.
+divides by, so target hours are exactly target HPPD x census days -- less the
+office departments' weekends, which are their schedule, not a shortfall.
 
 The hourly rate is the role's base rate x the state's wage index x the
 facility's own pay, 94% to 106%, rising 3% a year from 2023. On some days part of
 a role's hours are agency at 1.45x: each facility and role has its own agency
-habit, from almost never to about one day in seven.
+habit, from almost never to about one day in seven. The office departments
+never use agency: their roles are salaried staff.
 
 Excess and short hours are measured each day: the hours over the target, or the
 hours under it. Excess wages are the excess hours at that day's rate -- what the
@@ -38,7 +41,7 @@ from psycopg import sql
 from sqlalchemy import func, select
 
 from shared.database import schema
-from shared.staffing import ROLES
+from shared.staffing import OFFICE_DEPARTMENTS, ROLES
 from base import BaseGenerator, DailyGenerator, GenerationResult
 from source_data_generators.draws import draw as _draw
 
@@ -48,17 +51,18 @@ def draw(seed):
     return f'({_draw(seed)})::float8'
 
 
-WEEKEND = {'Nursing': -0.04, 'Therapy': -0.35, 'Support': -0.02}
+WEEKEND = {'Admin & General': -0.85, 'Direct Care': -0.04, 'Non-Nursing': -0.05, 'Nursing Admin': -0.85}
 WAGE_INDEX = {'PA': 1.10, 'FL': 1.04}
 AGENCY_PREMIUM = 1.45
 ANNUAL_RAISE = 0.03
 
 FACILITY = 'fa.facility_id::text'
 ROLE = FACILITY + " || ':' || r.role"
-DAY = "h.facility_id::text || ':' || h.role || ':' || c.summary_date::text"
-ROLE_VALUES = ', '.join(f"('{code}', '{group}', {target}::float8, {rate}::float8)"
-    for code, _, group, target, rate in ROLES)
-WEEKEND_SQL = 'CASE r.role_group ' + ' '.join(
+DAY = "h.facility_id::text || ':' || h.role || ':' || h.summary_date::text"
+ROLE_VALUES = ', '.join(f"('{code}', '{department}', {target}::float8, {rate}::float8)"
+    for code, _label, department, _group, target, rate in ROLES)
+OFFICE_SQL = ', '.join(f"'{department}'" for department in OFFICE_DEPARTMENTS)
+WEEKEND_SQL = 'CASE r.department ' + ' '.join(
     f"WHEN '{group}' THEN {lift}" for group, lift in WEEKEND.items()) + ' ELSE 0 END'
 WAGE_SQL = 'CASE p.state ' + ' '.join(
     f"WHEN '{state}' THEN {index}" for state, index in WAGE_INDEX.items()) + ' ELSE 1.0 END'
@@ -71,35 +75,44 @@ WITH census AS (
     JOIN __DATES__ d ON d.summary_date = f.summary_date
     GROUP BY f.summary_date, f.facility_id
 ),
-roles (role, role_group, target_ppd, base_rate) AS (VALUES {ROLE_VALUES}),
--- Each facility and role's habits, drawn once for its 2,783 pairs. Materialized:
+roles (role, department, target_ppd, base_rate) AS (VALUES {ROLE_VALUES}),
+-- Each facility and role's habits, drawn once for its 5,566 pairs. Materialized:
 -- inlined, the planner substitutes every draw into the join and runs it on each
 -- of 3.8M rows, which measured 381 s against 184 s.
 habits AS MATERIALIZED (
     SELECT fa.facility_id, r.role, r.target_ppd,
-        {WEEKEND_SQL} AS weekend,
+        {WEEKEND_SQL} AS weekend, r.department IN ({OFFICE_SQL}) AS office,
         (-0.06 + 0.16 * {draw("'staff-building:' || " + FACILITY)})
             + (-0.10 + 0.22 * {draw("'staff-role:' || " + ROLE)}) AS bias,
         r.base_rate * {WAGE_SQL} * (0.94 + 0.12 * {draw("'staff-pay:' || " + ROLE)}) AS pay,
-        -- Squared, so most facilities rarely use agency.
-        0.15 * power({draw("'staff-agency-habit:' || " + ROLE)}, 2) AS agency_share
+        -- Squared, so most facilities rarely use agency; never the office departments.
+        CASE WHEN r.department IN ({OFFICE_SQL}) THEN 0
+            ELSE 0.15 * power({draw("'staff-agency-habit:' || " + ROLE)}, 2) END AS agency_share
     FROM facilities fa
     JOIN regions g ON g.region_id = fa.region_id
     JOIN portfolios p ON p.portfolio_id = g.portfolio_id
     CROSS JOIN roles r
 ),
-shaped AS (
-    SELECT c.summary_date, c.facility_id, h.role,
-        round((h.target_ppd * c.census)::numeric, 1) AS target_hours,
-        greatest(0, round((h.target_ppd * c.census * (1 + h.bias
-            + CASE WHEN extract(isodow FROM c.summary_date) >= 6 THEN h.weekend ELSE 0 END
-            + (-0.08 + 0.16 * {draw("'staff-day:' || " + DAY)})))::numeric, 1)) AS hours,
-        round((h.pay * (1 + {ANNUAL_RAISE} * (c.summary_date - DATE '2023-01-01') / 365.0)
-            * CASE WHEN {draw("'staff-agency:' || " + DAY)} < h.agency_share
-                THEN {AGENCY_PREMIUM} ELSE 1 END)::numeric, 4) AS rate
+-- An office role's weekend is its schedule, not a shortfall, so its budget
+-- drops with it; every other role keeps a full weekend budget and works under it.
+targets AS (
+    SELECT c.summary_date, c.facility_id, h.role, h.bias, h.pay, h.agency_share,
+        h.target_ppd * c.census * CASE WHEN extract(isodow FROM c.summary_date) >= 6 AND h.office
+            THEN 1 + h.weekend ELSE 1 END AS day_target,
+        CASE WHEN extract(isodow FROM c.summary_date) >= 6 AND NOT h.office THEN h.weekend ELSE 0 END AS weekend
     FROM census c
     JOIN habits h ON h.facility_id = c.facility_id
     WHERE c.census > 0
+),
+shaped AS (
+    SELECT h.summary_date, h.facility_id, h.role,
+        round(h.day_target::numeric, 1) AS target_hours,
+        greatest(0, round((h.day_target * (1 + h.bias + h.weekend
+            + (-0.08 + 0.16 * {draw("'staff-day:' || " + DAY)})))::numeric, 1)) AS hours,
+        round((h.pay * (1 + {ANNUAL_RAISE} * (h.summary_date - DATE '2023-01-01') / 365.0)
+            * CASE WHEN {draw("'staff-agency:' || " + DAY)} < h.agency_share
+                THEN {AGENCY_PREMIUM} ELSE 1 END)::numeric, 4) AS rate
+    FROM targets h
 )
 INSERT INTO __STAGE__ (summary_date, facility_id, role, hours_worked, target_hours, excess_hours,
     short_hours, wages, excess_wages)
@@ -182,7 +195,9 @@ class StaffingSummaryGenerator(BaseGenerator):
         columns = sql.SQL(', ').join(map(sql.Identifier, self.table.c.keys()))
         if self.progress:
             self.progress.set_phase('Insert facts', details=f'{generated:,} rows; atomic replacement')
-        inserted = connection.exec_driver_sql(sql.SQL('INSERT INTO {} ({}) SELECT {} FROM {}')
+        # In date order, so a range reads its own days' pages: stored in rebuild
+        # order, 30 days of agency facts read 166,850 pages, 1.1 s cold; in date order 2,736.
+        inserted = connection.exec_driver_sql(sql.SQL('INSERT INTO {} ({}) SELECT {} FROM {} ORDER BY 1, 2')
             .format(self._table_identifier(self.table), columns, columns, sql.Identifier(stage))
             .as_string(driver)).rowcount
         if inserted != generated:

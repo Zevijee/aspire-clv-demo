@@ -4,24 +4,40 @@ import { authorizedFetch } from '../auth/api'
 const base = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000').replace(/\/$/, '')
 
 // shared/staffing.py ROLES, in report order; the API names the same codes.
+// `context` is the role's department, which the role tables and pickers group by.
 export const STAFFING_ROLES = [
-  { value: 'rn', label: 'RN', context: 'Nursing' },
-  { value: 'lpn', label: 'LPN', context: 'Nursing' },
-  { value: 'cna', label: 'CNA', context: 'Nursing' },
-  { value: 'pt', label: 'PT', context: 'Therapy' },
-  { value: 'pta', label: 'PTA', context: 'Therapy' },
-  { value: 'ot', label: 'OT', context: 'Therapy' },
-  { value: 'cota', label: 'COTA', context: 'Therapy' },
-  { value: 'slp', label: 'SLP', context: 'Therapy' },
-  { value: 'dietary_aide', label: 'Dietary Aide', context: 'Support' },
-  { value: 'cook', label: 'Cook', context: 'Support' },
-  { value: 'evs', label: 'EVS', context: 'Support' },
+  { value: 'administrator', label: 'Administrator', context: 'Admin & General' },
+  { value: 'business_office_manager', label: 'Business Office Manager', context: 'Admin & General' },
+  { value: 'hr_payroll', label: 'HR/Payroll', context: 'Admin & General' },
+  { value: 'rn', label: 'RN', context: 'Direct Care' },
+  { value: 'lpn', label: 'LPN', context: 'Direct Care' },
+  { value: 'lpn_supervisor', label: 'LPN Supervisor', context: 'Direct Care' },
+  { value: 'lpn_wound_nurse', label: 'LPN Wound Nurse', context: 'Direct Care' },
+  { value: 'cna', label: 'CNA', context: 'Direct Care' },
+  { value: 'ncna', label: 'NCNA', context: 'Direct Care' },
+  { value: 'cma', label: 'CMA', context: 'Direct Care' },
+  { value: 'cook', label: 'Cook', context: 'Non-Nursing' },
+  { value: 'dietary_aide', label: 'Dietary Aide', context: 'Non-Nursing' },
+  { value: 'dietary_manager', label: 'Dietary Manager', context: 'Non-Nursing' },
+  { value: 'dietician', label: 'Dietician', context: 'Non-Nursing' },
+  { value: 'housekeeper', label: 'Housekeeper', context: 'Non-Nursing' },
+  { value: 'housekeeping_director', label: 'Housekeeping Director', context: 'Non-Nursing' },
+  { value: 'laundry_aide', label: 'Laundry Aide', context: 'Non-Nursing' },
+  { value: 'maintenance_director', label: 'Maintenance Director', context: 'Non-Nursing' },
+  { value: 'social_services_director', label: 'Social Services Director', context: 'Non-Nursing' },
+  { value: 'transportation_driver', label: 'Transportation/Driver', context: 'Non-Nursing' },
+  { value: 'adon_lpn', label: 'ADON LPN', context: 'Nursing Admin' },
+  { value: 'mds_rn', label: 'MDS RN', context: 'Nursing Admin' },
+  { value: 'staffing_coordinator', label: 'Certified Staffing Coordinator (CNA)', context: 'Nursing Admin' },
 ]
+
+// The departments roles belong to: each role's `context`, in report order.
+export const STAFFING_DEPARTMENTS = ['Admin & General', 'Direct Care', 'Non-Nursing', 'Nursing Admin']
 
 /** One role's sums at one facility over the range, to add up and divide once. */
 export type RoleHours = {
   hours: number
-  // Target PPD x each day's census, summed.
+  // Target HPPD x each day's census, summed.
   target_hours: number
   // Hours over each day's target, summed over days.
   excess_hours: number
@@ -38,7 +54,7 @@ export type FacilityStaffing = {
   state: string
   portfolio: string
   region: string
-  // Closing census summed over the range: PPD divides by it.
+  // Closing census summed over the range: HPPD divides by it.
   census_days: number
   roles: Record<string, RoleHours>
 }
@@ -122,67 +138,6 @@ export function getAgencyTrend(startDate: string, endDate: string, roles: string
   return readJson<AgencyTrend>(`${base}/api/v1/staffing/agency/trend?${params}`, signal)
 }
 
-export const agencyLogsBase = `${base}/api/v1/staffing/agency/logs`
-
-/** One agency person on one day: who, where, how long and what it cost. */
-export type AgencyShift = {
-  work_date: string
-  staff_id: string
-  employee_name: string
-  facility_id: string
-  facility_name: string
-  state: string
-  portfolio: string
-  region: string
-  role: string
-  role_label: string
-  hire_date: string
-  hours: number
-  // Wages over hours.
-  rate: number
-  wages: number
-}
-
-export type AgencyLogsPage = {
-  items: AgencyShift[]
-  total: number
-  start_date: string
-  end_date: string
-  available_from: string
-  available_through: string
-}
-
-/** The request's parameters: the range and the table's filters, search and
- * sort. Shared by the page, its filter menus and the CSV. */
-export function agencyLogParameters(startDate: string, endDate: string, roles: string[], query: EmployeesQuery,
-    offset = 0) {
-  const params = new URLSearchParams({ start_date: startDate, end_date: endDate, limit: '50',
-    offset: String(offset), filters: JSON.stringify(query.filters), search: query.search?.trim() ?? '',
-    sort: query.sort?.columnId ?? 'date', direction: query.sort?.direction === 'ascending' ? 'asc' : 'desc' })
-  roles.forEach(role => params.append('roles', role))
-  return params
-}
-
-export function getAgencyLogs(startDate: string, endDate: string, roles: string[], offset: number,
-    query: EmployeesQuery, signal?: AbortSignal) {
-  return readJson<AgencyLogsPage>(
-    `${agencyLogsBase}?${agencyLogParameters(startDate, endDate, roles, query, offset)}`, signal)
-}
-
-export async function downloadAgencyLogs(startDate: string, endDate: string, roles: string[], query: EmployeesQuery) {
-  const response = await authorizedFetch(
-    `${agencyLogsBase}/export?${agencyLogParameters(startDate, endDate, roles, query)}`)
-  if (!response.ok) throw new Error('Agency shift export could not complete.')
-  const url = URL.createObjectURL(await response.blob())
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = `agency-shifts-${startDate}-to-${endDate}.csv`
-  document.body.appendChild(anchor)
-  anchor.click()
-  anchor.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
-
 // --- Trending ----------------------------------------------------------------
 
 // The Trending tab's role picker, kept in the URL; empty means every role the
@@ -210,7 +165,47 @@ export function getPpdTrend(startDate: string, endDate: string, roles: string[],
   return readJson<PpdTrend>(`${base}/api/v1/staffing/ppd/trend?${params}`, signal)
 }
 
+/** One facility's labour cost, budget and census for each day of the range,
+ * aligned to the response's dates, for PPD cost's Trending tab. */
+export type FacilityCostTrend = {
+  facility_id: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  // Total labour cost: straight time plus the agency, overtime and holiday
+  // premiums, orientation, training and sign-on bonuses.
+  cost: number[]
+  // Target hours at each role's straight-time rate that day.
+  budget: number[]
+  census: number[]
+}
+
+export type PpdCostTrend = { start_date: string; end_date: string; dates: string[]; items: FacilityCostTrend[] }
+
+export function getPpdCostTrend(startDate: string, endDate: string, roles: string[], signal?: AbortSignal) {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate })
+  roles.forEach(role => params.append('roles', role))
+  return readJson<PpdCostTrend>(`${base}/api/v1/staffing/ppd-cost/trend?${params}`, signal)
+}
+
 // --- Employees ---------------------------------------------------------------
+
+/** Every employee of a range, compactly: what a Staffing Overview export carries. */
+export type PackedEmployees = {
+  start_date: string
+  end_date: string
+  weeks: number
+  overtime_premium: number
+  facilities: string[][]
+  roles: Record<string, string[]>
+  rows: (string | number)[][]
+}
+
+export function getEmployeesPacked(startDate: string, endDate: string, signal?: AbortSignal) {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate })
+  return readJson<PackedEmployees>(`${base}/api/v1/staffing/employees/packed?${params}`, signal)
+}
 
 export const employeesBase = `${base}/api/v1/staffing/employees`
 
@@ -220,7 +215,7 @@ export type EmployeesQuery = {
   sort: { columnId: string; direction: 'ascending' | 'descending' } | null
 }
 
-/** One staff member with hours in the range: their sums, and the ratios the
+/** One employee with hours in the range: their sums, and the ratios the
  * API divided once. */
 export type Employee = {
   staff_id: string
@@ -230,9 +225,17 @@ export type Employee = {
   state: string
   portfolio: string
   region: string
+  // The role's department: Admin & General, Direct Care, Non-Nursing or Nursing Admin.
+  department: string
   role: string
   role_label: string
   employment_type: string
+  // Active, or Left once their termination date has passed.
+  status: string
+  // The day they left; null while they work here.
+  termination_date: string | null
+  // Yes for agency staff, No for the facility's own employees.
+  agency: string
   hire_date: string
   // Days worked in the range.
   shifts: number
@@ -241,15 +244,23 @@ export type Employee = {
   avg_shift: number
   // Hours over the weeks in the range.
   hours_per_week: number
-  // Hours over 40 in a week, summed over the range's weeks.
+  // Overtime hours over hours worked.
+  overtime_share: number
+  // Hours over 40 in a week, spread over the days worked, summed over the range.
   overtime_hours: number
-  // The facility's closing census summed over the range: PPD divides by it.
+  // The facility's closing census summed over the range: HPPD divides by it.
   census_days: number
   // The employee's hours per patient day at their facility.
   ppd: number | null
   // Wages over hours.
   avg_rate: number
   wages: number
+  // What the overtime hours paid over straight time.
+  overtime_premium: number
+  // What the hours on paid holidays that were not overtime paid over straight time.
+  holiday_premium: number
+  // The shift pickup, 90-day retention and anniversary bonuses paid in the range.
+  bonuses: number
 }
 
 export type EmployeesPage = {
@@ -265,19 +276,36 @@ export type EmployeesPage = {
 
 /** The request's parameters: the range and the table's filters, search and
  * sort. Shared by the page, its filter menus and the CSV. */
-export function employeeParameters(startDate: string, endDate: string, query: EmployeesQuery, offset = 0) {
-  return new URLSearchParams({ start_date: startDate, end_date: endDate, limit: '50',
+/** Which employees: some roles only (empty is every role), and only those with
+ * overtime in the range. Sent with the page, its menus and the CSV alike. */
+export type EmployeesScope = { roles?: string[]; overtimeOnly?: boolean }
+
+export function employeeScopeParameters({ roles = [], overtimeOnly = false }: EmployeesScope = {}) {
+  const params = new URLSearchParams()
+  roles.forEach(role => params.append('roles', role))
+  if (overtimeOnly) params.set('overtime_only', 'true')
+  return params
+}
+
+export function employeeParameters(startDate: string, endDate: string, query: EmployeesQuery, offset = 0,
+    scope: EmployeesScope = {}) {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate, limit: '50',
     offset: String(offset), filters: JSON.stringify(query.filters), search: query.search?.trim() ?? '',
     sort: query.sort?.columnId ?? 'hours', direction: query.sort?.direction === 'ascending' ? 'asc' : 'desc' })
+  employeeScopeParameters(scope).forEach((value, key) => params.append(key, value))
+  return params
 }
 
 export function getEmployees(startDate: string, endDate: string, offset: number, query: EmployeesQuery,
-    signal?: AbortSignal) {
-  return readJson<EmployeesPage>(`${employeesBase}?${employeeParameters(startDate, endDate, query, offset)}`, signal)
+    signal?: AbortSignal, scope: EmployeesScope = {}) {
+  return readJson<EmployeesPage>(`${employeesBase}?${employeeParameters(startDate, endDate, query, offset, scope)}`,
+    signal)
 }
 
-export async function downloadEmployees(startDate: string, endDate: string, query: EmployeesQuery) {
-  const response = await authorizedFetch(`${employeesBase}/export?${employeeParameters(startDate, endDate, query)}`)
+export async function downloadEmployees(startDate: string, endDate: string, query: EmployeesQuery,
+    scope: EmployeesScope = {}) {
+  const response = await authorizedFetch(
+    `${employeesBase}/export?${employeeParameters(startDate, endDate, query, 0, scope)}`)
   if (!response.ok) throw new Error('Employee export could not complete.')
   const url = URL.createObjectURL(await response.blob())
   const anchor = document.createElement('a')
@@ -301,11 +329,11 @@ export type RoleOvertime = {
   hours: number
   // The average rate is wages / hours.
   wages: number
-  // Hours over the weekly line per person, summed.
+  // Hours over the weekly line per employee, summed.
   overtime_hours: number
   // Straight-time pay of the overtime hours: the premium is `premium` x this.
   overtime_wages: number
-  // Person-days with any overtime.
+  // Employee-days with any overtime.
   overtime_shifts: number
 }
 
@@ -365,7 +393,7 @@ export function getOvertimeTrend(startDate: string, endDate: string, roles: stri
 
 export const overtimeLogsBase = `${base}/api/v1/staffing/overtime/logs`
 
-/** One person on one day with overtime: who, where, how much of the day was
+/** One employee on one day with overtime: who, where, how much of the day was
  * over the line and what it cost. */
 export type OvertimeShift = {
   work_date: string
@@ -422,4 +450,89 @@ export async function downloadOvertimeLogs(startDate: string, endDate: string, r
   anchor.click()
   anchor.remove()
   window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+// --- Overview ----------------------------------------------------------------
+
+/** One role's sums at one facility over the range, to add up and divide once at
+ * any drilldown level, for any set of roles. Every field is additive. */
+export type RoleOverview = {
+  // Hours worked: the hours HPPD counts.
+  hours: number
+  // Budget: target HPPD x census, each day.
+  target_hours: number
+  excess_hours: number
+  // Straight-time pay for the hours worked at each day's in-house rate.
+  wages: number
+  // The hours over each day's budget at that rate.
+  excess_wages: number
+  overtime_hours: number
+  // Straight-time pay of the overtime hours.
+  overtime_wages: number
+  // Hours on a paid holiday that were not overtime, and their straight-time pay.
+  holiday_hours: number
+  holiday_wages: number
+  agency_hours: number
+  // What the agency hours cost over the in-house rate, as Agency vs In-house prices it.
+  agency_premium: number
+  new_hires: number
+  // Paid orientation, in the classroom and on the floor shadowing a preceptor:
+  // in total hours and cost, never in hours worked or HPPD.
+  classroom_orientation_hours: number
+  classroom_orientation_wages: number
+  floor_orientation_hours: number
+  floor_orientation_wages: number
+  // The calendar days the hires took to finish classroom, then floor,
+  // orientation, summed over them: the average is these over new_hires.
+  classroom_orientation_days: number
+  floor_orientation_days: number
+  bonuses: number
+  // What the agency hours were paid: the agency rate is this over agency_hours.
+  agency_wages: number
+  // Hours worked by the facility's own employees.
+  inhouse_hours: number
+  // In-service training: paid like orientation, in total hours and cost, never in HPPD.
+  training_hours: number
+  training_wages: number
+}
+
+export type FacilityOverview = {
+  facility_id: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  // Closing census summed over the range, once per facility: HPPD for any set
+  // of roles divides by it.
+  census_days: number
+  roles: Record<string, RoleOverview>
+}
+
+export type StaffingOverview = {
+  start_date: string
+  end_date: string
+  days: number
+  holidays: string[]
+  // What an overtime or holiday hour pays over straight time, as a share of its pay.
+  overtime_premium: number
+  holiday_premium: number
+  items: FacilityOverview[]
+}
+
+// The response as sent: each role's measures an array in `measures` order,
+// which is a third the size of 5,566 objects with named fields.
+type StaffingOverviewResponse = Omit<StaffingOverview, 'items'> & {
+  measures: (keyof RoleOverview)[]
+  items: (Omit<FacilityOverview, 'roles'> & { roles: Record<string, number[]> })[]
+}
+
+export async function getStaffingOverview(startDate: string, endDate: string, signal?: AbortSignal) {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate })
+  const body = await readJson<StaffingOverviewResponse>(`${base}/api/v1/staffing/overview?${params}`, signal)
+  const { measures, items, ...rest } = body
+  return {
+    ...rest,
+    items: items.map(item => ({ ...item, roles: Object.fromEntries(Object.entries(item.roles).map(([code, values]) =>
+      [code, Object.fromEntries(measures.map((measure, index) => [measure, values[index]])) as RoleOverview])) })),
+  } as StaffingOverview
 }

@@ -12,12 +12,14 @@ type FilterDropdownProps = DataStateProps & {
   onChange: (values: string[]) => void
   placeholder?: string
   variant?: 'compact' | 'detailed'
+  /** With the detailed variant, list the options under a heading per context. */
+  groupByContext?: boolean
   /** Told when the list opens or closes, for options that load on demand. */
   onOpenChange?: (open: boolean) => void
 }
 
 export function FilterDropdown({ label, options, values, onChange,
-  placeholder = `All ${label.toLowerCase()}`, variant = 'compact', loading, error, onRetry,
+  placeholder = `All ${label.toLowerCase()}`, variant = 'compact', groupByContext = false, loading, error, onRetry,
   onOpenChange }: FilterDropdownProps) {
   const [open, setOpen] = useState(false)
   const id = useId()
@@ -32,7 +34,8 @@ export function FilterDropdown({ label, options, values, onChange,
     <label className="filter-dropdown__label" htmlFor={`${id}-trigger`}>{label}</label>
     <Popover open={open} onOpenChange={next => { setOpen(next); onOpenChange?.(next) }} trigger="click" placement="bottomLeft"
     destroyOnHidden content={<div id={id} role="dialog" aria-label={`Filter ${label.toLowerCase()}`}
-      className="filter-dropdown__panel" onKeyDown={event => {
+      className={`filter-dropdown__panel${variant === 'detailed' ? ' filter-dropdown__panel--detailed' : ''}`}
+      onKeyDown={event => {
         if (event.key === 'Escape') {
           event.stopPropagation()
           setOpen(false)
@@ -41,13 +44,20 @@ export function FilterDropdown({ label, options, values, onChange,
         }
       }}>
       {loading || error ? <DataState loading={loading} error={error} onRetry={onRetry} label={label} /> : variant === 'detailed'
-        ? <FilterValuePicker label={label} options={options} values={values} onChange={onChange} />
+        ? <FilterValuePicker label={label} options={options} values={values} onChange={onChange}
+          groupByContext={groupByContext} compact />
         : <MultiSelectFilterOptions label={label} options={options} selectedValues={values} onChange={onChange} />}
     </div>}>
     <button id={`${id}-trigger`} ref={trigger} type="button" className="filter-dropdown__trigger"
       aria-label={`${label}: ${summary}`} aria-haspopup="dialog" aria-expanded={open}
       aria-controls={open ? id : undefined}>
-      <span>{summary}</span>
+      {/* As wide as its widest text -- the placeholder or every option
+          selected -- so picking never moves the controls beside it. */}
+      <span className="filter-dropdown__summary">
+        <span>{summary}</span>
+        <span className="filter-dropdown__sizer" aria-hidden="true">{placeholder}</span>
+        <span className="filter-dropdown__sizer" aria-hidden="true">{`${options.length} selected`}</span>
+      </span>
       <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
         <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.5" />
       </svg>

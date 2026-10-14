@@ -49,11 +49,20 @@ SHARED_RULES = {
     # Roles, targets and base rates, shared with the API; and the stable draws.
     'staffing_summary': ('../shared/staffing.py', 'source_data_generators/draws.py'),
     # The agency and overtime draws for each facility, role and day.
-    'agency_summary': ('source_data_generators/draws.py',),
+    'agency_summary': ('../shared/staffing.py', 'source_data_generators/draws.py'),
     'overtime_summary': ('source_data_generators/draws.py',),
+    'onboarding_summary': ('../shared/staffing.py', 'source_data_generators/draws.py'),
+    'training_summary': ('../shared/staffing.py', 'source_data_generators/draws.py'),
+    # The paid holidays its holiday hours count.
+    'staffing_cost_summary': ('../shared/holidays.py',),
+    # The paid holidays its holiday pay counts.
+    'facility_staffing_summary': ('../shared/holidays.py',),
     # The roster's roles, targets and rates; the hours' employment habits and draws.
-    'staff_members': ('../shared/staffing.py',),
+    # ... and the turnover its departures follow, from the onboarding rules.
+    'staff_members': ('../shared/staffing.py', 'summary_generators/aspire-onboarding.py'),
     'staff_hours': ('../shared/staffing.py', 'source_data_generators/draws.py'),
+    # The roles it covers, and the pickup and program draws.
+    'staff_bonuses': ('../shared/staffing.py', 'source_data_generators/draws.py'),
 }
 # Reference data rebuilt from its rules alone, as `<name> --regenerate` does.
 REFERENCE = ('payer_rates', 'facility_beds', 'referring_hospitals', 'staff_members')

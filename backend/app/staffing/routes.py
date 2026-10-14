@@ -6,14 +6,33 @@ from fastapi.responses import StreamingResponse
 from ..common.dates import DateRange
 from ..common.errors import ApiError, ErrorResponse
 from ..database import DbConnection
-from . import agency, employees, overtime, ppd
+from . import agency, employees, overtime, overview, ppd
 
 router = APIRouter(prefix='/staffing', tags=['Staffing'])
 
 
+@router.get('/overview', response_model=overview.OverviewReport, responses={409: {'model': ErrorResponse}})
+def overview_report(connection: DbConnection, query: Annotated[DateRange, Query()]):
+    """Staffing Overview: every facility's census days, hours worked against
+    budget, overtime, holiday, agency and classroom and floor orientation hours,
+    and the straight-time pay, premiums, orientation pay and bonuses that make
+    up labour cost, every
+    role together, between `start_date` and `end_date`, for the page to add up
+    at any level and divide once."""
+    return overview.report(connection, query)
+
+
+@router.get('/employees/packed', response_model=employees.PackedEmployees, responses={409: {'model': ErrorResponse}})
+def employees_packed(connection: DbConnection, query: Annotated[DateRange, Query()]):
+    """Every employee with hours between `start_date` and `end_date`, compactly:
+    what a Staffing Overview export carries, so its employee windows work in the
+    file. Labels repeated across rows are listed once and referred to by index."""
+    return employees.packed(connection, query)
+
+
 @router.get('/employees', response_model=employees.EmployeesPage, responses={409: {'model': ErrorResponse}})
 def employees_page(connection: DbConnection, query: Annotated[employees.EmployeesQuery, Query()]):
-    """PPD's Employees tab: every staff member with hours between `start_date`
+    """The Staffing Overview's Employees tab: every employee with hours between `start_date`
     and `end_date` in the repeated `roles` (or all), paged: their shifts, hours,
     average shift, hours a week, overtime, hours per patient day at their
     facility, average rate and wages. Only the last 120 days of hours are kept;
@@ -33,7 +52,7 @@ def employee_export(request: Request, query: Annotated[employees.EmployeesQuery,
     if query.sort is not None and query.sort not in employees.SORTABLE:
         raise ApiError('invalid_sort', 'Unsupported sort column.')
     return StreamingResponse(employees.csv_chunks(request.app.state.database, query), media_type='text/csv',
-        headers={'Content-Disposition': 'attachment; filename="ppd-employees.csv"'})
+        headers={'Content-Disposition': 'attachment; filename="hppd-employees.csv"'})
 
 
 @router.get('/ppd', response_model=ppd.PpdReport, responses={409: {'model': ErrorResponse}})
@@ -61,6 +80,15 @@ def agency_report(connection: DbConnection, query: Annotated[DateRange, Query()]
     of hours are kept; the range is clamped to them and the response says which
     days exist."""
     return agency.report(connection, query)
+
+
+@router.get('/ppd-cost/trend', response_model=ppd.PpdCostTrend, responses={409: {'model': ErrorResponse}})
+def ppd_cost_trend(connection: DbConnection, query: Annotated[ppd.TrendQuery, Query()]):
+    """PPD cost's Trending tab: every facility's labour cost, budget and closing
+    census for each day of the range, over the repeated `roles` (or every role),
+    as arrays in `dates` order, to add up at any drilldown level and divide day
+    by day."""
+    return ppd.cost_trend(connection, query)
 
 
 @router.get('/agency/trend', response_model=agency.AgencyTrend, responses={409: {'model': ErrorResponse}})

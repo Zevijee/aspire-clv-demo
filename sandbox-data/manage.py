@@ -48,7 +48,7 @@ def main():
     daily = args.generator in ('seed', 'update', 'all', 'admissions_summary', 'discharges_summary',
         'payer_changes_summary', 'net_change_summary', 'monthly_adt_summary', 'referrals_summary',
         'monthly_adt_facts', 'census_logs', 'pdpm_census_summary', 'medicaid_census_summary', 'resident_summaries', 'bed_assignments', 'transfer_logs', 'incident_logs', 'infection_logs', 'weight_logs', 'progress_notes',
-        'staffing_summary', 'facility_staffing_summary', 'staff_hours', 'agency_summary', 'overtime_summary')
+        'staffing_summary', 'facility_staffing_summary', 'staff_hours', 'staff_bonuses', 'agency_summary', 'overtime_summary', 'onboarding_summary', 'training_summary', 'staffing_cost_summary')
     standalone = args.generator in ('res_stays', 'admission_logs', 'discharge_logs',
         'payer_change_logs')
     if args.date and (args.start or args.through):
@@ -72,7 +72,7 @@ def main():
             'net_change_summary',
             'monthly_adt_summary', 'referrals_summary', 'monthly_adt_facts', 'census_logs', 'pdpm_census_summary', 'medicaid_census_summary',
             'payer_change_logs', 'resident_summaries', 'bed_assignments', 'transfer_logs', 'incident_logs', 'infection_logs', 'weight_logs', 'progress_notes',
-            'staffing_summary', 'facility_staffing_summary', 'staff_hours', 'agency_summary', 'overtime_summary')
+            'staffing_summary', 'facility_staffing_summary', 'staff_hours', 'staff_bonuses', 'agency_summary', 'overtime_summary', 'onboarding_summary', 'training_summary', 'staffing_cost_summary')
         daily_target = args.only or (args.generator if args.generator in summaries else 'all')
         daily_plan = BaseGenerator.daily_plan(daily_target) if daily else ()
         start = args.date or args.start

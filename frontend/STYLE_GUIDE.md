@@ -26,10 +26,12 @@ Inspect these owners before adding another implementation. Paths and component n
 | --- | --- |
 | Report shell, title, header filters, body scrolling | `src/shared/components/layout/ReportLayout.tsx` |
 | Report tabs | `src/shared/components/layout/ReportTabs.tsx` |
-| A row of buttons choosing one view or category inside a tab, or with `values` several at once (PPD Trending's roles) | `src/shared/components/SegmentedControl.tsx` |
+| A row of buttons choosing one view or category inside a tab, or with `values` several at once | `src/shared/components/SegmentedControl.tsx` |
 | An on/off switch, or a choice between exactly two values ("Stay start ◯ ARD") | `src/shared/components/Toggle.tsx` |
 | Tables, sorting, search, export, column filters, pinned columns | `src/shared/components/Table.tsx` |
 | Hierarchical tables with default totals | `src/shared/components/DrilldownTable.tsx` |
+| Columns grouped under a shared label, with a rule down each group (the Staffing Overview's Hours, Cost, Hourly rate) | `TableColumn.group` in `src/shared/components/Table.tsx` |
+| Rows grouped into sections, one row per section followed by its rows, indented and tinted (the staffing role tables' departments) | `Table`'s `sections` prop (`TableSections`); staffing builds its departments with `src/features/staffing/departmentSections.ts` |
 | Breadcrumbs and custom location-view context | `src/shared/components/DrilldownNavigation.tsx` |
 | Location drilldown done in the browser: grouping facility rows by path or custom grouping, its navigation bar and name column | `src/shared/utils/locationDrilldown.ts` (`groupByLocation`, `facilityRows`), `src/shared/components/LocationNavigation.tsx` (`LocationNavigation`, `locationColumn`) |
 | Header filter placement | `src/shared/components/filters/ReportFilters.tsx` |
@@ -47,6 +49,8 @@ Inspect these owners before adding another implementation. Paths and component n
 | Show all facilities from a drilldown (every drilldown has one) | `src/shared/components/AllFacilitiesModal.tsx` with `OpenViewButton` |
 | Facility name with its region, portfolio and state on hover | `src/shared/components/LocationName.tsx` |
 | Header button that opens another view (outlined, never the solid Export style) | `src/shared/components/OpenViewButton.tsx` |
+| Report header Export, right of the date range: the report as shown, as one HTML file (hidden for now: `SHOW_REPORT_EXPORT` in `App.tsx`) | `src/shared/components/ReportExportButton.tsx` |
+| Something a report adds to its HTML export (data, a script), while it is on screen | `src/shared/exportExtensions.ts` (the Staffing Overview's employee windows: `features/staffing/employeesExport.ts`) |
 | Icon-only download for a card's own data (a blue arrow into a tray, in a quiet square frame) | `src/shared/components/DownloadButton.tsx` |
 | Isolated report state inside modals | `src/shared/components/ReportSearchContext.tsx` |
 | Visual tokens / shared CSS | `src/index.css` / `src/App.css` |

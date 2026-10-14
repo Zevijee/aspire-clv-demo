@@ -38,6 +38,10 @@ export type TableColumn<Row> = {
   /** Optional CSV text when the displayed value includes meaningful status. */
   exportValue?: (row: Row) => SortValue
   header: string
+  /** A label shared by consecutive columns: drawn once above them, spanning
+   * them, with a rule down the left of the group. Columns without one get an
+   * empty cell in that header row. */
+  group?: string
   /** A colour token for a small square before the header, when the column
    * stands for a series a chart beside the table draws in that colour: the
    * header then keys the chart, and the chart needs no legend of its own. */
@@ -88,6 +92,45 @@ function TruncatedCell({ children, fullText }: { children: ReactNode; fullText: 
 const truncates = <Row,>(column: TableColumn<Row>) => column.numeric !== true && column.dataType !== 'boolean'
   && column.truncate !== false
 
+/** Rows grouped into nested sections by a path, outermost first: a staffing
+ * role's is its department and role group, ['Direct Care', 'LPN']. Each
+ * section is one row -- `getRow`'s, its rows added up -- drawn like any other
+ * row and followed by what it holds: its subsections, or at the innermost
+ * level its rows, indented and tinted as its children. Sections come in the
+ * order their first row comes in `rows`; sorting orders the rows within each
+ * innermost section. CSV exports list every section's row before what it holds. */
+export type TableSections<Row> = {
+  getPath: (row: Row) => string[]
+  getRow: (path: string[], rows: Row[]) => Row
+}
+
+// The space between a floating table top (floatHeader) and the drilldown bar above it, in px.
+const FLOAT_SPACE = 8
+// The floating table top's corner radius, as the card's: the blank band runs this far behind it.
+const FLOAT_CORNER = 8
+
+type SectionNode<Row> = { path: string[]; row: Row; sections: SectionNode<Row>[]; rows: Row[] }
+
+/** The rows' sections at one depth, in order of first appearance, each with its
+ * own sections below it or, at its rows' last path entry, the rows themselves. */
+function buildSections<Row>(rows: Row[], sections: TableSections<Row>, prefix: string[] = []): SectionNode<Row>[] {
+  const depth = prefix.length
+  const byName = new Map<string, Row[]>()
+  for (const row of rows) {
+    const name = sections.getPath(row)[depth]
+    if (name === undefined) continue
+    byName.set(name, [...(byName.get(name) ?? []), row])
+  }
+  return [...byName].map(([name, members]) => {
+    const path = [...prefix, name]
+    const inner = members.filter(row => sections.getPath(row).length > path.length)
+    return { path, row: sections.getRow(path, members),
+      sections: inner.length ? buildSections(inner, sections, path) : [],
+      rows: members.filter(row => sections.getPath(row).length === path.length) }
+  })
+}
+
+
 export type TableProps<Row> = DataStateProps & {
   retainRowsWhileLoading?: boolean
   columns: TableColumn<Row>[]
@@ -111,6 +154,11 @@ export type TableProps<Row> = DataStateProps & {
   emptyMessage: string
   footer?: ReactNode
   getFooterRow?: (visibleRows: Row[]) => Row | null
+  sections?: TableSections<Row>
+  /** Keep the table's top -- its title bar and column headers -- in view as
+   * the page scrolls past it, below the drilldown bar, for a table tall enough
+   * to scroll its headers away. Off by default: only tables that ask for it. */
+  floatHeader?: boolean
   getRowKey: (row: Row) => string
   getRowClassName?: (row: Row) => string | undefined
   onRowClick?: (row: Row) => void
@@ -384,6 +432,8 @@ export function Table<Row>({
   filterSource,
   footer,
   getFooterRow,
+  sections,
+  floatHeader = false,
   getRowKey,
   getRowClassName,
   onRowClick,
@@ -427,6 +477,142 @@ export function Table<Row>({
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const horizontalScrollRef = useRef<HTMLDivElement | null>(null)
   const [horizontalTrack, setHorizontalTrack] = useState({ left: 0, width: 0, content: 0 })
+  // With floatHeader, a table taller than the page keeps its top in view as the
+  // page scrolls past it -- the title bar with its count and actions, and the
+  // column headers --
+  // without a scrollbar of its own: CSS sticky cannot do it, since the
+  // horizontal scroller around the table is what a sticky header would stick
+  // to. Both move down together, as one block, to the bottom of whatever is
+  // stuck at the top of the page's scroller (the drilldown bar), never past the
+  // table's last rows. Internal-scroll tables have their own sticky header.
+  useLayoutEffect(() => {
+    if (internalScroll || !floatHeader) return
+    const box = scrollRef.current
+    const table = box?.querySelector('table')
+    const head = table?.querySelector('thead')
+    const titleBar = box?.parentElement?.querySelector<HTMLElement>(':scope > .report-table__header') ?? null
+    if (!box || !table || !head) return
+    // The page's scroller: the nearest one above the table's own horizontal
+    // scroller, which counts as scrolling vertically too (overflow-x forces it).
+    let scroller: HTMLElement | null = scrollRef.current?.parentElement ?? null
+    while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement
+    if (!scroller) return
+    const page = scroller
+    // Sticky elements stick below the scroller's top padding.
+    const padding = parseFloat(getComputedStyle(page).paddingTop) || 0
+    // The bottom of whatever is stuck at the top of the page now, outside any
+    // table: the sticky elements under the line they stick to. Looked up on
+    // every placement, never remembered, since drilling or a new tab replaces
+    // the drilldown bar and a remembered one would be measured detached.
+    const stuckBottom = (top: number) => {
+      const area = page.getBoundingClientRect()
+      // Two ways to find them, fresh each time: what lies under the sticking
+      // line, and the page's top three levels (the drilldown bar is the second).
+      const candidates = new Set<Element>()
+      for (const element of document.elementsFromPoint(area.left + area.width / 2, top + padding + 2)) {
+        for (let node: Element | null = element; node && node !== page; node = node.parentElement) candidates.add(node)
+      }
+      page.querySelectorAll(':scope > *, :scope > * > *, :scope > * > * > *').forEach(node => candidates.add(node))
+      let bottom = top
+      for (const node of candidates) {
+        if (!page.contains(node) || node.closest('.report-table')) continue
+        const style = getComputedStyle(node)
+        if (style.position !== 'sticky') continue
+        const rect = node.getBoundingClientRect()
+        // Stuck: sitting at the line it sticks to, not scrolled past it.
+        if (rect.top <= top + padding + (parseFloat(style.top) || 0) + 1 && rect.bottom > top) {
+          bottom = Math.max(bottom, rect.bottom)
+        }
+      }
+      return bottom
+    }
+    let frame = 0
+    const place = () => {
+      frame = 0
+      const top = page.getBoundingClientRect().top
+      const edge = stuckBottom(top)
+      const tableRect = table.getBoundingClientRect()
+      const footer = table.querySelector('tfoot')?.getBoundingClientRect().height ?? 0
+      const room = tableRect.height - head.offsetHeight - footer
+      // Where the block starts in the layout: the title bar's top, from its
+      // offset above the table's scroller, which no transform changes.
+      const start = titleBar ? box.getBoundingClientRect().top - (box.offsetTop - titleBar.offsetTop) : tableRect.top
+      // A little space below what is stuck above it, so the two never touch.
+      const space = edge > top ? FLOAT_SPACE : 0
+      const offset = Math.max(0, Math.min(edge + space - start, room))
+      // Whole pixels, and the header row a little over the foot of the title
+      // bar's padding: fractional offsets leave a seam between the two that
+      // rows show through.
+      const shift = Math.round(offset)
+      // The header row lands so the line between its rows (or its foot) falls
+      // on a whole device pixel: a line between pixels is half covered by
+      // either row and the rows it floats over show through it.
+      const firstRow = head.rows[0]?.getBoundingClientRect().height ?? 0
+      const ratio = window.devicePixelRatio || 1
+      const headLift = titleBar ? Math.min(4, shift) : 0
+      const line = tableRect.top + shift - headLift + firstRow
+      const snap = shift > 0 ? Math.round(line * ratio) / ratio - line : 0
+      for (const element of [titleBar, head]) {
+        if (!element) continue
+        const move = element === head ? shift - headLift + snap : shift
+        element.style.transform = shift > 0 ? `translateY(${move}px)` : ''
+        element.classList.toggle('report-table__floating', shift > 0)
+      }
+      head.classList.toggle('report-table__head--floating', offset > 0)
+      // The layout space between the title bar and the header row moves with
+      // them; the title bar's colour fills it, or rows show through.
+      if (titleBar) {
+        const gap = Math.round(tableRect.top - start - titleBar.offsetHeight)
+        // Drawn as the card's own top: its border and shadow round the title
+        // bar (CSS rounds the corners), and the colour filling the gap below.
+        titleBar.style.boxShadow = shift > 0 ? ['0 0 0 1px var(--color-border)', 'var(--shadow-report-card)',
+          ...(gap > 0 ? [`0 ${gap}px 0 0 var(--color-surface)`] : [])].join(', ') : ''
+        // A panel the header's height backs it from below the title bar (CSS).
+        titleBar.style.setProperty('--float-head-height', `${head.offsetHeight}px`)
+        // Under a pinned first column, the panel takes the pinned column's colour.
+        const pinned = table.classList.contains('report-table__table--sticky-first')
+          ? head.rows[head.rows.length - 1]?.cells[0]?.getBoundingClientRect().width ?? 0 : 0
+        titleBar.style.setProperty('--float-pin-width', `${pinned}px`)
+        // Everything above the floating block, up to the top of the page's
+        // scroller, is blank page -- the rows scrolled up behind it, and the
+        // card's own border and shadow there, would otherwise show -- and it
+        // runs a little into the block, behind its rounded corners. A band on
+        // the card, above the rows and below the block (CSS).
+        const card = box.parentElement
+        if (card) {
+          card.classList.toggle('report-table--floating', shift > 0)
+          const blockTop = start + shift - card.getBoundingClientRect().top
+          const cover = Math.max(0, start + shift - top)
+          card.style.setProperty('--float-band-top', `${blockTop - cover}px`)
+          card.style.setProperty('--float-band-height', `${cover + FLOAT_CORNER}px`)
+        }
+      }
+    }
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(place) }
+    page.addEventListener('scroll', schedule, { passive: true })
+    window.addEventListener('resize', schedule)
+    const observer = new ResizeObserver(schedule)
+    observer.observe(table)
+    place()
+    return () => {
+      page.removeEventListener('scroll', schedule)
+      window.removeEventListener('resize', schedule)
+      observer.disconnect()
+      if (frame) cancelAnimationFrame(frame)
+      for (const element of [titleBar, head]) {
+        if (!element) continue
+        element.style.transform = ''
+        element.classList.remove('report-table__floating')
+      }
+      if (titleBar) {
+        titleBar.style.boxShadow = ''
+        titleBar.style.removeProperty('--float-head-height')
+        titleBar.style.removeProperty('--float-pin-width')
+      }
+      box.parentElement?.classList.remove('report-table--floating')
+      head.classList.remove('report-table__head--floating')
+    }
+  }, [internalScroll, floatHeader])
   useLayoutEffect(() => {
     if (!stickyFirstColumn) return
     const scroller = scrollRef.current
@@ -516,6 +702,17 @@ export function Table<Row>({
     .map((column) => column.dataType || column.format || column.change || column.numeric || rows.length === 0
       || !rows.every((row) => { const value = column.value(row); return value === 'Yes' || value === 'No' })
       ? column : { ...column, dataType: 'boolean' as const }), [columns, rows])
+  // Column groups: one header span per run of columns sharing a group, and the
+  // columns that start a group, which draw a rule down their left.
+  const columnGroups = visibleColumns.some(column => column.group) ? visibleColumns.reduce<
+    { key: string; group?: string; span: number }[]>((spans, column, index) => {
+      const last = spans[spans.length - 1]
+      if (last && column.group && last.group === column.group) last.span += 1
+      else spans.push({ key: `${index}:${column.group ?? ''}`, group: column.group, span: 1 })
+      return spans
+    }, []) : null
+  const groupStarts = new Set(visibleColumns.filter((column, index) =>
+    column.group && column.group !== visibleColumns[index - 1]?.group).map(column => column.id))
   const hiddenFilterColumns = useMemo(
     () => columns.filter((column) => column.hidden === true && column.filterable === true && column.numeric !== true),
     [columns],
@@ -626,12 +823,66 @@ export function Table<Row>({
     // Keep every column in place, including when the new results have shorter text.
     // Releasing the width after loading lets the browser clamp scrollLeft again.
     if (table) {
-      const widths = Array.from(table.querySelectorAll('thead th'), (cell) => cell.getBoundingClientRect().width)
+      const widths = Array.from(table.querySelectorAll('thead tr:last-child th'), (cell) => cell.getBoundingClientRect().width)
       table.style.minWidth = `${table.getBoundingClientRect().width}px`
       setLockedColumns({ ids: columnIds, widths })
     }
   }
   const footerRow = getFooterRow?.(sortedRows) ?? null
+  const renderRow = (row: Row, extraClassName?: string) => (
+    <tr className={[getRowClassName?.(row), extraClassName, onRowClick ? 'report-table__row--clickable' : ''].filter(Boolean).join(' ')} key={getRowKey(row)}
+      tabIndex={onRowClick ? 0 : undefined}
+      onClick={onRowClick ? event => {
+        if ((event.target as HTMLElement).closest('button, a, input, select, textarea')) return
+        onRowClick(row)
+      } : undefined}
+      onKeyDown={onRowClick ? event => {
+        if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault()
+          onRowClick(row)
+        }
+      } : undefined}>
+      {renderBodyCells(row)}
+    </tr>
+  )
+  const renderBodyCells = (row: Row) => visibleColumns.map((column) => {
+    const className = [column.numeric ? 'report-table__numeric' : '', groupStarts.has(column.id) ? 'report-table__cell--group-start' : '', highlightColumnOnHover && column.highlightOnHover !== false && hoveredColumn === column.id ? 'report-table__cell--column-hover' : ''].filter(Boolean).join(' ')
+    const rendered = renderTableCell(column, row)
+    const formattedValue = truncates(column)
+      ? <TruncatedCell fullText={String(column.value(row))}>{rendered}</TruncatedCell>
+      : column.truncate === false ? <span className="report-table__cell-whole">{rendered}</span> : rendered
+
+    return column.isRowHeader ? (
+      <th onMouseEnter={highlightColumnOnHover ? (event) => column.highlightOnHover === false ? setHoveredColumn(null) : highlightColumn(event.currentTarget, column.id) : undefined} className={className} key={column.id} scope="row">
+        {sized(column.id, formattedValue)}
+      </th>
+    ) : (
+      <td onMouseEnter={highlightColumnOnHover ? (event) => column.highlightOnHover === false ? setHoveredColumn(null) : highlightColumn(event.currentTarget, column.id) : undefined} className={className} key={column.id}>
+        {sized(column.id, formattedValue)}
+      </td>
+    )
+  })
+  // Total cells, for the footer's Total row.
+  const renderTotalCells = (row: Row) => visibleColumns.map((column) => {
+    const className = [column.numeric ? 'report-table__numeric' : '', groupStarts.has(column.id) ? 'report-table__cell--group-start' : '', highlightColumnOnHover && column.highlightOnHover !== false && hoveredColumn === column.id ? 'report-table__cell--column-hover' : ''].filter(Boolean).join(' ')
+    const formattedValue = renderTableCell(column, row)
+
+    return column.isRowHeader ? (
+      <th onMouseEnter={highlightColumnOnHover ? (event) => column.highlightOnHover === false ? setHoveredColumn(null) : highlightColumn(event.currentTarget, column.id) : undefined} className={className} key={column.id} scope="row">
+        {sized(column.id, formattedValue)}
+      </th>
+    ) : (
+      <td onMouseEnter={highlightColumnOnHover ? (event) => column.highlightOnHover === false ? setHoveredColumn(null) : highlightColumn(event.currentTarget, column.id) : undefined} className={className} key={column.id}>
+        {sized(column.id, formattedValue)}
+      </td>
+    )
+  })
+  // The visible rows by section, sorted within each; a section with none is left out.
+  const sectionTree = sections ? buildSections(sortedRows, sections) : null
+  // Every section's row, then what it holds, as the body draws them.
+  const flattenSections = <Item,>(nodes: SectionNode<Row>[], section: (node: SectionNode<Row>) => Item,
+      row: (row: Row, depth: number) => Item): Item[] => nodes.flatMap(node => [section(node),
+    ...flattenSections(node.sections, section, row), ...node.rows.map(member => row(member, node.path.length))])
   useLayoutEffect(() => {
     if (openFilterColumnId === null) return
     const anchor = activeFilterMenuRef.current
@@ -767,7 +1018,9 @@ export function Table<Row>({
           if (onExport) {
             await onExport()
           } else {
-            const exportRows = getExportRows ? await getExportRows() : sortedRows
+            const exportRows = getExportRows ? await getExportRows() : sectionTree
+              ? flattenSections(sectionTree, node => node.row, row => row)
+              : sortedRows
             downloadCsv(exportFileName, columns, exportRows)
           }
         } catch {
@@ -789,6 +1042,8 @@ export function Table<Row>({
       aria-labelledby={titleId}
       className={`report-table ${internalScroll ? 'report-table--internal-scroll' : ''}${
         alignTop ? ' report-table--align-top' : ''}${resizableColumns ? ' report-table--resizable' : ''}`}
+      // Read by the report export (ReportExportButton), which floats it the same way.
+      data-float-header={floatHeader && !internalScroll ? '' : undefined}
     >
       <header className="report-table__header">
         <div className="report-table__heading">
@@ -845,6 +1100,13 @@ export function Table<Row>({
           <caption className="visually-hidden">{title}</caption>
           {lockedWidths && <colgroup>{lockedWidths.map((width, index) => <col key={visibleColumns[index].id} style={{ width }} />)}</colgroup>}
           <thead>
+            {columnGroups && <tr className="report-table__group-row">
+              {columnGroups.map(span => <th key={span.key} colSpan={span.span > 1 ? span.span : undefined}
+                scope={span.group ? 'colgroup' : undefined}
+                className={span.group ? 'report-table__column-group report-table__cell--group-start' : 'report-table__column-group'}>
+                {span.group}
+              </th>)}
+            </tr>}
             <tr>
               {visibleColumns.map((column) => {
                 const isFilterable = column.filterable === true
@@ -877,7 +1139,7 @@ export function Table<Row>({
                   <th
                     aria-sort={isSortable ? direction ?? 'none' : undefined}
                     onMouseEnter={highlightColumnOnHover ? (event) => column.highlightOnHover === false ? setHoveredColumn(null) : highlightColumn(event.currentTarget, column.id) : undefined}
-                    className={[column.numeric ? 'report-table__numeric' : '', highlightColumnOnHover && column.highlightOnHover !== false && hoveredColumn === column.id ? 'report-table__cell--column-hover' : ''].filter(Boolean).join(' ')}
+                    className={[column.numeric ? 'report-table__numeric' : '', groupStarts.has(column.id) ? 'report-table__cell--group-start' : '', highlightColumnOnHover && column.highlightOnHover !== false && hoveredColumn === column.id ? 'report-table__cell--column-hover' : ''].filter(Boolean).join(' ')}
                     key={column.id}
                     scope="col"
                   >
@@ -1067,57 +1329,19 @@ export function Table<Row>({
                 </td>
               </tr>
             ) : (
-              sortedRows.map((row) => (
-                <tr className={[getRowClassName?.(row), onRowClick ? 'report-table__row--clickable' : ''].filter(Boolean).join(' ')} key={getRowKey(row)}
-                  tabIndex={onRowClick ? 0 : undefined}
-                  onClick={onRowClick ? event => {
-                    if ((event.target as HTMLElement).closest('button, a, input, select, textarea')) return
-                    onRowClick(row)
-                  } : undefined}
-                  onKeyDown={onRowClick ? event => {
-                    if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
-                      event.preventDefault()
-                      onRowClick(row)
-                    }
-                  } : undefined}>
-                  {visibleColumns.map((column) => {
-                    const className = [column.numeric ? 'report-table__numeric' : '', highlightColumnOnHover && column.highlightOnHover !== false && hoveredColumn === column.id ? 'report-table__cell--column-hover' : ''].filter(Boolean).join(' ')
-                    const rendered = renderTableCell(column, row)
-                    const formattedValue = truncates(column)
-                      ? <TruncatedCell fullText={String(column.value(row))}>{rendered}</TruncatedCell>
-                      : column.truncate === false ? <span className="report-table__cell-whole">{rendered}</span> : rendered
-
-                    return column.isRowHeader ? (
-                      <th onMouseEnter={highlightColumnOnHover ? (event) => column.highlightOnHover === false ? setHoveredColumn(null) : highlightColumn(event.currentTarget, column.id) : undefined} className={className} key={column.id} scope="row">
-                        {sized(column.id, formattedValue)}
-                      </th>
-                    ) : (
-                      <td onMouseEnter={highlightColumnOnHover ? (event) => column.highlightOnHover === false ? setHoveredColumn(null) : highlightColumn(event.currentTarget, column.id) : undefined} className={className} key={column.id}>
-                        {sized(column.id, formattedValue)}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))
+              sectionTree ? flattenSections(sectionTree,
+                node => <tr className={`report-table__row--section report-table__row--depth-${node.path.length - 1}`}
+                  key={`section:${node.path.join('/')}`}>
+                  {renderBodyCells(node.row)}
+                </tr>,
+                (row, depth) => renderRow(row, `report-table__row--in-section report-table__row--depth-${depth}`))
+                : sortedRows.map(row => renderRow(row))
             )}
           </tbody>
           {(!loading || (retainRowsWhileLoading && rows.length > 0)) && !error && footerRow !== null && (
             <tfoot className={stickyFooterRow ? 'report-table__footer--sticky' : undefined}>
               <tr>
-                {visibleColumns.map((column) => {
-                  const className = [column.numeric ? 'report-table__numeric' : '', highlightColumnOnHover && column.highlightOnHover !== false && hoveredColumn === column.id ? 'report-table__cell--column-hover' : ''].filter(Boolean).join(' ')
-                  const formattedValue = renderTableCell(column, footerRow)
-
-                  return column.isRowHeader ? (
-                    <th onMouseEnter={highlightColumnOnHover ? (event) => column.highlightOnHover === false ? setHoveredColumn(null) : highlightColumn(event.currentTarget, column.id) : undefined} className={className} key={column.id} scope="row">
-                      {sized(column.id, formattedValue)}
-                    </th>
-                  ) : (
-                    <td onMouseEnter={highlightColumnOnHover ? (event) => column.highlightOnHover === false ? setHoveredColumn(null) : highlightColumn(event.currentTarget, column.id) : undefined} className={className} key={column.id}>
-                      {sized(column.id, formattedValue)}
-                    </td>
-                  )
-                })}
+                {renderTotalCells(footerRow)}
               </tr>
             </tfoot>
           )}

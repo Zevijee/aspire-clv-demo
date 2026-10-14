@@ -136,12 +136,17 @@ and neutral against actual rates and revenue; its Category breakdown tab counts
 the same stays by PDPM category, one column per part of the chosen category; its
 Residents tab lists every one of those stays with its PDPM score, days and revenue.
 
-**PPD**, the Staffing report, shows hours worked per patient day by facility and
+**HPPD**, the Staffing report, shows hours worked per patient day by facility and
 role against target, drilled from state to facility, with a role table beneath.
 Its **Employees** tab lists every staff member with hours in the range -- shifts,
 hours, overtime, hours per patient day, rate and wages -- from a generated roster
 (`staff_members`) and per-person daily hours (`daily_staff_hours`) that add up to
 the facility and role facts. Per-person hours are kept for the last 120 days only.
+**PPD** is labour cost per patient day: straight-time pay plus the agency,
+overtime and holiday premiums, orientation and bonuses, over census days, against
+a budget of the target hours at straight time, drilled from state to facility
+with each part of the cost per patient day. It reads the Staffing Overview's
+data (`/staffing/overview`), so the two show the same cost.
 **Agency vs In-house**, the second Staffing report, splits those hours between
 agency staff and each facility's own, drilled from state to facility with a role
 table beneath: hours of each, the average rate of each, and what the agency hours

@@ -873,6 +873,22 @@ daily_facility_staffing_facts = Table('daily_facility_staffing_facts', metadata,
     Column('hours_worked', Numeric(8, 1), nullable=False),
     Column('target_hours', Numeric(8, 1), nullable=False),
     Column('closing_census', Integer, nullable=False),
+    # The day's labour cost across every role, for the PPD cost trend: a year
+    # from the daily tables measured 13.6 s, before orientation, training and
+    # bonuses. Straight-time wages; the budget, each role's target hours at
+    # its own straight-time rate that day; the overtime pay and, on paid
+    # holidays (shared/holidays.py), the pay for hours that were not overtime,
+    # both at straight time, their premiums applied by the reader; the agency
+    # premium, each role's agency pay over its hours at that day's in-house
+    # rate; and orientation, training and sign-on bonuses. All additive.
+    Column('wages', Numeric(12, 2), nullable=False, server_default='0'),
+    Column('budget_wages', Numeric(12, 2), nullable=False, server_default='0'),
+    Column('overtime_wages', Numeric(12, 2), nullable=False, server_default='0'),
+    Column('holiday_wages', Numeric(12, 2), nullable=False, server_default='0'),
+    Column('agency_premium', Numeric(12, 2), nullable=False, server_default='0'),
+    Column('orientation_wages', Numeric(12, 2), nullable=False, server_default='0'),
+    Column('training_wages', Numeric(12, 2), nullable=False, server_default='0'),
+    Column('bonuses', Numeric(12, 2), nullable=False, server_default='0'),
     PrimaryKeyConstraint('summary_date', 'facility_id'),
     CheckConstraint('hours_worked >= 0 AND target_hours >= 0 AND closing_census >= 0'),
 )
@@ -891,10 +907,36 @@ staff_members = Table('staff_members', metadata,
     Column('employment_type', String, nullable=False),
     Column('hire_date', Date, nullable=False),
     Column('hourly_rate', Numeric(6, 2), nullable=False),
+    # The day the person left, by their role's yearly turnover; null while
+    # employed. They work no hours from it on, and a replacement joins the
+    # roster a few weeks later. A date after today is a departure to come.
+    Column('termination_date', Date),
+    CheckConstraint('termination_date IS NULL OR termination_date > hire_date'),
     CheckConstraint('role IN (' + ', '.join(f"'{code}'" for code in ROLE_CODES) + ')'),
     CheckConstraint('employment_type IN (' + ', '.join(f"'{code}'" for code in EMPLOYMENT_CODES) + ')'),
     CheckConstraint('hourly_rate > 0'),
     Index('ix_staff_members_facility_role', 'facility_id', 'role'),
+)
+
+daily_staff_bonuses = Table('daily_staff_bonuses', metadata,
+    # One row per bonus paid to an employee: a shift picked up at a facility
+    # with a pickup program, the 90-day retention bonus, or a work-anniversary
+    # bonus at a facility with a retention program, for the Employees tabs.
+    # Kept for the same days as daily_staff_hours, whose shifts the pickups
+    # are drawn from; the retention bonuses come from the roster's hire dates
+    # (see aspire-staff-bonuses.py). Absence means no bonus that day. A roster
+    # rebuild replaces its people, and their bonuses go with them (CASCADE), to
+    # be rebuilt by staff_bonuses after the hours.
+    Column('bonus_date', Date, nullable=False),
+    Column('staff_id', Uuid, ForeignKey('staff_members.staff_id', ondelete='CASCADE'), nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('role', String, nullable=False),
+    Column('kind', String, nullable=False),
+    Column('amount', Numeric(9, 2), nullable=False),
+    PrimaryKeyConstraint('bonus_date', 'staff_id', 'kind'),
+    CheckConstraint('role IN (' + ', '.join(f"'{code}'" for code in ROLE_CODES) + ')'),
+    CheckConstraint("kind IN ('pickup', 'retention_90_day', 'anniversary')"),
+    CheckConstraint('amount > 0'),
 )
 
 daily_staff_hours = Table('daily_staff_hours', metadata,
@@ -973,6 +1015,58 @@ daily_overtime_facts = Table('daily_overtime_facts', metadata,
     CheckConstraint('hours_worked >= 0 AND wages >= 0 AND overtime_hours >= 0 AND overtime_wages >= 0 '
         'AND overtime_shifts >= 0'),
     CheckConstraint('overtime_hours <= hours_worked'),
+)
+
+daily_training_facts = Table('daily_training_facts', metadata,
+    # Each facility, role and day's in-service training: the hours staff spent
+    # in sessions -- annual compliance and competency training -- and their pay,
+    # for the Staffing Overview. One row per facility, role and weekday with a
+    # session, for the whole history: absence means no session that day, and
+    # completeness comes from the checkpoints. Drawn from the staffing facts by
+    # each role's yearly training hours per full-time worker (see
+    # aspire-training.py). Training is paid time, not care: it sits beside
+    # daily_staffing_facts' hours worked, never inside them, and HPPD does not
+    # count it. Every column is additive.
+    Column('summary_date', Date, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('role', String, nullable=False),
+    Column('training_hours', Numeric(7, 1), nullable=False),
+    Column('training_wages', Numeric(10, 2), nullable=False),
+    PrimaryKeyConstraint('summary_date', 'facility_id', 'role'),
+    CheckConstraint('role IN (' + ', '.join(f"'{code}'" for code in ROLE_CODES) + ')'),
+    CheckConstraint('training_hours > 0 AND training_wages >= 0'),
+)
+
+daily_onboarding_facts = Table('daily_onboarding_facts', metadata,
+    # Each facility, role and day's new hires, the paid orientation hours they
+    # took and their pay -- in the classroom and on the floor, shadowing a
+    # preceptor -- and the sign-on bonuses paid them, for the Staffing
+    # Overview report. One row per facility, role and day with a hire, for the
+    # whole history: absence means no hire that day, and completeness comes
+    # from the checkpoints. Drawn from the staffing facts by each role's yearly
+    # turnover (see aspire-onboarding.py): the roster is built once and has no
+    # hires after it, so it cannot supply them. Orientation hours are paid but
+    # are not care, so they sit beside daily_staffing_facts' hours worked and
+    # never inside them; PPD does not count them. Every column is additive.
+    Column('summary_date', Date, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('role', String, nullable=False),
+    Column('new_hires', Integer, nullable=False),
+    Column('bonuses', Numeric(10, 2), nullable=False),
+    Column('classroom_orientation_hours', Numeric(7, 1), nullable=False),
+    Column('classroom_orientation_wages', Numeric(10, 2), nullable=False),
+    Column('floor_orientation_hours', Numeric(7, 1), nullable=False),
+    Column('floor_orientation_wages', Numeric(10, 2), nullable=False),
+    # The calendar days each hire took to finish classroom orientation, from
+    # the hire date, and then floor orientation, summed over the day's hires:
+    # the average is these over new_hires, divided once at any scope.
+    Column('classroom_orientation_days', Integer, nullable=False, server_default='0'),
+    Column('floor_orientation_days', Integer, nullable=False, server_default='0'),
+    PrimaryKeyConstraint('summary_date', 'facility_id', 'role'),
+    CheckConstraint('role IN (' + ', '.join(f"'{code}'" for code in ROLE_CODES) + ')'),
+    CheckConstraint('new_hires > 0 AND bonuses >= 0 AND classroom_orientation_hours >= 0 '
+        'AND classroom_orientation_wages >= 0 AND floor_orientation_hours >= 0 AND floor_orientation_wages >= 0 '
+        'AND classroom_orientation_days >= 0 AND floor_orientation_days >= 0'),
 )
 
 monthly_payer_census_facts = Table('monthly_payer_census_facts', metadata,
@@ -1151,6 +1245,45 @@ monthly_pdpm_census_facts = Table('monthly_pdpm_census_facts', metadata,
     CheckConstraint("date_trunc('month', month_start) = month_start"),
 )
 
+monthly_staffing_cost_facts = Table('monthly_staffing_cost_facts', metadata,
+    # A calendar-month rollup of every measure the Staffing Overview and PPD
+    # reports read, per facility and role: daily_staffing_facts' hours, targets
+    # and wages, daily_overtime_facts' overtime, its hours on paid holidays
+    # (shared/holidays.py), daily_agency_facts' split and daily_onboarding_facts'
+    # hires. Built because a year of the Overview read three 7.7M-row tables:
+    # 5.8 s in the service. A period reads its whole months here and only its
+    # edge days from the daily tables (rollup_plan). Every column is additive;
+    # the agency premium is priced from the sums, as Agency vs In-house prices it.
+    Column('month_start', Date, nullable=False),
+    Column('facility_id', Uuid, ForeignKey('facilities.facility_id'), nullable=False),
+    Column('role', String, nullable=False),
+    Column('hours_worked', Numeric(10, 1), nullable=False),
+    Column('target_hours', Numeric(10, 1), nullable=False),
+    Column('excess_hours', Numeric(10, 1), nullable=False),
+    Column('wages', Numeric(13, 2), nullable=False),
+    Column('excess_wages', Numeric(13, 2), nullable=False),
+    Column('overtime_hours', Numeric(10, 2), nullable=False),
+    Column('overtime_wages', Numeric(13, 2), nullable=False),
+    Column('holiday_hours', Numeric(10, 2), nullable=False),
+    Column('holiday_wages', Numeric(13, 2), nullable=False),
+    Column('agency_hours', Numeric(10, 2), nullable=False),
+    Column('agency_wages', Numeric(13, 2), nullable=False),
+    Column('inhouse_hours', Numeric(10, 2), nullable=False),
+    Column('inhouse_wages', Numeric(13, 2), nullable=False),
+    Column('new_hires', Integer, nullable=False),
+    Column('bonuses', Numeric(13, 2), nullable=False),
+    Column('training_hours', Numeric(10, 1), nullable=False, server_default='0'),
+    Column('training_wages', Numeric(13, 2), nullable=False, server_default='0'),
+    Column('classroom_orientation_hours', Numeric(10, 1), nullable=False),
+    Column('classroom_orientation_wages', Numeric(13, 2), nullable=False),
+    Column('floor_orientation_hours', Numeric(10, 1), nullable=False),
+    Column('floor_orientation_wages', Numeric(13, 2), nullable=False),
+    Column('classroom_orientation_days', Integer, nullable=False, server_default='0'),
+    Column('floor_orientation_days', Integer, nullable=False, server_default='0'),
+    PrimaryKeyConstraint('month_start', 'facility_id', 'role'),
+    CheckConstraint('role IN (' + ', '.join(f"'{code}'" for code in ROLE_CODES) + ')'),
+)
+
 monthly_medicaid_census_facts = Table('monthly_medicaid_census_facts', metadata,
     # A calendar-month rollup of census_logs for the residents Historical and
     # Monthly Medicaid count: Medicaid in a state whose Medicaid pays on PDPM
@@ -1255,6 +1388,9 @@ _descriptions = {
     'daily_discharge_facts': 'Additive daily discharge measures at facility/payer/destination/disposition grain. Length of stay is a sum beside its count so any grouping divides correctly.',
     'daily_payer_change_facts': 'Additive daily payer-change counts at facility/from-type/to-type grain. Residents affected is a distinct count and is read from res_payer_stays instead.',
     'daily_payer_census_facts': 'Daily census and movement by payer type: opening + admissions + changes in - discharges - changes out = closing. Sums back to adt_daily_census.',
+    'daily_staff_bonuses': 'Bonuses paid to each employee: shift pickups, 90-day retention and work anniversaries, one row per bonus. Kept for the same last days as daily_staff_hours; absence is no bonus.',
+    'daily_training_facts': 'In-service training per facility, staffing role and day: the hours staff spent in sessions and their pay. Rows exist only for weekdays with a session; absence is zero. Training hours are not counted in HPPD.',
+    'daily_onboarding_facts': 'New hires per facility, staffing role and day, with the paid orientation hours they took in the classroom and on the floor, the pay for each and the sign-on bonuses paid. Rows exist only for days with a hire; absence is zero. Orientation hours are not counted in PPD.',
     'daily_staffing_facts': 'Hours worked, target hours and wages per facility, staffing role and day. Excess and short hours are measured each day, so a parent scope adds them up without one offsetting the other. PPD divides hours by daily_payer_census_facts closing census, summed.',
     'monthly_payer_census_facts': 'Calendar-month rollup of daily_payer_census_facts for monthly trending. Flows are summed; census is taken from the first and last day of each month.',
     'monthly_admission_facts': 'Calendar-month rollup of daily_admission_facts at facility/payer-type/source-type grain, for monthly admissions trending by referral source. monthly_payer_census_facts carries monthly admissions too but has no source dimension and cannot gain one, because census is a level rather than a flow.',

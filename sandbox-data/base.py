@@ -86,6 +86,10 @@ class BaseGenerator(ABC):
         'summary_generators.aspire-facility-staffing',
         'summary_generators.aspire-agency',
         'summary_generators.aspire-overtime',
+        'summary_generators.aspire-onboarding',
+        'summary_generators.aspire-training',
+        'summary_generators.aspire-staff-bonuses',
+        'summary_generators.aspire-staffing-cost',
     )
     RUN_ORDER = ('states', 'portfolios', 'regions', 'facilities', 'payers',
         'payer_rates', 'facility_beds', 'referring_hospitals', 'staff_members', 'admin_user', 'residents',
@@ -93,7 +97,7 @@ class BaseGenerator(ABC):
         'admissions_summary',
         'discharges_summary', 'payer_changes_summary', 'net_change_summary',
         'monthly_adt_summary', 'referrals_summary', 'monthly_adt_facts', 'staffing_summary',
-        'facility_staffing_summary', 'staff_hours', 'agency_summary', 'overtime_summary')
+        'staff_hours', 'staff_bonuses', 'agency_summary', 'overtime_summary', 'onboarding_summary', 'training_summary', 'facility_staffing_summary', 'staffing_cost_summary')
     metadata = schema.metadata
     migration_history = schema.migration_history
     run_history = schema.run_history

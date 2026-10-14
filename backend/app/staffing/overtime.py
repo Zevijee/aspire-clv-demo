@@ -31,14 +31,15 @@ from sqlalchemy.engine import Connection
 from shared.database.schema import (
     daily_overtime_facts as mix, daily_runs, daily_staff_hours as hours, facilities, portfolios, regions,
     staff_members as staff)
-from shared.staffing import ROLE_CODES, ROLES, STAFF_HOURS_DAYS, WEEKLY_HOURS
+from shared.staffing import ROLE_CODES, STAFF_HOURS_DAYS, WEEKLY_HOURS
 from ..common.dates import DateRange
 from ..common.errors import ApiError
 from ..common.locations import LocationSelection, facility_locations
 from ..common.tables import PageQuery, paginate
 from ..clinical.coverage import require_generated
 from .employees import employee_name, role_label, type_label, window
-from .ppd import Role, TrendQuery
+from .premiums import OVERTIME_PREMIUM
+from .ppd import ROLE_LIST, Role, TrendQuery
 
 GENERATOR = 'overtime_summary'
 
@@ -51,7 +52,7 @@ def coverage(connection: Connection, generator: str, query: DateRange):
     return query.start_date, query.end_date, first, last
 
 # What an overtime hour costs over straight time, as a share of its pay.
-PREMIUM = 0.5
+PREMIUM = OVERTIME_PREMIUM
 MEASURES = ('hours', 'wages', 'overtime_hours', 'overtime_wages', 'overtime_shifts')
 
 # The straight-time pay of a row's overtime hours.
@@ -61,7 +62,7 @@ overtime_pay = hours.c.overtime_hours * cast(hours.c.wages, Numeric) / hours.c.h
 class RoleOvertime(BaseModel):
     hours: float = Field(description='Hours worked in the range.')
     wages: float = Field(description='Pay for those hours. The average rate is wages / hours.')
-    overtime_hours: float = Field(description=f'Hours over {WEEKLY_HOURS} in a week per person, summed.')
+    overtime_hours: float = Field(description=f'Hours over {WEEKLY_HOURS} in a week per employee, summed.')
     overtime_wages: float = Field(description='Straight-time pay of the overtime hours. The premium, what '
         f'time-and-a-half would add, is {PREMIUM} x this.')
     overtime_shifts: int = Field(description='Shifts with overtime in the range.')
@@ -109,7 +110,7 @@ def report(connection: Connection, query: DateRange):
     items.sort(key=lambda item: (item['state'], item['portfolio'], item['region'], item['facility_name']))
     return dict(start_date=start, end_date=end, available_from=available_from, available_through=available_through,
         weekly_hours=WEEKLY_HOURS, premium=PREMIUM,
-        roles=[dict(code=code, label=label, group=group) for code, label, group, *_ in ROLES], items=items)
+        roles=ROLE_LIST, items=items)
 
 
 # --- Trending ----------------------------------------------------------------
@@ -230,7 +231,7 @@ class OvertimeShift(BaseModel):
     role_label: str
     employment_type: str = Field(description='Full time, Part time, PRN or Agency.')
     hours: float = Field(description='Hours worked that day.')
-    overtime_hours: float = Field(description=f"The day's share of the person's hours over {WEEKLY_HOURS} that week.")
+    overtime_hours: float = Field(description=f"The day's share of the employee's hours over {WEEKLY_HOURS} that week.")
     rate: float = Field(description='Wages over hours.')
     premium: float = Field(description=f'What time-and-a-half would add: {PREMIUM} x the overtime hours at the rate.')
 

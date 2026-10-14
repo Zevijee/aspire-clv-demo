@@ -21,26 +21,37 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import Numeric, func, literal, select, text
 from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.engine import Connection
 
 from shared.database.schema import daily_facility_staffing_facts as facility_days, daily_staffing_facts as staffing
+from shared.holidays import holidays
 from shared.staffing import ROLE_CODES, ROLES
 from ..clinical.coverage import require_generated
 from ..common.dates import DateRange
 from ..common.locations import LocationSelection, facility_locations
+from .premiums import HOLIDAY_PREMIUM, OVERTIME_PREMIUM
 
 # Hours by role from the staffing facts; each facility's day across every role,
 # and its census, from the facility-day rollup built after them both.
 GENERATORS = ('staffing_summary', 'net_change_summary', 'facility_staffing_summary')
+# The cost trend reads every fact the rollup's cost is built from.
+COST_GENERATORS = (*GENERATORS, 'overtime_summary', 'agency_summary', 'onboarding_summary', 'training_summary')
 MEASURES = ('hours', 'target_hours', 'excess_hours', 'short_hours', 'wages', 'excess_wages')
 
 
 class Role(BaseModel):
     code: str
     label: str
-    group: str = Field(description='Nursing, Therapy or Support.')
+    department: str = Field(description='Admin & General, Direct Care, Non-Nursing or Nursing Admin.')
+    group: str = Field(description='The role group within the department: LPN holds LPN, LPN Supervisor and '
+        'LPN Wound Nurse; a group with one role shares its name.')
+
+
+# Every role in report order, as each staffing report lists them.
+ROLE_LIST = [dict(code=code, label=label, department=department, group=group)
+    for code, label, department, group, *_ in ROLES]
 
 
 class RoleHours(BaseModel):
@@ -103,7 +114,7 @@ def ppd(connection: Connection, query: DateRange):
             roles={code: roles.get(code, empty) for code in ROLE_CODES}))
     items.sort(key=lambda item: (item['state'], item['portfolio'], item['region'], item['facility_name']))
     return dict(start_date=query.start_date, end_date=query.end_date,
-        roles=[dict(code=code, label=label, group=group) for code, label, group, *_ in ROLES], items=items)
+        roles=ROLE_LIST, items=items)
 
 
 class TrendQuery(DateRange):
@@ -129,6 +140,28 @@ class PpdTrend(BaseModel):
     items: list[FacilityTrend]
 
 
+def _by_day(connection: Connection, statement, dates: list[date], *columns):
+    """Each facility's days as arrays, one row per facility: 253 rows for the
+    service to place, not 92,000 to iterate. A facility with every day takes
+    its arrays as they come; one with gaps is placed day by day."""
+    index = {day: position for position, day in enumerate(dates)}
+    # aggregate_order_by: a plain keyword is ignored and the arrays come
+    # back in any order -- measured, a day's PPD then read as another's.
+    by_date = lambda column: func.array_agg(aggregate_order_by(column, statement.c.summary_date))
+    ordered = by_date(statement.c.summary_date)
+    aggregates = [by_date(statement.c[name]) for name in columns]
+    for facility_id, days, *values in connection.execute(
+            select(statement.c.facility_id, ordered, *aggregates).group_by(statement.c.facility_id)):
+        if len(days) == len(dates) and days[0] == dates[0]:
+            yield facility_id, [[float(value) for value in series] for series in values]
+        else:
+            placed = [[0.0] * len(dates) for _ in values]
+            for position, day in enumerate(days):
+                for series, values_of in zip(placed, values):
+                    series[index[day]] = float(values_of[position])
+            yield facility_id, placed
+
+
 def trend(connection: Connection, query: TrendQuery):
     """Every facility's hours, target hours and census for each day of the
     range, over the chosen roles, for the Trending tab to add up at any
@@ -137,28 +170,8 @@ def trend(connection: Connection, query: TrendQuery):
     way, and arrays carry no repeated keys."""
     require_generated(connection, GENERATORS, query.start_date, query.end_date)
     dates = [query.start_date + timedelta(days=offset) for offset in range(query.days)]
-    index = {day: position for position, day in enumerate(dates)}
     hours, targets, census_days = {}, {}, {}
-
-    def by_day(statement, *columns):
-        """Each facility's days as arrays, one row per facility: 253 rows for
-        the service to place, not 92,000 to iterate. A facility with every day
-        takes its arrays as they come; one with gaps is placed day by day."""
-        # aggregate_order_by: a plain keyword is ignored and the arrays come
-        # back in any order -- measured, a day's PPD then read as another's.
-        by_date = lambda column: func.array_agg(aggregate_order_by(column, statement.c.summary_date))
-        ordered = by_date(statement.c.summary_date)
-        aggregates = [by_date(statement.c[name]) for name in columns]
-        for facility_id, days, *values in connection.execute(
-                select(statement.c.facility_id, ordered, *aggregates).group_by(statement.c.facility_id)):
-            if len(days) == len(dates) and days[0] == dates[0]:
-                yield facility_id, [[float(value) for value in series] for series in values]
-            else:
-                placed = [[0.0] * len(dates) for _ in values]
-                for position, day in enumerate(days):
-                    for series, values_of in zip(placed, values):
-                        series[index[day]] = float(values_of[position])
-                yield facility_id, placed
+    by_day = lambda statement, *columns: _by_day(connection, statement, dates, *columns)
 
     # Every role: the facility-day rollup alone, one row per facility and day.
     # A role subset: those roles' rows through the (role, summary_date) index,
@@ -186,6 +199,117 @@ def trend(connection: Connection, query: TrendQuery):
     items = [dict(facility_id=str(location['facility_id']), facility_name=location['facility_name'],
             state=location['state'], portfolio=location['portfolio_name'], region=location['region_name'],
             hours=hours.get(location['facility_id'], empty), target_hours=targets.get(location['facility_id'], empty),
+            census=census_days.get(location['facility_id'], [0] * len(dates)))
+        for location in connection.execute(facility_locations(LocationSelection())).mappings()]
+    items.sort(key=lambda item: (item['state'], item['portfolio'], item['region'], item['facility_name']))
+    return dict(start_date=query.start_date, end_date=query.end_date, dates=dates, items=items)
+
+
+class FacilityCostTrend(BaseModel):
+    facility_id: str
+    facility_name: str
+    state: str
+    portfolio: str
+    region: str
+    cost: list[float] = Field(description="Total labour cost each day, in the response's date order: straight time "
+        'plus the agency, overtime and holiday premiums, orientation, training and sign-on bonuses.')
+    budget: list[float] = Field(description="Each day's target hours at each role's straight-time rate that day.")
+    census: list[int] = Field(description="Closing census each day: the day's PPD divides by it.")
+
+
+class PpdCostTrend(BaseModel):
+    start_date: date
+    end_date: date
+    dates: list[date] = Field(description="Every day of the range, the index of each facility's arrays.")
+    items: list[FacilityCostTrend]
+
+
+# A role subset's day, priced as the facility-day rollup prices every role's
+# (aspire-facility-staffing.py): each role's day at its own straight-time rate,
+# read from the daily tables for those roles alone.
+ROLE_COST_SQL = """
+WITH overtime AS MATERIALIZED (
+    SELECT summary_date, facility_id, role, overtime_wages,
+        CASE WHEN summary_date = ANY(:holidays) THEN wages - overtime_wages ELSE 0 END AS holiday_wages
+    FROM daily_overtime_facts WHERE summary_date BETWEEN :start AND :end AND role = ANY(:roles)
+),
+agency AS MATERIALIZED (
+    SELECT summary_date, facility_id, role, agency_wages, agency_hours
+    FROM daily_agency_facts WHERE summary_date BETWEEN :start AND :end AND role = ANY(:roles)
+),
+roles AS (
+    SELECT f.summary_date, f.facility_id, f.target_hours, f.wages,
+        CASE WHEN f.hours_worked > 0 THEN f.wages / f.hours_worked END AS rate,
+        o.overtime_wages, o.holiday_wages, a.agency_wages, a.agency_hours
+    FROM daily_staffing_facts f
+    LEFT JOIN overtime o ON o.summary_date = f.summary_date AND o.facility_id = f.facility_id AND o.role = f.role
+    LEFT JOIN agency a ON a.summary_date = f.summary_date AND a.facility_id = f.facility_id AND a.role = f.role
+    WHERE f.summary_date BETWEEN :start AND :end AND f.role = ANY(:roles)
+),
+staffing AS (
+    SELECT summary_date, facility_id, SUM(wages) AS wages, SUM(COALESCE(target_hours * rate, 0)) AS budget,
+        SUM(COALESCE(overtime_wages, 0)) AS overtime_wages, SUM(COALESCE(holiday_wages, 0)) AS holiday_wages,
+        SUM(COALESCE(agency_wages - agency_hours * rate, 0)) AS agency_premium
+    FROM roles GROUP BY summary_date, facility_id
+),
+extras AS (
+    SELECT summary_date, facility_id, SUM(amount) AS amount FROM (
+        SELECT summary_date, facility_id, classroom_orientation_wages + floor_orientation_wages + bonuses AS amount
+        FROM daily_onboarding_facts WHERE summary_date BETWEEN :start AND :end AND role = ANY(:roles)
+        UNION ALL
+        SELECT summary_date, facility_id, training_wages
+        FROM daily_training_facts WHERE summary_date BETWEEN :start AND :end AND role = ANY(:roles)
+    ) e GROUP BY summary_date, facility_id
+)
+SELECT s.facility_id, s.summary_date,
+    s.wages + s.agency_premium + :overtime_premium * s.overtime_wages + :holiday_premium * s.holiday_wages
+        + COALESCE(x.amount, 0) AS cost,
+    s.budget
+FROM staffing s
+LEFT JOIN extras x ON x.summary_date = s.summary_date AND x.facility_id = s.facility_id
+"""
+
+
+def cost_trend(connection: Connection, query: TrendQuery):
+    """Every facility's labour cost, budget and census for each day of the range,
+    over the chosen roles, for the PPD cost Trending tab to add up at any
+    drilldown level and divide day by day, as the HPPD trend does. Every role
+    reads the facility-day rollup; a role subset prices those roles' days from
+    the daily tables. The agency premium is priced day by day, so a range's
+    total can differ from the Staffing Overview's by cents on the dollar."""
+    require_generated(connection, COST_GENERATORS, query.start_date, query.end_date)
+    dates = [query.start_date + timedelta(days=offset) for offset in range(query.days)]
+    index = {day: position for position, day in enumerate(dates)}
+    costs, budgets, census_days = {}, {}, {}
+    rollup = facility_days
+    if query.roles:
+        empty = lambda: [0.0] * len(dates)
+        for facility_id, day, cost, budget in connection.execute(text(ROLE_COST_SQL), dict(
+                start=query.start_date, end=query.end_date, roles=list(query.roles),
+                holidays=holidays(query.start_date, query.end_date),
+                overtime_premium=OVERTIME_PREMIUM, holiday_premium=HOLIDAY_PREMIUM)):
+            costs.setdefault(facility_id, empty())[index[day]] = round(float(cost), 2)
+            budgets.setdefault(facility_id, empty())[index[day]] = round(float(budget), 2)
+        source = (select(rollup.c.facility_id, rollup.c.summary_date, rollup.c.closing_census)
+            .where(*_facility_days(query.start_date, query.end_date)).subquery())
+        for facility_id, (closing,) in _by_day(connection, source, dates, 'closing_census'):
+            census_days[facility_id] = [int(value) for value in closing]
+    else:
+        cost = (rollup.c.wages + rollup.c.agency_premium + literal(OVERTIME_PREMIUM, Numeric) * rollup.c.overtime_wages
+            + literal(HOLIDAY_PREMIUM, Numeric) * rollup.c.holiday_wages + rollup.c.orientation_wages
+            + rollup.c.training_wages + rollup.c.bonuses)
+        source = (select(rollup.c.facility_id, rollup.c.summary_date, rollup.c.closing_census, cost.label('cost'),
+                rollup.c.budget_wages.label('budget'))
+            .where(*_facility_days(query.start_date, query.end_date)).subquery())
+        for facility_id, (closing, day_costs, day_budgets) in _by_day(
+                connection, source, dates, 'closing_census', 'cost', 'budget'):
+            census_days[facility_id] = [int(value) for value in closing]
+            costs[facility_id] = [round(value, 2) for value in day_costs]
+            budgets[facility_id] = [round(value, 2) for value in day_budgets]
+    empty = [0.0] * len(dates)
+    items = [dict(facility_id=str(location['facility_id']), facility_name=location['facility_name'],
+            state=location['state'], portfolio=location['portfolio_name'], region=location['region_name'],
+            cost=costs.get(location['facility_id'], empty), budget=budgets.get(location['facility_id'], empty),
             census=census_days.get(location['facility_id'], [0] * len(dates)))
         for location in connection.execute(facility_locations(LocationSelection())).mappings()]
     items.sort(key=lambda item: (item['state'], item['portfolio'], item['region'], item['facility_name']))

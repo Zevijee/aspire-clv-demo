@@ -42,19 +42,24 @@ const columns: TableColumn<OvertimeShift>[] = [
     format: value => typeof value === 'number' ? money(value) : value },
 ]
 
-/** Overtime's Logs tab: one row per person per day with overtime in the
- * header's date range, paged, sorted and filtered by the API: who, where, the
- * day's hours and its share of the person's overtime for the week, the rate and
- * what time-and-a-half would add. Only the last 120 days of hours are kept. */
-export function OvertimeLogs() {
+/** Overtime's Logs tab, and the Staffing Overview's overtime window: one row per
+ * employee per day with overtime in the header's date range, paged, sorted and
+ * filtered by the API: who, where, the day's hours and its share of the
+ * employee's overtime for the week, the rate and what time-and-a-half would add.
+ * Only the last 120 days of hours are kept. Opened from a row of figures, it
+ * takes that row's roles and its locations as starting filters. */
+export function OvertimeLogs({ roles = [], roleName = 'every role', initialFilters = {} }: {
+  /** The roles to list; empty is every role, and the table's Role filter narrows. */
+  roles?: string[]
+  roleName?: string
+  /** The table's filters to start with: a location, for one. */
+  initialFilters?: Record<string, string[]>
+} = {}) {
   const [params] = useReportSearchParams()
   const defaults = getDefaultReportDateRange()
   const startDate = params.get('start_date') ?? defaults.startDate
   const endDate = params.get('end_date') ?? defaults.endDate
-  // Every role, as PPD's Employees tab: the table's own Role filter narrows.
-  const roles: string[] = []
-  const roleName = 'every role'
-  const [query, setQuery] = useState<EmployeesQuery>({ filters: {}, sort: null, search: '' })
+  const [query, setQuery] = useState<EmployeesQuery>({ filters: initialFilters, sort: null, search: '' })
   const queryKey = JSON.stringify([query, startDate, endDate, roles])
   const [page, setPage] = useState({ queryKey: '', index: 0 })
   const pageIndex = page.queryKey === queryKey ? page.index : 0
@@ -88,10 +93,11 @@ export function OvertimeLogs() {
   return <>
     <Table<OvertimeShift> {...status}
     title="Overtime shifts"
-    subtitle={`Each day worked in a week a person went over 40 hours, ${roleName}: where, in which role, the day's `
+    subtitle={`Each day worked in a week an employee went over 40 hours, ${roleName}: where, in which role, the day's `
       + `hours and its share of the week's overtime, the rate and what time-and-a-half would add. ${kept}${clamped}.`}
     columns={columns} rows={result?.items ?? []} getRowKey={row => `${row.work_date}:${row.staff_id}`}
     initialSort={{ columnId: 'date', direction: 'descending' }}
+    initialFilters={initialFilters}
     internalScroll stickyFirstColumn searchable serverSide clearableFilters
     filterSource={{ id: 'staffing-overtime-logs', startDate, endDate, endpoint: `${overtimeLogsBase}/filter-options` }}
     onQueryChange={onQueryChange} totalRows={result?.total}

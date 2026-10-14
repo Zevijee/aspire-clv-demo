@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
 import { DrilldownTable } from '../../../shared/components/DrilldownTable'
-import { type TableColumn } from '../../../shared/components/Table'
+import { Table, type TableColumn } from '../../../shared/components/Table'
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
@@ -13,6 +13,8 @@ import {
   drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow,
 } from '../../../shared/utils/locationDrilldown'
 import { getAgency, STAFFING_ROLES, type AgencyReport, type FacilityAgency } from '../api'
+import { useDrilldownRoles } from './DrilldownRoleFilter'
+import { departmentSections } from '../departmentSections'
 
 type Row = DrilldownRow<FacilityAgency>
 // A row of the role table: one role over the drilldown's facilities. `codes` is
@@ -68,7 +70,7 @@ function format(value: number | string, kind: Kind) {
 
 
 /** Agency vs In-house: the hours worked in the header's date range, drilled from
- * state to facility, split between agency staff and the facility's own, with
+ * state to facility, split between agency employees and the facility's own, with
  * the average rate of each and what the agency hours cost over in-house. Below
  * it, one row per role for the drilldown's scope. The drilldown is kept in the URL. */
 export function AgencyDrilldown() {
@@ -90,10 +92,10 @@ export function AgencyDrilldown() {
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
-  // Every role, as PPD's Overview: the table adds them all up and the role
+  // Every role, as HPPD's Overview: the table adds them all up and the role
   // table lists each. The Trending tab has the role picker.
-  const roles = STAFFING_ROLES.map(role => role.value)
-  const roleName = 'every role'
+  // The drilldown's roles, from its own filter; the role table lists every role.
+  const { roles, roleName, filter: roleFilter } = useDrilldownRoles()
   useEffect(() => {
     const controller = new AbortController()
     setError(null)
@@ -117,7 +119,7 @@ export function AgencyDrilldown() {
   const shownStart = data?.start_date ?? startDate
   const shownEnd = data?.end_date ?? endDate
   const range = `${shownStart} to ${shownEnd}`
-  const subtitle = `Hours worked by agency staff and by each facility's own staff, ${roleName}, ${range}. Each average `
+  const subtitle = `Hours worked by agency employees and by each facility's own employees, ${roleName}, ${range}. Each average `
     + 'rate is wages over hours. Extra spent on agency is what the agency hours cost over the same hours at the '
     + `in-house rate, measured at each facility and role and added up.`
   const file = `${shownStart}-to-${shownEnd}`
@@ -127,7 +129,7 @@ export function AgencyDrilldown() {
   // each summed at this scope and divided once.
   const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
   const scoped = rows.flatMap(row => row.facilities)
-  const roleRows: RoleRow[] = STAFFING_ROLES.filter(role => roles.includes(role.value))
+  const roleRows: RoleRow[] = STAFFING_ROLES
     .map(role => ({ key: role.value, name: role.label, path: [], facilities: scoped, codes: [role.value] }))
   const roleColumns: TableColumn<RoleRow>[] = [
     { id: 'name', header: 'Role', value: row => row.name, isRowHeader: true },
@@ -145,27 +147,25 @@ export function AgencyDrilldown() {
       getFooterRow={visible => ({ key: 'total', name: 'Total', path: [], isTotal: true,
         facilities: visible.flatMap(row => row.facilities) })}
       subtitle={subtitle}
+      filters={roleFilter}
       headerActions={<><OpenViewButton kind="facilities" label="Show all facilities"
         onClick={() => setShowFacilities(true)} /><CustomGroupingButton onApply={() => setPath([])} /></>}
       emptyMessage="No facilities match this view."
       csvFileName={`agency-vs-inhouse-${file}.csv`} />
-    <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+    <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)} filters={roleFilter}
       onSelect={next => setPath(next)}
       title={`All facilities · Agency vs in-house, ${roleName}, ${range}`} subtitle={subtitle}
       rows={facilityRows(data?.items ?? [])} columns={columns.slice(1)} getRowKey={row => row.key}
       getName={row => row.name} getPath={row => [row.path[0], row.path[1], row.path[2]]}
       loading={loading} error={error} onRetry={onRetry}
       csvFileName={`agency-vs-inhouse-facilities-${file}.csv`} />
-    <DrilldownTable<RoleRow> title="Agency vs in-house by role" columns={roleColumns} rows={roleRows}
-      // No initial sort: the roles come in report order, nursing, therapy, support.
+    <Table<RoleRow> stickyFirstColumn floatHeader title="Agency vs in-house by role" columns={roleColumns} rows={roleRows}
+      sections={departmentSections(scoped)}
+      // No initial sort: the roles come in report order within each department.
       getRowKey={row => row.key}
       loading={loading} error={error} onRetry={onRetry}
-      // Every role shown over the same facilities, divided once: the same
-      // figures as the Total row above, never the rows added together.
-      getFooterRow={visible => ({ key: 'total', name: 'Total', path: [], isTotal: true,
-        facilities: scoped, codes: visible.map(row => row.codes[0]) })}
-      subtitle={`${scopeName} · ${roleName}, ${range}. Each role's hours over the facilities shown, split by who `
-        + 'worked them, with each average rate divided once. The Total row is every role shown, added up.'}
+      subtitle={`${scopeName} · every role, ${range}. Each role's hours over the facilities shown, split by who `
+        + 'worked them, with each average rate divided once. Each department is followed by its roles.'}
       emptyMessage="No roles match this view."
       csvFileName={`agency-vs-inhouse-roles-${file}.csv`} />
   </>

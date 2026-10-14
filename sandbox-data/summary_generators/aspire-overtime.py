@@ -143,7 +143,9 @@ class OvertimeSummaryGenerator(BaseGenerator):
         columns = sql.SQL(', ').join(map(sql.Identifier, self.table.c.keys()))
         if self.progress:
             self.progress.set_phase('Insert rows', details=f'{generated:,} rows')
-        inserted = connection.exec_driver_sql(sql.SQL('INSERT INTO {} ({}) SELECT {} FROM {}')
+        # In date order, so a range reads its own days' pages: stored in rebuild
+        # order, 30 days of agency facts read 166,850 pages, 1.1 s cold; in date order 2,736.
+        inserted = connection.exec_driver_sql(sql.SQL('INSERT INTO {} ({}) SELECT {} FROM {} ORDER BY 1, 2')
             .format(self._table_identifier(self.table), columns, columns, sql.Identifier(stage))
             .as_string(driver)).rowcount
         if inserted != generated:

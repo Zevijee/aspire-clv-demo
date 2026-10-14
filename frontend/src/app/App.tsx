@@ -30,11 +30,19 @@ import { WeightSurveillance } from '../features/clinical/components/WeightSurvei
 import { FlaggedProgressNotes } from '../features/clinical/components/FlaggedProgressNotes'
 import { IncidentLogs } from '../features/clinical/components/IncidentLogs'
 import { PpdDrilldown } from '../features/staffing/components/PpdDrilldown'
+import { StaffingOverview } from '../features/staffing/components/StaffingOverview'
+import { StaffingSimpleOverview } from '../features/staffing/components/StaffingSimpleOverview'
+import { StaffingPpd } from '../features/staffing/components/StaffingPpd'
+import { PpdCostTrending } from '../features/staffing/components/PpdCostTrending'
+import { StaffingTraining } from '../features/staffing/components/StaffingTraining'
+import { StaffingOrientation } from '../features/staffing/components/StaffingOrientation'
+import {
+  StaffingCost, StaffingHourlyRate, StaffingHours, StaffingPremiums,
+} from '../features/staffing/components/StaffingOverviewSections'
 import { StaffingEmployees } from '../features/staffing/components/StaffingEmployees'
 import { PpdTrending } from '../features/staffing/components/PpdTrending'
 import { AgencyDrilldown } from '../features/staffing/components/AgencyDrilldown'
 import { AgencyTrending } from '../features/staffing/components/AgencyTrending'
-import { AgencyLogs } from '../features/staffing/components/AgencyLogs'
 import { OvertimeDrilldown } from '../features/staffing/components/OvertimeDrilldown'
 import { OvertimeTrending } from '../features/staffing/components/OvertimeTrending'
 import { OvertimeLogs } from '../features/staffing/components/OvertimeLogs'
@@ -58,6 +66,7 @@ import { analyticsModules, reports, reportsByModule } from '../features/navigati
 import { useAccount } from '../features/auth/context'
 import { UserSettings } from '../features/auth/UserSettings'
 import { ReportDateRangeFilter } from '../shared/components/filters/ReportDateRangeFilter'
+import { ReportExportButton } from '../shared/components/ReportExportButton'
 import { ReportMonthRangeFilter, getReportMonthRange } from '../shared/components/filters/ReportMonthRangeFilter'
 import { AdmissionsOverviewFilters } from '../features/adt/components/AdmissionsOverviewFilters'
 import type { OverviewSelection } from '../features/adt/utils/admissionsOverviewFilters'
@@ -93,19 +102,35 @@ const liveCensusTabs = [
   { id: 'overview', label: 'Overview' },
   { id: 'residents', label: 'Residents', noScroll: true },
 ]
-// PPD: the drilldown by location and role, and one row per staff member.
+// Staffing Overview: the drilldown by location and role, and one row per employee.
+const staffingOverviewTabs = [
+  { id: 'overview', label: 'Simple overview' },
+  { id: 'full', label: 'Full overview' },
+  { id: 'employees', label: 'Employees', noScroll: true },
+]
+// PPD cost: the drilldown by location and role, and the cost day by day.
+const ppdCostTabs = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'trending', label: 'Trending' },
+]
+// HPPD: the drilldown by location and role, and the trend. Its employees are
+// the Staffing Overview's Employees tab.
 const staffingTabs = [
   { id: 'overview', label: 'Overview' },
   { id: 'trending', label: 'Trending' },
-  { id: 'employees', label: 'Employees', noScroll: true },
 ]
-// Agency vs In-house and Overtime: the drilldown, the share day by day, and
-// one row per shift.
+// The report header's HTML export (ReportExportButton): built and working, hidden
+// for now while it is decided whether reports export this way.
+const SHOW_REPORT_EXPORT = false
+
+// Overtime: the drilldown, the share day by day, and one row per shift.
 const agencyTabs = [
   { id: 'overview', label: 'Overview' },
   { id: 'trending', label: 'Trending' },
   { id: 'logs', label: 'Logs', noScroll: true },
 ]
+// Agency vs In-house: the drilldown and the share day by day.
+const agencyVsInhouseTabs = agencyTabs.filter((tab) => tab.id !== 'logs')
 const monthlyMedicareTabs = [
   { id: 'overview', label: 'Overview' },
   { id: 'categories', label: 'Category breakdown' },
@@ -210,9 +235,12 @@ function App() {
   const isClinicalReport = currentReport.path === '/clinical/hospital-transfers' || currentReport.path === '/clinical/incidents'
   const activeClinicalTab = clinicalTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeStaffingTab = staffingTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
+  const activeStaffingOverviewTab = staffingOverviewTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
+  const activePpdCostTab = ppdCostTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const isAgencyStyleReport = currentReport.path === '/staffing/agency-vs-inhouse'
     || currentReport.path === '/staffing/overtime'
-  const activeAgencyTab = agencyTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
+  const activeAgencyTab = (currentReport.path === '/staffing/agency-vs-inhouse' ? agencyVsInhouseTabs : agencyTabs)
+    .find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeMedicareTab = medicareTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeHistoricalMedicareTab = historicalMedicareTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeMonthlyMedicareTab = monthlyMedicareTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
@@ -475,6 +503,9 @@ function App() {
               && currentReport.path !== '/census/residents' && currentReport.path !== '/census/bed-board'
               && currentReport.path !== '/mds/current-medicare' && currentReport.path !== '/mds/current-medicaid'
               ? <ReportDateRangeFilter /> : null}
+            {/* Right of the date range on every report: the report as shown, as an HTML file.
+                Hidden while the product owner decides on it (2026-10-14); the export works. */}
+            {SHOW_REPORT_EXPORT && <ReportExportButton module={currentReport.module} />}
           </ReportFilters>
         }
         tabFilters={
@@ -513,7 +544,25 @@ function App() {
                   else next.set('view', id)
                   setSearchParams(next)
                 },
+              } : currentReport.path === '/staffing/overview' ? {
+                activeTabId: activeStaffingOverviewTab,
+                tabs: staffingOverviewTabs,
+                onTabChange: (id: string) => {
+                  const next = new URLSearchParams(searchParams)
+                  if (id === 'overview') next.delete('view')
+                  else next.set('view', id)
+                  setSearchParams(next)
+                },
               } : currentReport.path === '/staffing/ppd' ? {
+                activeTabId: activePpdCostTab,
+                tabs: ppdCostTabs,
+                onTabChange: (id: string) => {
+                  const next = new URLSearchParams(searchParams)
+                  if (id === 'overview') next.delete('view')
+                  else next.set('view', id)
+                  setSearchParams(next)
+                },
+              } : currentReport.path === '/staffing/hppd' ? {
                 activeTabId: activeStaffingTab,
                 tabs: staffingTabs,
                 onTabChange: (id: string) => {
@@ -524,7 +573,7 @@ function App() {
                 },
               } : isAgencyStyleReport ? {
                 activeTabId: activeAgencyTab,
-                tabs: agencyTabs,
+                tabs: currentReport.path === '/staffing/agency-vs-inhouse' ? agencyVsInhouseTabs : agencyTabs,
                 onTabChange: (id: string) => {
                   const next = new URLSearchParams(searchParams)
                   if (id === 'overview') next.delete('view')
@@ -607,10 +656,19 @@ function App() {
                   : report.path === '/clinical/fever-infections' ? <FeverInfections />
                   : report.path === '/clinical/weight-surveillance' ? <WeightSurveillance />
                   : report.path === '/clinical/flagged-progress-notes' ? <FlaggedProgressNotes />
-                  : report.path === '/staffing/ppd' ? (activeStaffingTab === 'employees' ? <StaffingEmployees />
-                    : activeStaffingTab === 'trending' ? <PpdTrending /> : <PpdDrilldown />)
-                  : report.path === '/staffing/agency-vs-inhouse' ? (activeAgencyTab === 'logs' ? <AgencyLogs />
-                    : activeAgencyTab === 'trending' ? <AgencyTrending /> : <AgencyDrilldown />)
+                  : report.path === '/staffing/overview' ? (activeStaffingOverviewTab === 'employees'
+                    ? <StaffingEmployees fileName="staffing-overview-employees" />
+                    : activeStaffingOverviewTab === 'full' ? <StaffingOverview /> : <StaffingSimpleOverview />)
+                  : report.path === '/staffing/ppd' ? (activePpdCostTab === 'trending' ? <PpdCostTrending /> : <StaffingPpd />)
+                  : report.path === '/staffing/training' ? <StaffingTraining />
+                  : report.path === '/staffing/orientation' ? <StaffingOrientation />
+                  : report.path === '/staffing/hours' ? <StaffingHours />
+                  : report.path === '/staffing/cost' ? <StaffingCost />
+                  : report.path === '/staffing/hourly-rate' ? <StaffingHourlyRate />
+                  : report.path === '/staffing/premiums-and-extras' ? <StaffingPremiums />
+                  : report.path === '/staffing/hppd' ? (activeStaffingTab === 'trending' ? <PpdTrending /> : <PpdDrilldown />)
+                  : report.path === '/staffing/agency-vs-inhouse'
+                    ? (activeAgencyTab === 'trending' ? <AgencyTrending /> : <AgencyDrilldown />)
                   : report.path === '/staffing/overtime' ? (activeAgencyTab === 'logs' ? <OvertimeLogs />
                     : activeAgencyTab === 'trending' ? <OvertimeTrending /> : <OvertimeDrilldown />)
                   : report.path === '/mds/historical-medicare' ? (activeHistoricalMedicareTab === 'categories'

@@ -106,7 +106,7 @@ export function AgencyTrending() {
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
-  // The bar's picker: the chosen roles added up by the API, or every role.
+  // The trend table's role filter: the chosen roles added up by the API, or every role.
   const { roles, roleName, picker } = useStaffingRoles(AGENCY_ROLE_PARAM)
   const rolesKey = roles.join(',')
   useEffect(() => {
@@ -145,7 +145,7 @@ export function AgencyTrending() {
   const range = `${shownStart} to ${shownEnd}`
   const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
   const subtitle = `Agency hours day by day, ${roleName}, ${range}. Each day's agency share is that day's agency `
-    + `hours over all its hours; Agency share is the range's. Days with agency count the days any agency person `
+    + `hours over all its hours; Agency share is the range's. Days with agency count the days any agency employee `
     + `worked.`
   const file = `${shownStart}-to-${shownEnd}`
 
@@ -171,18 +171,19 @@ export function AgencyTrending() {
     { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
 
   return <>
-    <LocationNavigation path={path} setPath={setPath} controls={picker} />
+    <LocationNavigation path={path} setPath={setPath} />
     <DrilldownTable<Row> title={`${levels[depth]} agency trend`} columns={columns} rows={rows}
       getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
       loading={loading} error={error} onRetry={onRetry}
       getFooterRow={visible => ({ key: 'total', name: 'Total', path: [], isTotal: true,
         facilities: visible.flatMap(row => row.facilities) })}
       subtitle={subtitle}
+      filters={picker}
       headerActions={<><OpenViewButton kind="facilities" label="Show all facilities"
         onClick={() => setShowFacilities(true)} /><CustomGroupingButton onApply={() => setPath([])} /></>}
       emptyMessage="No facilities match this view."
       csvFileName={`agency-trend-${file}.csv`} />
-    <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+    <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)} filters={picker}
       onSelect={next => setPath(next)}
       title={`All facilities · Agency trend, ${roleName}, ${range}`} subtitle={subtitle}
       rows={facilityRows(data?.items ?? [])} columns={columns.slice(1)} getRowKey={row => row.key}

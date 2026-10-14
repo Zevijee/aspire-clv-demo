@@ -113,6 +113,12 @@ erDiagram
         Uuid facility_id PK
     }
     facilities ||--o{ daily_facility_staffing_facts : "facility_id"
+    daily_onboarding_facts {
+        Date summary_date PK
+        Uuid facility_id PK
+        String role PK
+    }
+    facilities ||--o{ daily_onboarding_facts : "facility_id"
     daily_overtime_facts {
         Date summary_date PK
         Uuid facility_id PK
@@ -138,6 +144,12 @@ erDiagram
         String role PK
     }
     facilities ||--o{ daily_staffing_facts : "facility_id"
+    daily_training_facts {
+        Date summary_date PK
+        Uuid facility_id PK
+        String role PK
+    }
+    facilities ||--o{ daily_training_facts : "facility_id"
     facility_beds {
         Uuid bed_id PK
     }
@@ -187,6 +199,12 @@ erDiagram
     }
     facilities ||--o{ monthly_referral_facts : "facility_id"
     referring_hospitals ||--o{ monthly_referral_facts : "hospital"
+    monthly_staffing_cost_facts {
+        Date month_start PK
+        Uuid facility_id PK
+        String role PK
+    }
+    facilities ||--o{ monthly_staffing_cost_facts : "facility_id"
     residents {
         Uuid resident_id PK
     }
@@ -201,6 +219,13 @@ erDiagram
     }
     facilities ||--o{ bed_assignments : "facility_id"
     facility_beds ||--o{ bed_assignments : "bed_id"
+    daily_staff_bonuses {
+        Date bonus_date PK
+        Uuid staff_id PK
+        String kind PK
+    }
+    facilities ||--o{ daily_staff_bonuses : "facility_id"
+    staff_members ||--o{ daily_staff_bonuses : "staff_id"
     daily_staff_hours {
         Date work_date PK
         Uuid staff_id PK
@@ -281,8 +306,8 @@ erDiagram
         Uuid payer_stay_id PK
     }
     facilities ||--o{ payer_change_logs : "facility_id"
-    payers ||--o{ payer_change_logs : "previous_payer_id"
     payers ||--o{ payer_change_logs : "new_payer_id"
+    payers ||--o{ payer_change_logs : "previous_payer_id"
     res_payer_stays ||--o| payer_change_logs : "payer_stay_id"
     res_stays ||--o{ payer_change_logs : "stay_id"
     residents ||--o{ payer_change_logs : "resident_id"
@@ -628,7 +653,7 @@ Additive daily admission measures at facility/payer/source grain. Reports group 
 | inhouse_wages | NUMERIC(11, 2) | no |  |  |  |
 
 - CHECK: `agency_hours >= 0 AND agency_wages >= 0 AND inhouse_hours >= 0 AND inhouse_wages >= 0`
-- CHECK: `role IN ('rn', 'lpn', 'cna', 'pt', 'pta', 'ot', 'cota', 'slp', 'dietary_aide', 'cook', 'evs')`
+- CHECK: `role IN ('administrator', 'business_office_manager', 'hr_payroll', 'rn', 'lpn', 'lpn_supervisor', 'lpn_wound_nurse', 'cna', 'ncna', 'cma', 'cook', 'dietary_aide', 'dietary_manager', 'dietician', 'housekeeper', 'housekeeping_director', 'laundry_aide', 'maintenance_director', 'social_services_director', 'transportation_driver', 'adon_lpn', 'mds_rn', 'staffing_coordinator')`
 
 ## daily_discharge_facts
 
@@ -663,8 +688,37 @@ Additive daily discharge measures at facility/payer/destination/disposition grai
 | hours_worked | NUMERIC(8, 1) | no |  |  |  |
 | target_hours | NUMERIC(8, 1) | no |  |  |  |
 | closing_census | INTEGER | no |  |  |  |
+| wages | NUMERIC(12, 2) | no |  | 0 |  |
+| budget_wages | NUMERIC(12, 2) | no |  | 0 |  |
+| overtime_wages | NUMERIC(12, 2) | no |  | 0 |  |
+| holiday_wages | NUMERIC(12, 2) | no |  | 0 |  |
+| agency_premium | NUMERIC(12, 2) | no |  | 0 |  |
+| orientation_wages | NUMERIC(12, 2) | no |  | 0 |  |
+| training_wages | NUMERIC(12, 2) | no |  | 0 |  |
+| bonuses | NUMERIC(12, 2) | no |  | 0 |  |
 
 - CHECK: `hours_worked >= 0 AND target_hours >= 0 AND closing_census >= 0`
+
+## daily_onboarding_facts
+
+New hires per facility, staffing role and day, with the paid orientation hours they took in the classroom and on the floor, the pay for each and the sign-on bonuses paid. Rows exist only for days with a hire; absence is zero. Orientation hours are not counted in PPD.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| summary_date | DATE | no | PK |  |  |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| role | VARCHAR | no | PK |  |  |
+| new_hires | INTEGER | no |  |  |  |
+| bonuses | NUMERIC(10, 2) | no |  |  |  |
+| classroom_orientation_hours | NUMERIC(7, 1) | no |  |  |  |
+| classroom_orientation_wages | NUMERIC(10, 2) | no |  |  |  |
+| floor_orientation_hours | NUMERIC(7, 1) | no |  |  |  |
+| floor_orientation_wages | NUMERIC(10, 2) | no |  |  |  |
+| classroom_orientation_days | INTEGER | no |  | 0 |  |
+| floor_orientation_days | INTEGER | no |  | 0 |  |
+
+- CHECK: `new_hires > 0 AND bonuses >= 0 AND classroom_orientation_hours >= 0 AND classroom_orientation_wages >= 0 AND floor_orientation_hours >= 0 AND floor_orientation_wages >= 0 AND classroom_orientation_days >= 0 AND floor_orientation_days >= 0`
+- CHECK: `role IN ('administrator', 'business_office_manager', 'hr_payroll', 'rn', 'lpn', 'lpn_supervisor', 'lpn_wound_nurse', 'cna', 'ncna', 'cma', 'cook', 'dietary_aide', 'dietary_manager', 'dietician', 'housekeeper', 'housekeeping_director', 'laundry_aide', 'maintenance_director', 'social_services_director', 'transportation_driver', 'adon_lpn', 'mds_rn', 'staffing_coordinator')`
 
 ## daily_overtime_facts
 
@@ -683,7 +737,7 @@ Additive daily discharge measures at facility/payer/destination/disposition grai
 
 - CHECK: `hours_worked >= 0 AND wages >= 0 AND overtime_hours >= 0 AND overtime_wages >= 0 AND overtime_shifts >= 0`
 - CHECK: `overtime_hours <= hours_worked`
-- CHECK: `role IN ('rn', 'lpn', 'cna', 'pt', 'pta', 'ot', 'cota', 'slp', 'dietary_aide', 'cook', 'evs')`
+- CHECK: `role IN ('administrator', 'business_office_manager', 'hr_payroll', 'rn', 'lpn', 'lpn_supervisor', 'lpn_wound_nurse', 'cna', 'ncna', 'cma', 'cook', 'dietary_aide', 'dietary_manager', 'dietician', 'housekeeper', 'housekeeping_director', 'laundry_aide', 'maintenance_director', 'social_services_director', 'transportation_driver', 'adon_lpn', 'mds_rn', 'staffing_coordinator')`
 
 ## daily_payer_census_facts
 
@@ -738,8 +792,23 @@ Hours worked, target hours and wages per facility, staffing role and day. Excess
 
 - CHECK: `hours_worked - target_hours = excess_hours - short_hours`
 - CHECK: `hours_worked >= 0 AND target_hours >= 0 AND excess_hours >= 0 AND short_hours >= 0 AND wages >= 0 AND excess_wages >= 0`
-- CHECK: `role IN ('rn', 'lpn', 'cna', 'pt', 'pta', 'ot', 'cota', 'slp', 'dietary_aide', 'cook', 'evs')`
+- CHECK: `role IN ('administrator', 'business_office_manager', 'hr_payroll', 'rn', 'lpn', 'lpn_supervisor', 'lpn_wound_nurse', 'cna', 'ncna', 'cma', 'cook', 'dietary_aide', 'dietary_manager', 'dietician', 'housekeeper', 'housekeeping_director', 'laundry_aide', 'maintenance_director', 'social_services_director', 'transportation_driver', 'adon_lpn', 'mds_rn', 'staffing_coordinator')`
 - INDEX `ix_daily_staffing_facts_role_date`: role, summary_date
+
+## daily_training_facts
+
+In-service training per facility, staffing role and day: the hours staff spent in sessions and their pay. Rows exist only for weekdays with a session; absence is zero. Training hours are not counted in HPPD.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| summary_date | DATE | no | PK |  |  |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| role | VARCHAR | no | PK |  |  |
+| training_hours | NUMERIC(7, 1) | no |  |  |  |
+| training_wages | NUMERIC(10, 2) | no |  |  |  |
+
+- CHECK: `role IN ('administrator', 'business_office_manager', 'hr_payroll', 'rn', 'lpn', 'lpn_supervisor', 'lpn_wound_nurse', 'cna', 'ncna', 'cma', 'cook', 'dietary_aide', 'dietary_manager', 'dietician', 'housekeeper', 'housekeeping_director', 'laundry_aide', 'maintenance_director', 'social_services_director', 'transportation_driver', 'adon_lpn', 'mds_rn', 'staffing_coordinator')`
+- CHECK: `training_hours > 0 AND training_wages >= 0`
 
 ## facility_beds
 
@@ -888,6 +957,41 @@ Calendar-month rollup of the hospital referrals in daily_admission_facts, at hos
 - CHECK: `readmissions_30_day BETWEEN 0 AND readmissions`
 - INDEX `ix_monthly_referral_facts_hospital`: hospital, month_start
 
+## monthly_staffing_cost_facts
+
+
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| month_start | DATE | no | PK |  |  |
+| facility_id | UUID | no | PK, FK → facilities.facility_id |  |  |
+| role | VARCHAR | no | PK |  |  |
+| hours_worked | NUMERIC(10, 1) | no |  |  |  |
+| target_hours | NUMERIC(10, 1) | no |  |  |  |
+| excess_hours | NUMERIC(10, 1) | no |  |  |  |
+| wages | NUMERIC(13, 2) | no |  |  |  |
+| excess_wages | NUMERIC(13, 2) | no |  |  |  |
+| overtime_hours | NUMERIC(10, 2) | no |  |  |  |
+| overtime_wages | NUMERIC(13, 2) | no |  |  |  |
+| holiday_hours | NUMERIC(10, 2) | no |  |  |  |
+| holiday_wages | NUMERIC(13, 2) | no |  |  |  |
+| agency_hours | NUMERIC(10, 2) | no |  |  |  |
+| agency_wages | NUMERIC(13, 2) | no |  |  |  |
+| inhouse_hours | NUMERIC(10, 2) | no |  |  |  |
+| inhouse_wages | NUMERIC(13, 2) | no |  |  |  |
+| new_hires | INTEGER | no |  |  |  |
+| bonuses | NUMERIC(13, 2) | no |  |  |  |
+| training_hours | NUMERIC(10, 1) | no |  | 0 |  |
+| training_wages | NUMERIC(13, 2) | no |  | 0 |  |
+| classroom_orientation_hours | NUMERIC(10, 1) | no |  |  |  |
+| classroom_orientation_wages | NUMERIC(13, 2) | no |  |  |  |
+| floor_orientation_hours | NUMERIC(10, 1) | no |  |  |  |
+| floor_orientation_wages | NUMERIC(13, 2) | no |  |  |  |
+| classroom_orientation_days | INTEGER | no |  | 0 |  |
+| floor_orientation_days | INTEGER | no |  | 0 |  |
+
+- CHECK: `role IN ('administrator', 'business_office_manager', 'hr_payroll', 'rn', 'lpn', 'lpn_supervisor', 'lpn_wound_nurse', 'cna', 'ncna', 'cma', 'cook', 'dietary_aide', 'dietary_manager', 'dietician', 'housekeeper', 'housekeeping_director', 'laundry_aide', 'maintenance_director', 'social_services_director', 'transportation_driver', 'adon_lpn', 'mds_rn', 'staffing_coordinator')`
+
 ## residents
 
 Saved resident identities associated with a facility. Stays reference these saved IDs.
@@ -918,10 +1022,12 @@ Saved resident identities associated with a facility. Stays reference these save
 | employment_type | VARCHAR | no |  |  |  |
 | hire_date | DATE | no |  |  |  |
 | hourly_rate | NUMERIC(6, 2) | no |  |  |  |
+| termination_date | DATE | yes |  |  |  |
 
 - CHECK: `employment_type IN ('full_time', 'part_time', 'prn', 'agency')`
 - CHECK: `hourly_rate > 0`
-- CHECK: `role IN ('rn', 'lpn', 'cna', 'pt', 'pta', 'ot', 'cota', 'slp', 'dietary_aide', 'cook', 'evs')`
+- CHECK: `role IN ('administrator', 'business_office_manager', 'hr_payroll', 'rn', 'lpn', 'lpn_supervisor', 'lpn_wound_nurse', 'cna', 'ncna', 'cma', 'cook', 'dietary_aide', 'dietary_manager', 'dietician', 'housekeeper', 'housekeeping_director', 'laundry_aide', 'maintenance_director', 'social_services_director', 'transportation_driver', 'adon_lpn', 'mds_rn', 'staffing_coordinator')`
+- CHECK: `termination_date IS NULL OR termination_date > hire_date`
 - INDEX `ix_staff_members_facility_role`: facility_id, role
 
 ## bed_assignments
@@ -940,6 +1046,23 @@ Saved resident identities associated with a facility. Stays reference these save
 - CHECK: `NOT isempty(in_bed) AND NOT lower_inf(in_bed)`
 - INDEX `ix_bed_assignments_facility`: facility_id
 
+## daily_staff_bonuses
+
+Bonuses paid to each employee: shift pickups, 90-day retention and work anniversaries, one row per bonus. Kept for the same last days as daily_staff_hours; absence is no bonus.
+
+| Column | PostgreSQL type | Nullable | Key / reference | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| bonus_date | DATE | no | PK |  |  |
+| staff_id | UUID | no | PK, FK → staff_members.staff_id |  |  |
+| facility_id | UUID | no | FK → facilities.facility_id |  |  |
+| role | VARCHAR | no |  |  |  |
+| kind | VARCHAR | no | PK |  |  |
+| amount | NUMERIC(9, 2) | no |  |  |  |
+
+- CHECK: `amount > 0`
+- CHECK: `kind IN ('pickup', 'retention_90_day', 'anniversary')`
+- CHECK: `role IN ('administrator', 'business_office_manager', 'hr_payroll', 'rn', 'lpn', 'lpn_supervisor', 'lpn_wound_nurse', 'cna', 'ncna', 'cma', 'cook', 'dietary_aide', 'dietary_manager', 'dietician', 'housekeeper', 'housekeeping_director', 'laundry_aide', 'maintenance_director', 'social_services_director', 'transportation_driver', 'adon_lpn', 'mds_rn', 'staffing_coordinator')`
+
 ## daily_staff_hours
 
 
@@ -956,7 +1079,7 @@ Saved resident identities associated with a facility. Stays reference these save
 
 - CHECK: `hours > 0 AND wages >= 0`
 - CHECK: `overtime_hours >= 0 AND overtime_hours <= hours`
-- CHECK: `role IN ('rn', 'lpn', 'cna', 'pt', 'pta', 'ot', 'cota', 'slp', 'dietary_aide', 'cook', 'evs')`
+- CHECK: `role IN ('administrator', 'business_office_manager', 'hr_payroll', 'rn', 'lpn', 'lpn_supervisor', 'lpn_wound_nurse', 'cna', 'ncna', 'cma', 'cook', 'dietary_aide', 'dietary_manager', 'dietician', 'housekeeper', 'housekeeping_director', 'laundry_aide', 'maintenance_director', 'social_services_director', 'transportation_driver', 'adon_lpn', 'mds_rn', 'staffing_coordinator')`
 - INDEX `ix_daily_staff_hours_facility`: facility_id, work_date
 - INDEX `ix_daily_staff_hours_overtime`: work_date, staff_id
 - INDEX `ix_daily_staff_hours_staff`: staff_id, work_date

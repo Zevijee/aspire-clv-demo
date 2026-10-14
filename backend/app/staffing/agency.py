@@ -31,14 +31,14 @@ from sqlalchemy.engine import Connection
 from shared.database.schema import (
     daily_agency_facts as mix, daily_runs, daily_staff_hours as hours, facilities, portfolios, regions,
     staff_members as staff)
-from shared.staffing import ROLE_CODES, ROLES, STAFF_HOURS_DAYS
+from shared.staffing import ROLE_CODES, STAFF_HOURS_DAYS
 from ..common.dates import DateRange
 from ..common.errors import ApiError
 from ..common.locations import LocationSelection, facility_locations
 from ..common.tables import PageQuery, paginate
 from ..clinical.coverage import require_generated
 from .employees import employee_name, role_label, window
-from .ppd import Role, TrendQuery
+from .ppd import ROLE_LIST, Role, TrendQuery
 
 GENERATOR = 'agency_summary'
 
@@ -54,9 +54,9 @@ MEASURES = ('agency_hours', 'agency_wages', 'inhouse_hours', 'inhouse_wages', 'a
 
 
 class RoleSplit(BaseModel):
-    agency_hours: float = Field(description='Hours worked by agency staff in the range.')
+    agency_hours: float = Field(description='Hours worked by agency employees in the range.')
     agency_wages: float = Field(description='Pay for those hours. The agency rate is agency_wages / agency_hours.')
-    inhouse_hours: float = Field(description="Hours worked by the facility's own staff: full time, part time and PRN.")
+    inhouse_hours: float = Field(description="Hours worked by the facility's own employees: full time, part time and PRN.")
     inhouse_wages: float = Field(description='Pay for those hours. The in-house rate is inhouse_wages / inhouse_hours.')
     agency_premium: float = Field(description='What the agency hours cost over the same hours at this facility '
         "and role's in-house rate. Additive: a scope's premium is its facilities' summed.")
@@ -80,8 +80,12 @@ class AgencyReport(BaseModel):
     items: list[FacilityAgency]
 
 
-def report(connection: Connection, query: DateRange):
-    start, end, available_from, available_through = coverage(connection, GENERATOR, query)
+def role_splits(connection: Connection, start: date, end: date) -> dict[UUID, dict[str, dict]]:
+    """Each facility and role's split over the range, with its agency premium
+    priced at that facility and role's in-house rate, or its in-house roster's
+    average where nobody in-house worked the range. Facility and role pairs
+    with no hours are absent. The Staffing Overview reads the same premiums,
+    so both reports show one figure."""
     split = {}
     for row in connection.execute(select(mix.c.facility_id, mix.c.role,
             func.sum(mix.c.agency_hours, type_=Numeric).label('agency_hours'),
@@ -92,34 +96,45 @@ def report(connection: Connection, query: DateRange):
             .group_by(mix.c.facility_id, mix.c.role)).mappings():
         split.setdefault(row['facility_id'], {})[row['role']] = {
             measure: float(row[measure]) for measure in MEASURES if measure != 'agency_premium'}
-    # The in-house rate to price agency hours against where nobody in-house
-    # worked the range: the roster's, never zero and never another role's.
-    roster_rates = {(facility_id, role): float(rate) for facility_id, role, rate in connection.execute(
+    rates = roster_rates(connection)
+    for facility_id, roles in split.items():
+        for code, sums in roles.items():
+            sums['agency_premium'] = agency_premium(sums, rates.get((facility_id, code), 0.0))
+    return split
+
+
+def roster_rates(connection: Connection) -> dict[tuple[UUID, str], float]:
+    """Each facility and role's in-house roster average rate: what agency hours
+    are priced against where nobody in-house worked the range -- never zero and
+    never another role's."""
+    return {(facility_id, role): float(rate) for facility_id, role, rate in connection.execute(
         select(staff.c.facility_id, staff.c.role, func.avg(staff.c.hourly_rate))
         .where(staff.c.employment_type != 'agency').group_by(staff.c.facility_id, staff.c.role))}
 
+
+def agency_premium(sums: dict, roster_rate: float) -> float:
+    """What one facility and role's agency hours cost over the same hours at its
+    in-house rate, from its sums over a range: the in-house wages over hours, or
+    the roster's rate where nobody in-house worked. Shared with the Staffing
+    Overview, so both reports price it alike."""
+    inhouse_rate = sums['inhouse_wages'] / sums['inhouse_hours'] if sums['inhouse_hours'] > 0 else roster_rate
+    return round(sums['agency_wages'] - sums['agency_hours'] * inhouse_rate, 2)
+
+
+def report(connection: Connection, query: DateRange):
+    start, end, available_from, available_through = coverage(connection, GENERATOR, query)
+    split = role_splits(connection, start, end)
     empty = {measure: 0.0 for measure in MEASURES}
     items = []
     for location in connection.execute(facility_locations(LocationSelection())).mappings():
         facility_id: UUID = location['facility_id']
-        roles = {}
-        for code in ROLE_CODES:
-            sums = split.get(facility_id, {}).get(code)
-            if sums is None:
-                roles[code] = empty
-                continue
-            if sums['inhouse_hours'] > 0:
-                inhouse_rate = sums['inhouse_wages'] / sums['inhouse_hours']
-            else:
-                inhouse_rate = roster_rates.get((facility_id, code), 0.0)
-            premium = sums['agency_wages'] - sums['agency_hours'] * inhouse_rate
-            roles[code] = dict(sums, agency_premium=round(premium, 2))
+        roles = {code: split.get(facility_id, {}).get(code, empty) for code in ROLE_CODES}
         items.append(dict(facility_id=str(facility_id), facility_name=location['facility_name'],
             state=location['state'], portfolio=location['portfolio_name'], region=location['region_name'],
             roles=roles))
     items.sort(key=lambda item: (item['state'], item['portfolio'], item['region'], item['facility_name']))
     return dict(start_date=start, end_date=end, available_from=available_from, available_through=available_through,
-        roles=[dict(code=code, label=label, group=group) for code, label, group, *_ in ROLES], items=items)
+        roles=ROLE_LIST, items=items)
 
 
 # --- Trending ----------------------------------------------------------------
@@ -131,7 +146,7 @@ class FacilityAgencyTrend(BaseModel):
     portfolio: str
     region: str
     agency_hours: list[float] = Field(description="Agency hours each day of the range, in the response's date order.")
-    inhouse_hours: list[float] = Field(description="The facility's own staff's hours each day.")
+    inhouse_hours: list[float] = Field(description="The facility's own employees' hours each day.")
     agency_wages: list[float] = Field(description='Pay for the agency hours each day.')
 
 
@@ -241,7 +256,7 @@ class AgencyShift(BaseModel):
     region: str
     role: str
     role_label: str
-    hire_date: date = Field(description="The agency person's first day on the roster.")
+    hire_date: date = Field(description="The agency employee's first day on the roster.")
     hours: float = Field(description='Hours worked that day.')
     rate: float = Field(description='Wages over hours.')
     wages: float

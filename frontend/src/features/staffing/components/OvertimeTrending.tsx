@@ -86,7 +86,7 @@ function format(value: number | string, kind: Kind) {
 /** Overtime's Trending tab: how much of the work is overtime, drilled from
  * state to facility, each scope's trend read from its day-by-day overtime
  * share -- its highest day -- and the scope's share
- * charted day over day. A day's overtime is its share of each person's
+ * charted day over day. A day's overtime is its share of each employee's
  * overtime for the week, spread over the days they worked. The drilldown is kept in the URL. */
 export function OvertimeTrending() {
   const [params, setParams] = useReportSearchParams()
@@ -106,7 +106,7 @@ export function OvertimeTrending() {
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
-  // The bar's picker: the chosen roles added up by the API, or every role.
+  // The trend table's role filter: the chosen roles added up by the API, or every role.
   const { roles, roleName, picker } = useStaffingRoles(OVERTIME_ROLE_PARAM)
   const rolesKey = roles.join(',')
   useEffect(() => {
@@ -144,7 +144,7 @@ export function OvertimeTrending() {
   const shownEnd = data?.end_date ?? endDate
   const range = `${shownStart} to ${shownEnd}`
   const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
-  const subtitle = `Overtime day by day, ${roleName}, ${range}. A day's overtime is its share of each person's hours `
+  const subtitle = `Overtime day by day, ${roleName}, ${range}. A day's overtime is its share of each employee's hours `
     + 'over 40 for the week, spread over the days they worked; the share is that over the day\'s '
     + `hours, and Overtime share is the range's. Overtime premium is what time-and-a-half would add.`
     + ``
@@ -171,18 +171,19 @@ export function OvertimeTrending() {
     { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
 
   return <>
-    <LocationNavigation path={path} setPath={setPath} controls={picker} />
+    <LocationNavigation path={path} setPath={setPath} />
     <DrilldownTable<Row> title={`${levels[depth]} overtime trend`} columns={columns} rows={rows}
       getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
       loading={loading} error={error} onRetry={onRetry}
       getFooterRow={visible => ({ key: 'total', name: 'Total', path: [], isTotal: true,
         facilities: visible.flatMap(row => row.facilities) })}
       subtitle={subtitle}
+      filters={picker}
       headerActions={<><OpenViewButton kind="facilities" label="Show all facilities"
         onClick={() => setShowFacilities(true)} /><CustomGroupingButton onApply={() => setPath([])} /></>}
       emptyMessage="No facilities match this view."
       csvFileName={`overtime-trend-${file}.csv`} />
-    <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+    <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)} filters={picker}
       onSelect={next => setPath(next)}
       title={`All facilities · Overtime trend, ${roleName}, ${range}`} subtitle={subtitle}
       rows={facilityRows(data?.items ?? [])} columns={columns.slice(1)} getRowKey={row => row.key}
@@ -195,7 +196,7 @@ export function OvertimeTrending() {
         { value: Math.round(average * 1000) / 10, label: `Range ${percent(average)}` },
       ]}
       subtitle={`${scopeName} · ${roleName} · Each day's overtime hours as a share of its hours worked, each `
-        + 'person\'s hours over 40 for the week spread over the days they worked. The dashed line is the range\'s '
+        + 'employee\'s hours over 40 for the week spread over the days they worked. The dashed line is the range\'s '
         + 'share, every day added up and divided once. Hover a day for its hours and premium.'}
       loading={loading} error={error} onRetry={onRetry} />
   </>

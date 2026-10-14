@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
 import { ActiveFiltersProvider } from '../../activeFilters'
 
 import { ReportTabs, type ReportTabsProps } from './ReportTabs'
@@ -29,6 +30,14 @@ export function ReportLayout({
 }: ReportLayoutProps) {
   const activeTab = tabs?.tabs.find((tab) => tab.id === tabs.activeTabId)
   const noScroll = internalScroll || activeTab?.noScroll === true
+  // This layout stays mounted from one report to the next, and so would its
+  // scroll position: each report opens at the top. Only the path counts, so
+  // drilling, tabs and filters -- query changes -- keep their place.
+  const { pathname } = useLocation()
+  const content = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    content.current?.scrollTo({ top: 0, left: 0 })
+  }, [pathname])
 
   // The report's filters announce themselves here; its drilldown bar lists them.
   return (<ActiveFiltersProvider requireHeader>
@@ -45,6 +54,7 @@ export function ReportLayout({
         {tabs !== undefined && <ReportTabs {...tabs} />}
       </header>
       <main
+        ref={content}
         className={`content-area ${noScroll ? 'content-area--no-scroll' : ''}`}
         id="main-content"
       >

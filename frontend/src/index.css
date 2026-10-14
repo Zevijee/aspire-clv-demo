@@ -37,6 +37,13 @@
   --color-table-change-adverse: var(--color-chart-series-quaternary);
   --color-table-pinned-background: #e0eaf6;
   --color-table-pinned-hover: #d3e1f2;
+  /* A slight tint on a sectioned table's opened rows: light orange, so it
+     never reads as the blue row-hover highlight (--color-surface-subtle). Its
+     own colour, not --color-warning-subtle, which means a warning. */
+  --color-table-section-child-background: #fff7ed;
+  /* The same rows' pinned first cell: a deeper orange, as the pinned column's
+     blue is deeper than a plain row, so children stay apart from parents. */
+  --color-table-section-child-pinned: #fcebd8;
   --color-chart-series-quinary: #a855f7;
   --color-chart-series-senary: #14b8a6;
   --color-chart-series-septenary: #f59e0b;

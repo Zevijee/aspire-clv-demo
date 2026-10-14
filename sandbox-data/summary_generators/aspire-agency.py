@@ -8,7 +8,8 @@ Also rebuilt by every seed and update, after the staffing facts.
 Drawn straight from daily_staffing_facts, as the facts are drawn from the
 census: there is no timekeeping source, so this is the source. Each facility
 and role has an agency habit -- most use almost none, a few a quarter of their
-hours -- and each day moves around it, weekends leaning on agency more.
+hours -- and each day moves around it, weekends leaning on agency more. The
+office departments' roles (shared/staffing.py OFFICE_DEPARTMENTS) never do.
 Nothing here comes from the per-person hours, which exist for the last 120
 days only (daily_staff_hours): a rollup of those covered four months where
 every other report covers four years. The Logs tab still names the roster's
@@ -28,6 +29,7 @@ from psycopg import sql
 from sqlalchemy import func, select
 
 from shared.database import schema
+from shared.staffing import OFFICE_DEPARTMENTS, ROLES
 from base import BaseGenerator, DailyGenerator, GenerationResult
 from source_data_generators.draws import draw as _draw
 
@@ -46,6 +48,9 @@ AGENCY_PREMIUM = 1.9
 AGENCY_HABIT_MAX = 0.25
 WEEKEND_LIFT = 1.3
 
+# The office departments' roles: salaried staff, never agency.
+OFFICE_ROLES = ', '.join(f"'{code}'" for code, _label, department, *_ in ROLES if department in OFFICE_DEPARTMENTS)
+
 ROLE = "f.facility_id::text || ':' || f.role"
 DAY = ROLE + " || ':' || f.summary_date::text"
 
@@ -61,7 +66,8 @@ WITH facts AS (
 -- Each facility and role's habit, drawn once for its pairs. Materialized, as
 -- the staffing facts' habits are, so the draw is not repeated on every row.
 habits AS MATERIALIZED (
-    SELECT f.facility_id, f.role, {AGENCY_HABIT_MAX} * power({draw("'agency-habit:' || " + ROLE)}, 2) AS habit
+    SELECT f.facility_id, f.role, CASE WHEN f.role IN ({OFFICE_ROLES}) THEN 0
+        ELSE {AGENCY_HABIT_MAX} * power({draw("'agency-habit:' || " + ROLE)}, 2) END AS habit
     FROM (SELECT DISTINCT facility_id, role FROM facts) f
 ),
 split AS (
@@ -144,7 +150,9 @@ class AgencySummaryGenerator(BaseGenerator):
         columns = sql.SQL(', ').join(map(sql.Identifier, self.table.c.keys()))
         if self.progress:
             self.progress.set_phase('Insert rows', details=f'{generated:,} rows')
-        inserted = connection.exec_driver_sql(sql.SQL('INSERT INTO {} ({}) SELECT {} FROM {}')
+        # In date order, so a range reads its own days' pages: stored in rebuild
+        # order, 30 days of agency facts read 166,850 pages, 1.1 s cold; in date order 2,736.
+        inserted = connection.exec_driver_sql(sql.SQL('INSERT INTO {} ({}) SELECT {} FROM {} ORDER BY 1, 2')
             .format(self._table_identifier(self.table), columns, columns, sql.Identifier(stage))
             .as_string(driver)).rowcount
         if inserted != generated:

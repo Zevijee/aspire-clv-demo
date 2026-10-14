@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
 import { DrilldownTable } from '../../../shared/components/DrilldownTable'
-import { type TableColumn } from '../../../shared/components/Table'
+import { Table, type TableColumn } from '../../../shared/components/Table'
 import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModal'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
@@ -13,6 +13,8 @@ import {
   drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow,
 } from '../../../shared/utils/locationDrilldown'
 import { getPpd, STAFFING_ROLES, type FacilityStaffing, type PpdReport } from '../api'
+import { useDrilldownRoles } from './DrilldownRoleFilter'
+import { departmentSections } from '../departmentSections'
 
 type Row = DrilldownRow<FacilityStaffing>
 // A row of the role table: a role over some facilities, or one breakdown item
@@ -24,9 +26,9 @@ const metrics: [id: string, header: string, kind: Kind][] = [
   ['census_days', 'Census days', 'count'],
   ['adc', 'Avg. daily census', 'average'],
   ['hours', 'Hours worked', 'hours'],
-  ['ppd', 'PPD', 'ppd'],
-  ['target', 'Target PPD', 'ppd'],
-  ['variance', 'PPD variance', 'variance'],
+  ['ppd', 'HPPD', 'ppd'],
+  ['target', 'Target HPPD', 'ppd'],
+  ['variance', 'HPPD variance', 'variance'],
   ['excess_hours', 'Extra hours worked', 'hours'],
   ['rate', 'Avg. hourly rate', 'rate'],
   ['excess_wages', 'Excess spend', 'money'],
@@ -54,7 +56,7 @@ function sums(row: Row, roles: string[]) {
   return total
 }
 
-// Summed at this scope, then divided once: never an average of facility PPDs.
+// Summed at this scope, then divided once: never an average of facility HPPDs.
 function metric(row: Row, id: string, days: number, roles: string[]): number | null {
   const total = sums(row, roles)
   const perCensusDay = (value: number) => total.censusDays > 0 ? value / total.censusDays : null
@@ -85,7 +87,7 @@ function format(value: number | string, kind: Kind) {
   return fixed(0)
 }
 
-/** PPD: hours worked per patient day over every role in the header's date range,
+/** HPPD: hours worked per patient day over every role in the header's date range,
  * drilled from state to facility, against target, with the extra hours worked
  * over each day's target and what they cost. Below it, one row per role for
  * the drilldown's scope, each opening to the same breakdown for that role.
@@ -111,8 +113,8 @@ export function PpdDrilldown() {
   const [retry, setRetry] = useState(0)
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
   // Every role: the table adds them all up, and the role table lists each.
-  const roles = STAFFING_ROLES.map(role => role.value)
-  const roleNames = 'every role'
+  // The drilldown's roles, from its own filter; the role table lists every role.
+  const { roles, roleName: roleNames, filter: roleFilter } = useDrilldownRoles()
   useEffect(() => {
     const controller = new AbortController()
     setError(null)
@@ -137,7 +139,7 @@ export function PpdDrilldown() {
   ]
   const range = `${startDate} to ${endDate}`
   const subtitle = `Hours worked per patient day, ${roleNames}, ${range}. Census days are each day's closing census `
-    + 'summed; PPD is hours over census days and target PPD is target hours over the same days. Extra hours are '
+    + 'summed; HPPD is hours over census days and target HPPD is target hours over the same days. Extra hours are '
     + 'the hours over each day\'s target at each facility and role. Excess spend is those hours at each day\'s '
     + 'hourly rate.'
   const file = `${startDate}-to-${endDate}`
@@ -147,7 +149,7 @@ export function PpdDrilldown() {
   // the facilities shown, each summed at this scope and divided once.
   const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
   const scoped = rows.flatMap(row => row.facilities)
-  const roleRows: RoleRow[] = STAFFING_ROLES.filter(role => roles.includes(role.value))
+  const roleRows: RoleRow[] = STAFFING_ROLES
     .map(role => ({ key: role.value, name: role.label, path: [], facilities: scoped, codes: [role.value] }))
   const roleColumns: TableColumn<RoleRow>[] = [
     { id: 'name', header: 'Role', value: row => row.name, isRowHeader: true },
@@ -163,34 +165,32 @@ export function PpdDrilldown() {
 
   return <>
     <LocationNavigation path={path} setPath={setPath} />
-    <DrilldownTable<Row> title={`${levels[depth]} PPD`} columns={columns} rows={rows}
+    <DrilldownTable<Row> title={`${levels[depth]} HPPD`} columns={columns} rows={rows}
       getRowKey={row => row.key} initialSort={{ columnId: 'name', direction: 'ascending' }}
       loading={loading} error={error} onRetry={onRetry}
       getFooterRow={visible => ({ key: 'total', name: 'Total', path: [], isTotal: true,
         facilities: visible.flatMap(row => row.facilities) })}
       subtitle={subtitle}
+      filters={roleFilter}
       headerActions={<><OpenViewButton kind="facilities" label="Show all facilities"
         onClick={() => setShowFacilities(true)} /><CustomGroupingButton onApply={() => setPath([])} /></>}
       emptyMessage="No facilities match this view."
-      csvFileName={`ppd-${file}.csv`} />
-    <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)}
+      csvFileName={`hppd-${file}.csv`} />
+    <AllFacilitiesModal<Row> open={showFacilities} onClose={() => setShowFacilities(false)} filters={roleFilter}
       onSelect={next => setPath(next)}
-      title={`All facilities · PPD, ${range}`} subtitle={subtitle}
+      title={`All facilities · HPPD, ${roleNames}, ${range}`} subtitle={subtitle}
       rows={facilityRows(data?.items ?? [])} columns={columns.slice(1)} getRowKey={row => row.key}
       getName={row => row.name} getPath={row => [row.path[0], row.path[1], row.path[2]]}
       loading={loading} error={error} onRetry={onRetry}
-      csvFileName={`ppd-facilities-${file}.csv`} />
-    <DrilldownTable<RoleRow> title="PPD by role" columns={roleColumns} rows={roleRows}
-      // No initial sort: the roles come in report order, nursing, therapy, support.
+      csvFileName={`hppd-facilities-${file}.csv`} />
+    <Table<RoleRow> stickyFirstColumn floatHeader title="HPPD by role" columns={roleColumns} rows={roleRows}
+      sections={departmentSections(scoped)}
+      // No initial sort: the roles come in report order within each department.
       getRowKey={row => row.key}
       loading={loading} error={error} onRetry={onRetry}
-      // Every role shown over the same facilities, divided once: the same
-      // figures as the Total row above, never the rows added together.
-      getFooterRow={visible => ({ key: 'total', name: 'Total', path: [], isTotal: true,
-        facilities: scoped, codes: visible.map(row => row.codes[0]) })}
-      subtitle={`${scopeName} · ${roleNames}, ${range}. Each role's hours over the facilities shown and their `
-        + 'census days. The Total row is every role shown, added up and divided once.'}
+      subtitle={`${scopeName} · every role, ${range}. Each role's hours over the facilities shown and their `
+        + 'census days. Each department is followed by its roles.'}
       emptyMessage="No roles match this view."
-      csvFileName={`ppd-roles-${file}.csv`} />
+      csvFileName={`hppd-roles-${file}.csv`} />
   </>
 }

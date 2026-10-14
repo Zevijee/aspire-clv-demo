@@ -62,7 +62,7 @@ export function LineChart({ items, title, subtitle, loading, error, onRetry, sig
   const minimumValue = Math.min(...(values.length ? values : [0]))
   const maximumValue = Math.max(...(values.length ? values : [0]))
   // A tenth of the range above and below. Counts pad by whole units, at
-  // least one; a measure with decimals, such as a PPD moving by tenths, pads
+  // least one; a measure with decimals, such as a HPPD moving by tenths, pads
   // by its own range, or a whole unit would flatten every dip and peak.
   const whole = values.every((value) => Number.isInteger(value))
   const axisPadding = whole ? Math.max(1, Math.ceil((maximumValue - minimumValue) * 0.1))
@@ -117,7 +117,7 @@ export function LineChart({ items, title, subtitle, loading, error, onRetry, sig
             />
             <YAxis
               // Counts tick by whole numbers; a measure with decimals needs
-              // decimal ticks, or a PPD between 2.2 and 2.4 gets one tick at 2.
+              // decimal ticks, or a HPPD between 2.2 and 2.4 gets one tick at 2.
               allowDecimals={!whole}
               axisLine={false}
               domain={yAxisDomain}
