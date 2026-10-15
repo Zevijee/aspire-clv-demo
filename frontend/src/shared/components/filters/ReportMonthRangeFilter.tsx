@@ -2,13 +2,13 @@ import { DatePicker } from 'antd'
 import dayjs from 'dayjs'
 import { useSearchParams } from 'react-router-dom'
 
-/** The month range in the URL, or by default the last 24 complete months,
+/** The month range in the URL, or by default the last 36 complete months,
  * ending last month: the month in progress is left out, since its partial days
  * would read as a dip. It can still be chosen in the picker. */
 export function getReportMonthRange(params: URLSearchParams) {
   const end = params.has('end_month') ? dayjs(params.get('end_month')).startOf('month')
     : dayjs().startOf('month').subtract(1, 'month')
-  const start = params.has('start_month') ? dayjs(params.get('start_month')).startOf('month') : end.subtract(23, 'month')
+  const start = params.has('start_month') ? dayjs(params.get('start_month')).startOf('month') : end.subtract(35, 'month')
   return { start, end }
 }
 

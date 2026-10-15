@@ -27,11 +27,23 @@ type Font = 0 | 1 | 2 | 3 // regular, bold, title, muted
 type Fill = 0 | 2 // none, the header's
 type Style = { format: string; font: Font; fill: Fill; indent: number }
 
+// Excel takes some 200 to 250 custom number formats in a workbook, and past that
+// repairs the file by discarding the rest: 379 did. A figure's share in its cell
+// is a format of its own, so they stop short of it, and any past it are text.
+const FORMAT_LIMIT = 180
+
 /** Each distinct look a cell takes, numbered as styles.xml lists them; the
  * first is Excel's default. */
 class Styles {
   private readonly styles: Style[] = [{ format: 'General', font: 0, fill: 0, indent: 0 }]
   private readonly keys = new Map<string, number>([['General|0|0|0', 0]])
+  private readonly formats = new Set<string>()
+
+  /** Whether a cell can take this number format: one already used, or room for
+   * another under Excel's limit (FORMAT_LIMIT). */
+  fits(format: string) {
+    return this.formats.has(format) || this.formats.size < FORMAT_LIMIT
+  }
 
   get(format = 'General', font: Font = 0, fill: Fill = 0, indent = 0) {
     const key = `${format}|${font}|${fill}|${indent}`
@@ -39,6 +51,7 @@ class Styles {
     if (index === undefined) {
       index = this.styles.push({ format, font, fill, indent }) - 1
       this.keys.set(key, index)
+      if (format !== 'General') this.formats.add(format)
     }
     return index
   }
@@ -94,6 +107,13 @@ function figure(text: string): { value: number; format: string } | null | 'empty
   if (dollar) format = `"$"${format}`
   if (sign) format = `+${format};-${format};${format}`
   return { value, format }
+}
+
+/** A share to whole percent, as "8%": a cell's share is a number format of its
+ * own, and a decimal would need ten times as many (FORMAT_LIMIT). */
+function wholePercent(note: string | undefined) {
+  const match = note?.match(/^(-?[\d.]+)%$/)
+  return match ? `${Math.round(Number(match[1]))}%` : note
 }
 
 /** A sheet name Excel accepts: at most 31 characters, none of []:*?/\, and not
@@ -268,14 +288,13 @@ function sheetFrom(table: ExcelTable, name: string, heading: string, details: st
     const font: Font = row.kind === 'section' || row.kind === 'total' ? 1 : 0
     const fill: Fill = row.kind === 'total' ? 2 : 0
     return row.cells.map((text, index) => {
-      const note = row.notes?.[index]
+      const note = wholePercent(row.notes?.[index])
       const parsed = table.columns[index]?.numeric ? figure(text) : null
       if (parsed === 'empty') return { value: null, style: styles.get('General', font, fill) }
-      if (parsed) {
-        // The share as text in the number's format, so the cell keeps its number.
-        const format = note ? `${parsed.format}" (${note.replace(/"/g, '')})"` : parsed.format
-        return { value: parsed.value, style: styles.get(format, font, fill) }
-      }
+      // The share as text in the number's format, so the cell keeps its number,
+      // while Excel has room for the format; else the cell is text.
+      const format = parsed && note ? `${parsed.format}" (${note.replace(/"/g, '')})"` : parsed?.format
+      if (parsed && format && styles.fits(format)) return { value: parsed.value, style: styles.get(format, font, fill) }
       return { value: (note ? `${text} (${note})` : text) || null,
         style: styles.get('General', font, fill, index === 0 ? indent : 0) }
     })

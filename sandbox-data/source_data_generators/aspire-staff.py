@@ -44,14 +44,20 @@ useless on a chart; spread, each day runs 5-10%. A day added to a week in
 progress moves the week's other days' share, so those are set again after it
 is written.
 
-People leave. Past the roster's first MIN_ROSTER, each person may leave at their
-role's yearly turnover (the onboarding facts' ROLE_RULES) over the hours window
-and the year after it, on a day drawn in that span, never within MIN_TENURE_DAYS
-of their hire; a replacement of the same kind joins REPLACEMENT_DAYS later, at
-the end of the roster. From the day they leave a person works no hours. A date
-after today is a departure still to come, so the roster keeps changing as the
-days are generated. The draws are hashes of the position, not its Random, so
-everyone's rate and name are what they were before people could leave.
+People leave, from the start of the history to a year past today, so the
+Turnover and Retention report has every year to measure. Past the roster's
+first MIN_ROSTER, each seat churns at its role's yearly turnover (the onboarding
+facts' ROLE_RULES): its holder stays an exponentially drawn time at that rate --
+counted from the start of the history for someone hired before it, and never
+less than MIN_TENURE_DAYS -- then leaves, and a replacement of the same kind
+joins REPLACEMENT_DAYS later, at the end of the roster, to stay a drawn time of
+their own and leave in turn. From the day they leave a person works no hours. A
+date after today is a departure still to come, so the roster keeps changing as
+the days are generated. Each leaver has a reason (shared/turnover_reasons.py),
+retirement likelier the longer they worked, and each replacement names whom
+they replaced; a hire who replaced nobody filled a new position. The draws are
+hashes of the position, not its Random, so everyone's rate and name are what
+they were before people could leave.
 
 Only the last 120 days are kept: at some 20,000 shifts a day over 253
 facilities, the whole history would be ten times the largest table, on a
@@ -64,6 +70,7 @@ from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 import hashlib
 import importlib
+import math
 from random import Random
 
 from psycopg import sql
@@ -71,6 +78,7 @@ from sqlalchemy import func, select
 
 from shared.database import schema
 from shared.staffing import EMPLOYMENT_TYPES, OFFICE_DEPARTMENTS, ROLES, WEEKLY_HOURS
+from shared.turnover_reasons import RETIREMENT_MAX, RETIREMENT_PER_YEAR, TERMINATION_REASONS
 from base import BaseGenerator, DailyGenerator, GenerationResult
 from source_data_generators.draws import draw
 
@@ -104,13 +112,28 @@ CENTS = Decimal('0.01')
 # loses people at the rate the Staffing Overview hires them.
 TURNOVER = {code: rules[0] for code, rules
     in importlib.import_module('summary_generators.aspire-onboarding').ROLE_RULES.items()}
-# Departures fall in the hours window and the year after it.
-DEPARTURE_DAYS = HOURS_DAYS + 365
+# Departures fall from the start of the history to this many days past today.
+FUTURE_DAYS = 365
 MIN_TENURE_DAYS = 14
 # A replacement joins 7 to 28 days after the person they replace leaves.
 REPLACEMENT_DAYS = (7, 28)
-# Replacements' roster positions, past any role's own.
+# Replacements' roster positions, past any role's own: a seat's holders are its
+# position plus a multiple of this, one more for each that followed.
 REPLACEMENT_BASE = 100000
+
+
+def termination_reason(key, hired, left):
+    """Why someone left: a weighted draw of TERMINATION_REASONS, retirement's
+    weight grown by the years they worked."""
+    years = (left - hired).days / 365.25
+    weights = [weight + (min(RETIREMENT_MAX, RETIREMENT_PER_YEAR * years) if code == 'retired' else 0)
+        for code, _label, _voluntary, weight in TERMINATION_REASONS]
+    point = sql_draw(f'staff-reason:{key}') * sum(weights)
+    for (code, *_), weight in zip(TERMINATION_REASONS, weights):
+        point -= weight
+        if point < 0:
+            return code
+    return TERMINATION_REASONS[-1][0]
 
 
 def sql_draw(seed):
@@ -158,28 +181,43 @@ class StaffMembersGenerator(BaseGenerator):
                             (self.SIMULATION_START - EARLIEST_HIRE).days))
                     else:
                         hired = self.SIMULATION_START + timedelta(days=rng.randrange(history_days))
-                    self._people.append((facility, code, base_rate, number, kind, hired, rng, None))
+                    self._people.append((facility, code, base_rate, number, kind, hired, rng, None, None))
                     if hired <= window_start:
                         covered += chances[kind]
                     number += 1
-        # Departures, and a replacement for each at the end of the roster, so
-        # nobody before them moves and every name stays the same.
-        leave_chance = {code: min(0.95, rate * DEPARTURE_DAYS / 365) for code, rate in TURNOVER.items()}
+        # Each seat's holders in turn: who leaves when, and the replacement who
+        # follows, at the end of the roster, so nobody before them moves and
+        # every name stays the same.
+        horizon = self._through + timedelta(days=FUTURE_DAYS)
         replacements = []
-        for index, (facility, code, base_rate, number, kind, hired, rng, _left) in enumerate(self._people):
+        for index, (facility, code, base_rate, number, kind, hired, rng, _left, _replaces) in enumerate(self._people):
             if number < MIN_ROSTER:
                 continue
-            key = f"{facility['facility_id']}:{code}:{number}"
-            if sql_draw(f'staff-leaves:{key}') >= leave_chance[code]:
-                continue
-            left = max(window_start + timedelta(days=int(sql_draw(f'staff-left-on:{key}') * DEPARTURE_DAYS)),
-                hired + timedelta(days=MIN_TENURE_DAYS))
-            self._people[index] = (facility, code, base_rate, number, kind, hired, rng, left)
-            gap = REPLACEMENT_DAYS[0] + int(sql_draw(f'staff-replaced:{key}')
-                * (REPLACEMENT_DAYS[1] - REPLACEMENT_DAYS[0] + 1))
-            successor = REPLACEMENT_BASE + number
-            replacements.append((facility, code, base_rate, successor, kind, left + timedelta(days=gap),
-                Random(self.source_id('staff-member', SEED, str(facility['facility_id']), code, successor).int), None))
+            facility_id = str(facility['facility_id'])
+            holder, holder_hired, holder_index = number, hired, index
+            while True:
+                key = f'{facility_id}:{code}:{holder}'
+                # Time in the seat: exponential at the role's yearly turnover, so
+                # a year loses that share of the people in it.
+                stay = -math.log(1 - sql_draw(f'staff-leaves:{key}')) / TURNOVER[code] * 365
+                left = max(max(holder_hired, self.SIMULATION_START) + timedelta(days=int(stay)),
+                    holder_hired + timedelta(days=MIN_TENURE_DAYS))
+                if left > horizon:
+                    break
+                if holder_index is None:
+                    replacements[-1] = replacements[-1][:7] + (left,) + replacements[-1][8:]
+                else:
+                    self._people[holder_index] = self._people[holder_index][:7] + (left,) + self._people[holder_index][8:]
+                gap = REPLACEMENT_DAYS[0] + int(sql_draw(f'staff-replaced:{key}')
+                    * (REPLACEMENT_DAYS[1] - REPLACEMENT_DAYS[0] + 1))
+                predecessor = holder
+                holder += REPLACEMENT_BASE
+                holder_hired = left + timedelta(days=gap)
+                holder_index = None
+                replacements.append((facility, code, base_rate, holder, kind, holder_hired,
+                    Random(self.source_id('staff-member', SEED, facility_id, code, holder).int), None, predecessor))
+                if holder_hired > horizon:
+                    break
         self._people.extend(replacements)
 
     def expected_rows(self):
@@ -198,7 +236,7 @@ class StaffMembersGenerator(BaseGenerator):
     def generate(self):
         names = self.random_names(self.expected_rows(), seed=SEED + 7)
         latest_hire = self._through - timedelta(days=30)
-        for facility, code, base_rate, number, kind, hired, rng, left in self._people:
+        for facility, code, base_rate, number, kind, hired, rng, left, replaces in self._people:
             facility_id = str(facility['facility_id'])
             pay = base_rate * WAGE_INDEX.get(facility['state'], 1.0) * (
                 FACILITY_PAY_RANGE[0] + FACILITY_PAY_RANGE[1] * sql_draw(f'staff-pay:{facility_id}:{code}'))
@@ -212,7 +250,10 @@ class StaffMembersGenerator(BaseGenerator):
                 yield dict(staff_id=self.source_id('staff-member', SEED, facility_id, code, number),
                     facility_id=facility['facility_id'], role=code, first_name=person['first_name'],
                     last_name=person['last_name'], employment_type=kind, hire_date=hired,
-                    hourly_rate=rate.quantize(CENTS, ROUND_HALF_UP), termination_date=left)
+                    hourly_rate=rate.quantize(CENTS, ROUND_HALF_UP), termination_date=left,
+                    termination_reason=left and termination_reason(f'{facility_id}:{code}:{number}', hired, left),
+                    replaces_staff_id=None if replaces is None
+                        else self.source_id('staff-member', SEED, facility_id, code, replaces))
 
 
 CHANCE_SQL = 'CASE s.employment_type ' + ' '.join(
@@ -241,7 +282,10 @@ candidates AS (
         ({CHANCE_SQL}) * least(1.3, f.hours_worked / greatest(f.target_hours, 1)) AS chance,
         ({WEIGHT_SQL}) * (0.8 + 0.4 * {draw("'staff-shift:' || " + PERSON_DAY)}) AS weight
     FROM facts f
+    -- Nobody gone by the day: not even the fallback below may pick them. With
+    -- every year's leavers on the roster, they would also crowd each day's draw.
     JOIN staff_members s ON s.facility_id = f.facility_id AND s.role = f.role
+        AND (s.termination_date IS NULL OR s.termination_date > f.summary_date)
 ),
 ranked AS (
     SELECT c.*, row_number() OVER (PARTITION BY c.summary_date, c.facility_id, c.role

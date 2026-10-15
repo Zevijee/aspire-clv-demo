@@ -27,6 +27,7 @@ from .mds.routes import router as mds_router
 from .clinical.routes import router as clinical_router
 from .staffing.routes import router as staffing_router
 from .staffing import employees as staffing_employees
+from .staffing import monthly as staffing_monthly
 
 logger = logging.getLogger('aspire.api')
 # How often the Employees tab's default range is checked and built again once
@@ -35,13 +36,15 @@ WARM_SECONDS = 300
 
 
 def _keep_warm(database, stop: threading.Event) -> None:
-    """Build the Employees tab's default range ahead of its first request, and
-    again after each data change, until the API stops."""
+    """Build the Employees tab's and Monthly Staffing Trending's default ranges
+    ahead of their first request, and again after each data change, until the
+    API stops."""
     while not stop.is_set():
-        try:
-            staffing_employees.warm(database)
-        except Exception:  # A database mid-upgrade, or no hours yet: try again later.
-            logger.debug('Employees warm-up skipped', exc_info=True)
+        for name, warm in (('Employees', staffing_employees.warm), ('Monthly staffing', staffing_monthly.warm)):
+            try:
+                warm(database)
+            except Exception:  # A database mid-upgrade, or no data yet: try again later.
+                logger.debug('%s warm-up skipped', name, exc_info=True)
         stop.wait(WARM_SECONDS)
 
 
@@ -59,7 +62,7 @@ def create_app() -> FastAPI:
                 raise RuntimeError('Database is not ready. Check DATABASE_URL and run '
                     'python manage.py upgrade from sandbox-data before starting the API.') from None
             stop = threading.Event()
-            threading.Thread(target=_keep_warm, args=(database, stop), name='employees-warm', daemon=True).start()
+            threading.Thread(target=_keep_warm, args=(database, stop), name='staffing-warm', daemon=True).start()
             try:
                 yield
             finally:

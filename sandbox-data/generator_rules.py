@@ -59,7 +59,8 @@ SHARED_RULES = {
     'facility_staffing_summary': ('../shared/holidays.py',),
     # The roster's roles, targets and rates; the hours' employment habits and draws.
     # ... and the turnover its departures follow, from the onboarding rules.
-    'staff_members': ('../shared/staffing.py', 'summary_generators/aspire-onboarding.py'),
+    'staff_members': ('../shared/staffing.py', 'summary_generators/aspire-onboarding.py',
+        '../shared/turnover_reasons.py'),
     'staff_hours': ('../shared/staffing.py', 'source_data_generators/draws.py'),
     # The roles it covers, and the pickup and program draws.
     'staff_bonuses': ('../shared/staffing.py', 'source_data_generators/draws.py'),

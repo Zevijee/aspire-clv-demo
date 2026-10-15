@@ -12,6 +12,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import DATERANGE, JSONB
 
 from shared.staffing import EMPLOYMENT_CODES, ROLE_CODES
+from shared.turnover_reasons import REASON_CODES
 
 metadata = MetaData()
 migration_history = Table('sandbox_schema_migrations', metadata,
@@ -911,7 +912,16 @@ staff_members = Table('staff_members', metadata,
     # employed. They work no hours from it on, and a replacement joins the
     # roster a few weeks later. A date after today is a departure to come.
     Column('termination_date', Date),
+    # Why they left (shared/turnover_reasons.py): set exactly when they did.
+    Column('termination_reason', String),
+    # Whom a hire replaced: the person who left their seat. Null for a new
+    # position. No foreign key: the roster is replaced whole on every build.
+    Column('replaces_staff_id', Uuid),
     CheckConstraint('termination_date IS NULL OR termination_date > hire_date'),
+    CheckConstraint('(termination_reason IS NULL) = (termination_date IS NULL)',
+        name='staff_members_termination_reason_check'),
+    CheckConstraint('termination_reason IS NULL OR termination_reason IN ('
+        + ', '.join(f"'{code}'" for code in REASON_CODES) + ')', name='staff_members_termination_reason_code_check'),
     CheckConstraint('role IN (' + ', '.join(f"'{code}'" for code in ROLE_CODES) + ')'),
     CheckConstraint('employment_type IN (' + ', '.join(f"'{code}'" for code in EMPLOYMENT_CODES) + ')'),
     CheckConstraint('hourly_rate > 0'),

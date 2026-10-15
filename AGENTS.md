@@ -140,7 +140,7 @@ list it in `SHARED_RULES` there, or a change to that file goes unnoticed.
 | Resident weigh-ins, for Weight Surveillance | `weight_logs --regenerate`, ~3.5 min |
 | Progress notes and their flag terms, for Flagged Progress Notes | `progress_notes --regenerate`, ~6 min; updates only move dates |
 | Each facility's day across every role, with its census and labour cost, for the HPPD and PPD cost trends | `facility_staffing_summary --regenerate`, ~3 min, after the overtime, agency, onboarding and training facts |
-| Staff roster size, employment mix, hire dates, pay, departures, for the Staffing Overview's Employees tab | `staff_members --regenerate`, ~30 s, then `staff_hours` and `staff_bonuses --regenerate`; `update` runs all three, ~5.5 min |
+| Staff roster size, employment mix, hire dates, pay, departures, for the Employees tab and Turnover and Retention | `staff_members --regenerate`, ~30 s, then `staff_hours` and `staff_bonuses --regenerate`; `update` runs all three, ~6.5 min (measured 2026-10-15, 110,000 roster rows) |
 | Who worked which day and for how long, the last 120 days | `staff_hours --regenerate`, ~3 min |
 | Each employee's pickup, 90-day retention and anniversary bonuses, the last 120 days | `staff_bonuses --regenerate`, ~10 s, from the staff hours and roster |
 | Agency hours and pay per facility, role and day, for Agency vs In-house | `agency_summary --regenerate`, ~1 min, from the staffing facts |
@@ -273,10 +273,11 @@ generation job. See [docs/deploying.md](docs/deploying.md).
   the date; after a rebuild that did not, `CLUSTER <table> USING <table>_pkey`
   (about 45 s for the largest) and record the fingerprints if only the order
   changed.
-- **The Employees tab's rows are kept in the API process.** Each date range is
-  built once and reused until a generator writing the roster, hours or bonuses
-  records a run (`employees.data_stamp`). An edit made straight in the database
-  is not seen until the API restarts; regenerate through `manage.py` instead.
+- **The Employees tab's rows, and Monthly Staffing Trending's answers, are kept
+  in the API process.** Each date range is built once and reused until a
+  generator they read records a run (`employees.data_stamp`,
+  `monthly.data_stamp`). An edit made straight in the database is not seen
+  until the API restarts; regenerate through `manage.py` instead.
 - **A generator that carries a running balance cannot be rebuilt for one day.**
   `net_change_summary` and `monthly_adt_summary` recompute from the first affected
   row onward. `net_change_summary` has an `extend` path for a contiguous tail only,

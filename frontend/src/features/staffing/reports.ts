@@ -68,4 +68,22 @@ export const staffingReports: ReportDefinition[] = [
     path: '/staffing/training',
     title: 'Training',
   },
+  {
+    description: 'Review how many employees leave and stay, and how long they stay.',
+    module: 'Staffing',
+    path: '/staffing/turnover',
+    title: 'Turnover and Retention',
+  },
+  {
+    description: 'Check each PBJ quarter as CMS reads it: nurse hours, RN coverage, turnover and the deadline.',
+    module: 'Staffing',
+    path: '/staffing/pbj',
+    title: 'PBJ Compliance',
+  },
+  {
+    description: 'Review hours against budget and HPPD month by month.',
+    module: 'Staffing',
+    path: '/staffing/monthly-trending',
+    title: 'Monthly Staffing Trending',
+  },
 ]

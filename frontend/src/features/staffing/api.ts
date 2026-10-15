@@ -536,3 +536,242 @@ export async function getStaffingOverview(startDate: string, endDate: string, si
       [code, Object.fromEntries(measures.map((measure, index) => [measure, values[index]])) as RoleOverview])) })),
   } as StaffingOverview
 }
+
+// --- Monthly Staffing Trending -----------------------------------------------
+
+export type MonthlyStaffingFacility = {
+  facility_id: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  // Each by YYYY-MM: closing census summed over the month, once per facility,
+  // and the hours worked, budget hours and labour cost of the roles asked for,
+  // the cost as the PPD cost report counts it.
+  census_days: Record<string, number>
+  hours: Record<string, number>
+  // Of the hours worked, those worked by agency employees, and those over 40 in
+  // an employee's week.
+  agency_hours: Record<string, number>
+  overtime_hours: Record<string, number>
+  target_hours: Record<string, number>
+  cost: Record<string, number>
+  // The premiums and extras: the hours over each day's budget at straight time,
+  // what agency hours cost over the in-house rate, and what overtime paid over
+  // straight time.
+  excess_wages: Record<string, number>
+  agency_premium: Record<string, number>
+  overtime_premium: Record<string, number>
+  // Sign-on bonuses, and the new hires they were paid to.
+  bonuses: Record<string, number>
+  new_hires: Record<string, number>
+  // The facility's own employees, from the roster: headcount at the month's
+  // start and end, its hires and departures, and those employed at its start
+  // still there at its end.
+  headcount_start: Record<string, number>
+  headcount_end: Record<string, number>
+  hires: Record<string, number>
+  departures: Record<string, number>
+  retained: Record<string, number>
+}
+
+export type MonthlyStaffing = {
+  start: string
+  // The last day read: the end of the last month, or the latest generated day.
+  end: string
+  months: { month: string; days: number; month_days: number }[]
+  items: MonthlyStaffingFacility[]
+}
+
+type MonthlyMeasure = Exclude<keyof MonthlyStaffingFacility, 'facility_id' | 'facility_name' | 'state' | 'portfolio'
+  | 'region'>
+
+// The response as sent: each facility's measures as arrays aligned to `months`,
+// in `measures` order -- half the size of a dict per measure keyed by month.
+type MonthlyStaffingResponse = Omit<MonthlyStaffing, 'items'> & {
+  measures: MonthlyMeasure[]
+  items: (Pick<MonthlyStaffingFacility, 'facility_id' | 'facility_name' | 'state' | 'portfolio' | 'region'>
+    & { values: number[][] })[]
+}
+
+// Every tab asks for the same months, so each answer is kept a while and shared:
+// switching tabs, or back, does not wait for the API again. Kept for minutes
+// only, as the midnight update adds a day, and only the last few ranges.
+const MONTHLY_KEEP_MS = 5 * 60_000
+const MONTHLY_KEEP = 6
+const monthlyAnswers = new Map<string, { at: number; answer: Promise<MonthlyStaffing> }>()
+
+/** Every facility's census days, hours, labour cost and premiums by month, over
+ * `roles`; none is every role. Shared between callers: a caller that leaves
+ * ignores the answer rather than cancelling it, so the next one can use it. */
+export function getMonthlyStaffing(startMonth: string, endMonth: string, roles: string[]) {
+  const params = new URLSearchParams({ start_month: startMonth, end_month: endMonth })
+  roles.forEach(role => params.append('roles', role))
+  const url = `${base}/api/v1/staffing/monthly-trending?${params}`
+  const kept = monthlyAnswers.get(url)
+  if (kept && Date.now() - kept.at < MONTHLY_KEEP_MS) return kept.answer
+  const answer = readJson<MonthlyStaffingResponse>(url).then(({ measures, items, ...rest }) => ({
+    ...rest,
+    items: items.map(({ values, ...item }) => {
+      const facility = { ...item } as MonthlyStaffingFacility
+      measures.forEach((measure, index) => {
+        // Months with none are left out, as absence means zero.
+        const byMonth: Record<string, number> = {}
+        values[index].forEach((value, at) => { if (value) byMonth[rest.months[at].month] = value })
+        facility[measure] = byMonth
+      })
+      return facility
+    }),
+  }))
+  answer.catch(() => monthlyAnswers.delete(url))
+  monthlyAnswers.delete(url)
+  monthlyAnswers.set(url, { at: Date.now(), answer })
+  while (monthlyAnswers.size > MONTHLY_KEEP) monthlyAnswers.delete(monthlyAnswers.keys().next().value!)
+  return answer
+}
+
+// --- Turnover and Retention --------------------------------------------------
+
+/** One role's counts at a facility over the range. */
+export type RoleTurnover = {
+  // Employed the day before the range, and on its last day.
+  start_headcount: number
+  end_headcount: number
+  hires: number
+  departures: number
+  // Employed both before the range and on its last day.
+  retained: number
+  // Hires whose 90th day fell in the range, and those of them still employed on it.
+  eligible_90: number
+  retained_90: number
+  // The end headcount's days since hire, summed.
+  tenure_days: number
+}
+
+export type FacilityTurnover = {
+  facility_id: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  roles: Record<string, RoleTurnover>
+}
+
+export type TurnoverReport = {
+  start_date: string
+  end_date: string
+  days: number
+  items: FacilityTurnover[]
+}
+
+type TurnoverResponse = Omit<TurnoverReport, 'items'> & {
+  measures: (keyof RoleTurnover)[]
+  items: (Omit<FacilityTurnover, 'roles'> & { roles: Record<string, number[]> })[]
+}
+
+/** Every facility's own employees between the dates, per role, as arrays decoded to named counts. */
+export async function getTurnover(startDate: string, endDate: string, signal?: AbortSignal) {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate })
+  const { measures, items, ...rest } = await readJson<TurnoverResponse>(`${base}/api/v1/staffing/turnover?${params}`,
+    signal)
+  return {
+    ...rest,
+    items: items.map(item => ({ ...item, roles: Object.fromEntries(Object.entries(item.roles).map(([code, values]) =>
+      [code, Object.fromEntries(measures.map((measure, index) => [measure, values[index]])) as RoleTurnover])) })),
+  } as TurnoverReport
+}
+
+/** One hire or departure in the range: who, where, when, and why they left or
+ * whom they replaced. */
+export type TurnoverPerson = {
+  staff_id: string
+  event: 'Hired' | 'Left'
+  date: string
+  employee_name: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  department: string
+  role: string
+  role_label: string
+  employment_type: string
+  hire_date: string
+  termination_date: string | null
+  // For a departure, the days from hire to leaving.
+  tenure_days: number | null
+  // Voluntary or Involuntary for a departure; Replacement or New position for a hire.
+  category: string
+  reason: string
+}
+
+export type TurnoverPeoplePage = { items: TurnoverPerson[]; total: number; limit: number; offset: number }
+
+export const turnoverPeopleBase = `${base}/api/v1/staffing/turnover/people`
+
+function turnoverPeopleParameters(startDate: string, endDate: string, query: EmployeesQuery, offset: number,
+    roles: string[]) {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate, limit: '50', offset: String(offset),
+    filters: JSON.stringify(query.filters), search: query.search?.trim() ?? '',
+    sort: query.sort?.columnId ?? 'date', direction: query.sort?.direction === 'ascending' ? 'asc' : 'desc' })
+  roles.forEach(role => params.append('roles', role))
+  return params
+}
+
+export function getTurnoverPeople(startDate: string, endDate: string, offset: number, query: EmployeesQuery,
+    roles: string[], signal?: AbortSignal) {
+  return readJson<TurnoverPeoplePage>(
+    `${turnoverPeopleBase}?${turnoverPeopleParameters(startDate, endDate, query, offset, roles)}`, signal)
+}
+
+export async function downloadTurnoverPeople(startDate: string, endDate: string, query: EmployeesQuery,
+    roles: string[], fileName: string) {
+  const response = await authorizedFetch(
+    `${turnoverPeopleBase}/export?${turnoverPeopleParameters(startDate, endDate, query, 0, roles)}`)
+  if (!response.ok) throw new Error('The export could not complete.')
+  const url = URL.createObjectURL(await response.blob())
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = fileName
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+// --- PBJ Compliance ----------------------------------------------------------
+
+/** One facility's PBJ quarter: resident days, each PBJ role's hours, its RN
+ * coverage and its 12-month turnover. */
+export type FacilityPbj = {
+  facility_id: string
+  facility_name: string
+  state: string
+  portfolio: string
+  region: string
+  // Days with residents, closing census summed, and the same over weekends.
+  days: number
+  resident_days: number
+  weekend_resident_days: number
+  // Each PBJ role's [hours, weekend hours, agency hours].
+  roles: Record<string, [number, number, number]>
+  days_without_rn: number
+  days_under_8_rn: number
+  // [nurse departures, nurse headcount at the start, at the end, RN departures,
+  // RN headcount at the start, at the end, administrator departures].
+  turnover: number[]
+}
+
+export type PbjReport = {
+  start_date: string
+  end_date: string
+  due_date: string
+  // Each role's PBJ job title code.
+  codes: Record<string, number>
+  items: FacilityPbj[]
+}
+
+export function getPbj(startDate: string, endDate: string, signal?: AbortSignal) {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate })
+  return readJson<PbjReport>(`${base}/api/v1/staffing/pbj?${params}`, signal)
+}

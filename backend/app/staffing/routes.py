@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from ..common.dates import DateRange
 from ..common.errors import ApiError, ErrorResponse
 from ..database import DbConnection
-from . import agency, employees, overtime, overview, ppd
+from . import agency, employees, monthly, overtime, overview, pbj, ppd, turnover, turnover_people
 
 router = APIRouter(prefix='/staffing', tags=['Staffing'])
 
@@ -20,6 +20,58 @@ def overview_report(connection: DbConnection, query: Annotated[DateRange, Query(
     role together, between `start_date` and `end_date`, for the page to add up
     at any level and divide once."""
     return overview.report(connection, query)
+
+
+@router.get('/turnover', response_model=turnover.TurnoverReport, responses={409: {'model': ErrorResponse}})
+def turnover_report(connection: DbConnection, query: Annotated[DateRange, Query()]):
+    """Turnover and Retention: every facility's own employees between `start_date`
+    and `end_date`, per role -- headcount before and at the end, hires,
+    departures, who stayed, the 90-day retention of new hires and tenure -- for
+    the page to add up at any level and divide once."""
+    return turnover.report(connection, query)
+
+
+@router.get('/turnover/people', response_model=turnover_people.TurnoverPeoplePage,
+    responses={409: {'model': ErrorResponse}})
+def turnover_people_page(connection: DbConnection, query: Annotated[turnover_people.PeopleQuery, Query()]):
+    """Everyone hired or leaving between `start_date` and `end_date` in the
+    repeated `roles` (or all), one row per event, paged: when, where, in which
+    role, why they left or whom they replaced."""
+    return turnover_people.page(connection, query)
+
+
+@router.get('/turnover/people/filter-options')
+def turnover_people_options(connection: DbConnection, query: Annotated[turnover_people.FilterQuery, Query()]):
+    return turnover_people.options(connection, query)
+
+
+@router.get('/turnover/people/export')
+def turnover_people_export(request: Request, query: Annotated[turnover_people.PeopleQuery, Query()]):
+    # Validate the sort before response headers are sent; the stream owns its DB
+    # connection so dependency cleanup cannot close it mid-download.
+    if query.sort is not None and query.sort not in turnover_people.SORTABLE:
+        raise ApiError('invalid_sort', 'Unsupported sort column.')
+    return StreamingResponse(turnover_people.csv_chunks(request.app.state.database, query), media_type='text/csv',
+        headers={'Content-Disposition': 'attachment; filename="turnover-people.csv"'})
+
+
+@router.get('/pbj', response_model=pbj.PbjReport, responses={409: {'model': ErrorResponse}})
+def pbj_report(connection: DbConnection, query: Annotated[DateRange, Query()]):
+    """PBJ Compliance: every facility's nurse staffing for a Payroll-Based
+    Journal quarter, `start_date` to `end_date` -- hours by PBJ job title, employee
+    and agency, resident days, days without an RN and with fewer than 8 RN hours,
+    and 12-month nurse, RN and administrator turnover -- for the page to add up
+    at any level and divide once."""
+    return pbj.report(connection, query)
+
+
+@router.get('/monthly-trending', response_model=monthly.MonthlyStaffing, responses={409: {'model': ErrorResponse}})
+def monthly_trending(connection: DbConnection, query: Annotated[monthly.MonthlyQuery, Query()]):
+    """Monthly Staffing Trending: every facility's hours worked, budget hours
+    and census days by calendar month from `start_month` to `end_month`, over
+    the repeated `roles` (or all), for the page to add up at any level and
+    divide once, month by month."""
+    return monthly.monthly(connection, query)
 
 
 @router.get('/employees/packed', response_model=employees.PackedEmployees, responses={409: {'model': ErrorResponse}})

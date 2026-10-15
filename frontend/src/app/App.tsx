@@ -36,6 +36,16 @@ import { StaffingPpd } from '../features/staffing/components/StaffingPpd'
 import { PpdCostTrending } from '../features/staffing/components/PpdCostTrending'
 import { StaffingTraining } from '../features/staffing/components/StaffingTraining'
 import { StaffingOrientation } from '../features/staffing/components/StaffingOrientation'
+import { MonthlyStaffingHppd } from '../features/staffing/components/MonthlyStaffingHppd'
+import { MonthlyStaffingTurnover } from '../features/staffing/components/MonthlyStaffingTurnover'
+import { TurnoverRetention } from '../features/staffing/components/TurnoverRetention'
+import { PbjCompliance } from '../features/staffing/components/PbjCompliance'
+import { PbjQuarterFilter } from '../features/staffing/components/PbjQuarterFilter'
+import { selectedPbjQuarter } from '../features/staffing/pbjQuarters'
+import { TurnoverLogs } from '../features/staffing/components/TurnoverPeople'
+import { MonthlyStaffingTotal } from '../features/staffing/components/MonthlyStaffingTotal'
+import { MonthlyStaffingShare } from '../features/staffing/components/MonthlyStaffingShare'
+import { MonthlyStaffingPremiums } from '../features/staffing/components/MonthlyStaffingPremiums'
 import {
   StaffingCost, StaffingHourlyRate, StaffingHours, StaffingPremiums,
 } from '../features/staffing/components/StaffingOverviewSections'
@@ -108,10 +118,27 @@ const staffingOverviewTabs = [
   { id: 'full', label: 'Full overview' },
   { id: 'employees', label: 'Employees', noScroll: true },
 ]
+// Turnover and Retention: the drilldown by location and role, and every hire and departure.
+const turnoverTabs = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'logs', label: 'Logs', noScroll: true },
+]
 // PPD cost: the drilldown by location and role, and the cost day by day.
 const ppdCostTabs = [
   { id: 'overview', label: 'Overview' },
   { id: 'trending', label: 'Trending' },
+]
+// Monthly Staffing Trending: HPPD against budget by month, the total cost,
+// agency's and overtime's share of the hours, the premiums and extras, the
+// sign-on bonuses, and turnover and retention.
+const monthlyStaffingTabs = [
+  { id: 'hppd', label: 'HPPD/PPD' },
+  { id: 'cost', label: 'Cost' },
+  { id: 'agency', label: 'Agency vs In-house' },
+  { id: 'overtime', label: 'Overtime' },
+  { id: 'premiums', label: 'Premiums and extras' },
+  { id: 'bonuses', label: 'Bonuses' },
+  { id: 'turnover', label: 'Turnover and Retention' },
 ]
 // HPPD: the drilldown by location and role, and the trend. Its employees are
 // the Staffing Overview's Employees tab.
@@ -218,7 +245,7 @@ function App() {
   const isMonthlyCensusReport = currentReport.path === '/census/monthly-trending'
   // Reports that pick whole calendar months rather than days.
   const isMonthlyReport = isMonthlyAdtReport || isMonthlyCensusReport || currentReport.path === '/mds/monthly-medicare'
-    || currentReport.path === '/mds/monthly-medicaid'
+    || currentReport.path === '/mds/monthly-medicaid' || currentReport.path === '/staffing/monthly-trending'
   // The Medicare and Medicaid PDPM worksheets: a full-height table and a date basis.
   const isWorksheetReport = currentReport.path === '/mds/pdpm-worksheet'
     || currentReport.path === '/mds/medicaid-pdpm-worksheet'
@@ -234,6 +261,8 @@ function App() {
   const activeStaffingTab = staffingTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activeStaffingOverviewTab = staffingOverviewTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
   const activePpdCostTab = ppdCostTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
+  const activeTurnoverTab = turnoverTabs.find((tab) => tab.id === admissionsView)?.id ?? 'overview'
+  const activeMonthlyStaffingTab = monthlyStaffingTabs.find((tab) => tab.id === admissionsView)?.id ?? 'hppd'
   const isAgencyStyleReport = currentReport.path === '/staffing/agency-vs-inhouse'
     || currentReport.path === '/staffing/overtime'
   const activeAgencyTab = (currentReport.path === '/staffing/agency-vs-inhouse' ? agencyVsInhouseTabs : agencyTabs)
@@ -499,7 +528,9 @@ function App() {
               && currentReport.path !== '/clinical/flagged-progress-notes'
               && currentReport.path !== '/census/residents' && currentReport.path !== '/census/bed-board'
               && currentReport.path !== '/mds/current-medicare' && currentReport.path !== '/mds/current-medicaid'
-              ? <ReportDateRangeFilter /> : null}
+              // PBJ is submitted by quarter: its own picker in place of a date range.
+              && currentReport.path !== '/staffing/pbj'
+              ? <ReportDateRangeFilter /> : currentReport.path === '/staffing/pbj' ? <PbjQuarterFilter /> : null}
             {/* Right of the date range on every report: the report as shown, as an HTML file.
                 Hidden while the product owner decides on it (2026-10-14); the export works. */}
             <ReportExportButton module={currentReport.module} />
@@ -544,6 +575,24 @@ function App() {
               } : currentReport.path === '/staffing/overview' ? {
                 activeTabId: activeStaffingOverviewTab,
                 tabs: staffingOverviewTabs,
+                onTabChange: (id: string) => {
+                  const next = new URLSearchParams(searchParams)
+                  if (id === 'overview') next.delete('view')
+                  else next.set('view', id)
+                  setSearchParams(next)
+                },
+              } : currentReport.path === '/staffing/monthly-trending' ? {
+                activeTabId: activeMonthlyStaffingTab,
+                tabs: monthlyStaffingTabs,
+                onTabChange: (id: string) => {
+                  const next = new URLSearchParams(searchParams)
+                  if (id === 'hppd') next.delete('view')
+                  else next.set('view', id)
+                  setSearchParams(next)
+                },
+              } : currentReport.path === '/staffing/turnover' ? {
+                activeTabId: activeTurnoverTab,
+                tabs: turnoverTabs,
                 onTabChange: (id: string) => {
                   const next = new URLSearchParams(searchParams)
                   if (id === 'overview') next.delete('view')
@@ -607,7 +656,10 @@ function App() {
               } : undefined
         }
         title={currentReport.title}
-        titleDetail={currentReport.path === '/census/daily-census' ? `Census on ${dayjs(searchParams.get('date') ?? undefined).format('dddd, MMMM D, YYYY')}` : currentReport.path === '/clinical/fever-infections' ? `Outbreak alerts on ${dayjs(searchParams.get('date') ?? undefined).format('dddd, MMMM D, YYYY')}` : currentReport.path === '/clinical/weight-surveillance' ? 'Residents in a bed today' : currentReport.path === '/clinical/flagged-progress-notes' ? 'Progress notes from the last 10 days with a watch word' : currentReport.path === '/census/bed-board' ? 'Current beds, one facility at a time' : currentReport.path === '/mds/current-medicare' ? 'PDPM residents in a bed today' : currentReport.path === '/mds/current-medicaid' ? 'Texas Medicaid residents in a bed today' :currentReport.path === '/census/residents' ? 'Every resident ever admitted' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyReport
+        titleDetail={currentReport.path === '/staffing/pbj' ? (() => {
+          const quarter = selectedPbjQuarter(searchParams)
+          return `${quarter.label.split(' (')[0]} · ${dayjs(quarter.start).format('MMMM D')} to ${dayjs(quarter.end).format('MMMM D, YYYY')} · PBJ due ${dayjs(quarter.due).format('MMMM D, YYYY')}`
+        })() : currentReport.path === '/census/daily-census' ? `Census on ${dayjs(searchParams.get('date') ?? undefined).format('dddd, MMMM D, YYYY')}` : currentReport.path === '/clinical/fever-infections' ? `Outbreak alerts on ${dayjs(searchParams.get('date') ?? undefined).format('dddd, MMMM D, YYYY')}` : currentReport.path === '/clinical/weight-surveillance' ? 'Residents in a bed today' : currentReport.path === '/clinical/flagged-progress-notes' ? 'Progress notes from the last 10 days with a watch word' : currentReport.path === '/census/bed-board' ? 'Current beds, one facility at a time' : currentReport.path === '/mds/current-medicare' ? 'PDPM residents in a bed today' : currentReport.path === '/mds/current-medicaid' ? 'Texas Medicaid residents in a bed today' :currentReport.path === '/census/residents' ? 'Every resident ever admitted' : currentReport.path === '/adt/referring-hospital' ? 'Last 3 complete years · Monthly referral performance' : isMonthlyReport
           ? `${monthRange.start.format('MMMM YYYY')} to ${monthRange.end.format('MMMM YYYY')} (${monthRange.end.diff(monthRange.start, 'month') + 1} months)`
           : isWorksheetReport || isHistoricalMdsReport
             ? `${currentReport.path === '/mds/historical-medicaid' || currentReport.path === '/mds/medicaid-pdpm-worksheet'
@@ -658,6 +710,16 @@ function App() {
                     : activeStaffingOverviewTab === 'full' ? <StaffingOverview /> : <StaffingSimpleOverview />)
                   : report.path === '/staffing/ppd' ? (activePpdCostTab === 'trending' ? <PpdCostTrending /> : <StaffingPpd />)
                   : report.path === '/staffing/training' ? <StaffingTraining />
+                  : report.path === '/staffing/pbj' ? <PbjCompliance />
+                  : report.path === '/staffing/turnover' ? (activeTurnoverTab === 'logs' ? <TurnoverLogs /> : <TurnoverRetention />)
+                  : report.path === '/staffing/monthly-trending' ? (activeMonthlyStaffingTab === 'hppd'
+                    ? <MonthlyStaffingHppd />
+                    : activeMonthlyStaffingTab === 'cost' ? <MonthlyStaffingTotal key="cost" measure="cost" />
+                    : activeMonthlyStaffingTab === 'bonuses' ? <MonthlyStaffingTotal key="bonuses" measure="bonuses" />
+                    : activeMonthlyStaffingTab === 'turnover' ? <MonthlyStaffingTurnover />
+                    : activeMonthlyStaffingTab === 'agency' ? <MonthlyStaffingShare key="agency" kind="agency" />
+                    : activeMonthlyStaffingTab === 'overtime' ? <MonthlyStaffingShare key="overtime" kind="overtime" />
+                    : <MonthlyStaffingPremiums />)
                   : report.path === '/staffing/orientation' ? <StaffingOrientation />
                   : report.path === '/staffing/hours' ? <StaffingHours />
                   : report.path === '/staffing/cost' ? <StaffingCost />

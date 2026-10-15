@@ -1023,11 +1023,15 @@ Saved resident identities associated with a facility. Stays reference these save
 | hire_date | DATE | no |  |  |  |
 | hourly_rate | NUMERIC(6, 2) | no |  |  |  |
 | termination_date | DATE | yes |  |  |  |
+| termination_reason | VARCHAR | yes |  |  |  |
+| replaces_staff_id | UUID | yes |  |  |  |
 
+- CHECK: `(termination_reason IS NULL) = (termination_date IS NULL)`
 - CHECK: `employment_type IN ('full_time', 'part_time', 'prn', 'agency')`
 - CHECK: `hourly_rate > 0`
 - CHECK: `role IN ('administrator', 'business_office_manager', 'hr_payroll', 'rn', 'lpn', 'lpn_supervisor', 'lpn_wound_nurse', 'cna', 'ncna', 'cma', 'cook', 'dietary_aide', 'dietary_manager', 'dietician', 'housekeeper', 'housekeeping_director', 'laundry_aide', 'maintenance_director', 'social_services_director', 'transportation_driver', 'adon_lpn', 'mds_rn', 'staffing_coordinator')`
 - CHECK: `termination_date IS NULL OR termination_date > hire_date`
+- CHECK: `termination_reason IS NULL OR termination_reason IN ('better_pay', 'schedule', 'personal', 'relocated', 'school', 'retired', 'job_abandonment', 'attendance', 'performance', 'policy')`
 - INDEX `ix_staff_members_facility_role`: facility_id, role
 
 ## bed_assignments

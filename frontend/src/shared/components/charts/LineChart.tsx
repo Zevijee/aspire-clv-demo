@@ -52,8 +52,11 @@ type LineChartProps = DataStateProps & {
   formatAxis?: (value: number) => string
   /** Bars normally start at zero. `fit` starts them just below the lowest
    * value, for a level such as census that moves a few points on a large
-   * base, where zero would flatten every bar to the same height. */
-  baseline?: 'zero' | 'fit'
+   * base, where zero would flatten every bar to the same height. `close` fits
+   * a measure that moves by hundredths, such as HPPD around 6.2: `fit` starts
+   * at a whole number at least one below, which flattens those bars too, where
+   * `close` starts half the range below the lowest value. */
+  baseline?: 'zero' | 'fit' | 'close'
 }
 
 export function LineChart({ items, title, subtitle, loading, error, onRetry, signed = false, valueLabel = 'Admissions', variant = 'line', height, barColor = 'var(--color-table-change-favorable)', lineColor = 'var(--color-chart-series-primary)', interval = 'day', showDailyAverage = false, referenceLines = [], headerActions, onSelect, baseline = 'zero', formatValue, formatAxis = formatValue }: LineChartProps) {
@@ -67,12 +70,20 @@ export function LineChart({ items, title, subtitle, loading, error, onRetry, sig
   const whole = values.every((value) => Number.isInteger(value))
   const axisPadding = whole ? Math.max(1, Math.ceil((maximumValue - minimumValue) * 0.1))
     : Math.max((maximumValue - minimumValue) * 0.1, Math.abs(maximumValue) * 0.01)
+  // A close fit pads by the values' own range alone: the floor of 1% of the
+  // value above, which suits a line, put 0.075 points over an overtime share
+  // that only spans 0.04, and squeezed every bar into the bottom half.
+  const range = maximumValue - minimumValue
+  const closePadding = Math.max(range, Math.abs(maximumValue) * 0.0005)
   const yAxisDomain: [number, number] = [
     signed ? Math.min(0, minimumValue - axisPadding)
       // A fitted baseline leaves the lowest bar about a third of the range tall.
-      : variant === 'bar' && baseline === 'fit' ? Math.max(0, Math.floor(minimumValue - Math.max(1, (maximumValue - minimumValue) / 2)))
+      : variant === 'bar' && baseline === 'fit' ? Math.max(0, Math.floor(minimumValue - Math.max(1, range / 2)))
+      : variant === 'bar' && baseline === 'close' ? Math.max(0, minimumValue - closePadding / 2)
       : variant === 'bar' ? 0 : Math.max(0, minimumValue - axisPadding),
-    signed ? Math.max(0, maximumValue + axisPadding) : maximumValue + axisPadding,
+    signed ? Math.max(0, maximumValue + axisPadding)
+      : variant === 'bar' && baseline === 'close' ? maximumValue + closePadding * 0.1
+      : maximumValue + axisPadding,
   ]
 
   return (

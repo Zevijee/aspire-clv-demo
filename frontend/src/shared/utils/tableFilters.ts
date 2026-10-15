@@ -2,7 +2,7 @@ export type TableFilterSource = {
   endpoint?: string
   id: 'admissions' | 'discharges' | 'payer-changes' | 'net-change-logs' | 'census-residents' | 'resident-summaries' | 'medicare-residents'
     | 'pdpm-worksheet' | 'historical-medicare-residents' | 'medicaid-residents' | 'historical-medicaid-residents' | 'medicaid-pdpm-worksheet' | 'hospital-transfers' | 'incidents' | 'weight-surveillance' | 'flagged-notes'
-    | 'staffing-employees' | 'staffing-agency-logs' | 'staffing-overtime-logs'
+    | 'staffing-employees' | 'staffing-agency-logs' | 'staffing-overtime-logs' | 'staffing-turnover-people'
   startDate: string
   endDate: string
 }
