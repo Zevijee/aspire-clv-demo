@@ -119,9 +119,6 @@ const staffingTabs = [
   { id: 'overview', label: 'Overview' },
   { id: 'trending', label: 'Trending' },
 ]
-// The report header's HTML export (ReportExportButton): built and working, hidden
-// for now while it is decided whether reports export this way.
-const SHOW_REPORT_EXPORT = false
 
 // Overtime: the drilldown, the share day by day, and one row per shift.
 const agencyTabs = [
@@ -505,7 +502,7 @@ function App() {
               ? <ReportDateRangeFilter /> : null}
             {/* Right of the date range on every report: the report as shown, as an HTML file.
                 Hidden while the product owner decides on it (2026-10-14); the export works. */}
-            {SHOW_REPORT_EXPORT && <ReportExportButton module={currentReport.module} />}
+            <ReportExportButton module={currentReport.module} />
           </ReportFilters>
         }
         tabFilters={

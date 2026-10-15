@@ -366,6 +366,9 @@ export function StaffingOverview() {
       csvFileName={`staffing-overview-facilities-${file}.csv`} />
     <Table<RoleRow> stickyFirstColumn floatHeader title="Staffing by role" columns={roleColumns} rows={roleRows}
       sections={departmentSections(scoped)}
+      // Every role over the facilities shown, summed and divided once.
+      getFooterRow={visible => ({ key: 'total', name: 'All roles', path: [], isTotal: true, facilities: scoped,
+        codes: visible.flatMap(row => row.codes) })}
       // No initial sort: the roles come in report order within each department.
       getRowKey={row => row.key}
       loading={loading} error={error} onRetry={onRetry}

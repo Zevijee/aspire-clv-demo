@@ -15,6 +15,7 @@ import {
 import { getAgency, STAFFING_ROLES, type AgencyReport, type FacilityAgency } from '../api'
 import { useDrilldownRoles } from './DrilldownRoleFilter'
 import { departmentSections } from '../departmentSections'
+import { useStaffingDrillLinks } from '../drillLinks'
 
 type Row = DrilldownRow<FacilityAgency>
 // A row of the role table: one role over the drilldown's facilities. `codes` is
@@ -129,10 +130,12 @@ export function AgencyDrilldown() {
   // each summed at this scope and divided once.
   const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
   const scoped = rows.flatMap(row => row.facilities)
+  // A role's or department's name opens its employees over the facilities shown.
+  const links = useStaffingDrillLinks({ path, grouping, scoped, roles, roleName, startDate: shownStart, endDate: shownEnd })
   const roleRows: RoleRow[] = STAFFING_ROLES
     .map(role => ({ key: role.value, name: role.label, path: [], facilities: scoped, codes: [role.value] }))
   const roleColumns: TableColumn<RoleRow>[] = [
-    { id: 'name', header: 'Role', value: row => row.name, isRowHeader: true },
+    { id: 'name', header: 'Role', value: row => row.name, isRowHeader: true, format: (_, row) => links.roleName(row) },
     ...metrics.map(([id, header, kind]): TableColumn<RoleRow> => ({
       id, header, numeric: true, value: row => metric(row, id, row.codes) ?? '—',
       format: (value: number | string) => format(value, kind),
@@ -161,6 +164,9 @@ export function AgencyDrilldown() {
       csvFileName={`agency-vs-inhouse-facilities-${file}.csv`} />
     <Table<RoleRow> stickyFirstColumn floatHeader title="Agency vs in-house by role" columns={roleColumns} rows={roleRows}
       sections={departmentSections(scoped)}
+      // Every role over the facilities shown, summed and divided once.
+      getFooterRow={visible => ({ key: 'total', name: 'All roles', path: [], isTotal: true, facilities: scoped,
+        codes: visible.flatMap(row => row.codes) })}
       // No initial sort: the roles come in report order within each department.
       getRowKey={row => row.key}
       loading={loading} error={error} onRetry={onRetry}
@@ -168,5 +174,6 @@ export function AgencyDrilldown() {
         + 'worked them, with each average rate divided once. Each department is followed by its roles.'}
       emptyMessage="No roles match this view."
       csvFileName={`agency-vs-inhouse-roles-${file}.csv`} />
+    {links.modal}
   </>
 }

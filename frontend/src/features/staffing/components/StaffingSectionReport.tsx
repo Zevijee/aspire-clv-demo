@@ -35,8 +35,8 @@ type Props = {
   describe: (roleNames: string, range: string) => string
   /** What the role table's rows add up. */
   roleNote: string
-  /** The Staffing Overview's links: these columns' figures open the employees
-   * with overtime behind them, and the role table's names the Employees tab. */
+  /** These columns' figures open the employees with overtime behind them. A
+   * role's or department's name always opens its employees. */
   overtimeLinks?: string[]
 }
 
@@ -84,7 +84,7 @@ export function StaffingSectionReport({ name, metrics, describe, roleNote, overt
   const shownStartDate = data?.start_date ?? startDate
   const shownEndDate = data?.end_date ?? endDate
   const links = useStaffingDrillLinks({ path, grouping, scoped: rows.flatMap(row => row.facilities), roles, roleName,
-    startDate: shownStartDate, endDate: shownEndDate, enabled: Boolean(overtimeLinks) })
+    startDate: shownStartDate, endDate: shownEndDate })
   const linked = new Set(overtimeLinks ?? [])
   const columns: TableColumn<Row>[] = [
     locationColumn<FacilityOverview>(depth, path, setPath),
@@ -113,8 +113,7 @@ export function StaffingSectionReport({ name, metrics, describe, roleNote, overt
   const roleRows: RoleRow[] = STAFFING_ROLES
     .map(role => ({ key: role.value, name: role.label, path: [], facilities: scoped, codes: [role.value] }))
   const roleColumns: TableColumn<RoleRow>[] = [
-    { id: 'name', header: 'Role', value: row => row.name, isRowHeader: true,
-      ...(overtimeLinks ? { format: (_: unknown, row: RoleRow) => links.roleName(row) } : {}) },
+    { id: 'name', header: 'Role', value: row => row.name, isRowHeader: true, format: (_, row) => links.roleName(row) },
     ...metrics.map(([id, header, kind, change, group]): TableColumn<RoleRow> => ({
       id, header, group, numeric: true, value: row => metric(row, id, days, premiums, row.codes) ?? '—',
       format: (value: number | string, row: RoleRow) => {
@@ -147,12 +146,15 @@ export function StaffingSectionReport({ name, metrics, describe, roleNote, overt
       csvFileName={`${slug}-facilities-${file}.csv`} />
     <Table<RoleRow> stickyFirstColumn floatHeader title={`${name} by role`} columns={roleColumns} rows={roleRows}
       sections={departmentSections(scoped)}
+      // Every role over the facilities shown, summed and divided once.
+      getFooterRow={visible => ({ key: 'total', name: 'All roles', path: [], isTotal: true, facilities: scoped,
+        codes: visible.flatMap(row => row.codes) })}
       // No initial sort: the roles come in report order within each department.
       getRowKey={row => row.key}
       loading={loading} error={error} onRetry={onRetry}
       subtitle={`${scopeName} · every role, ${range}. ${roleNote}`}
       emptyMessage="No roles match this view."
       csvFileName={`${slug}-roles-${file}.csv`} />
-    {overtimeLinks && links.modal}
+    {links.modal}
   </>
 }

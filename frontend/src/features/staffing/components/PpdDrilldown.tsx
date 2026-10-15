@@ -15,6 +15,7 @@ import {
 import { getPpd, STAFFING_ROLES, type FacilityStaffing, type PpdReport } from '../api'
 import { useDrilldownRoles } from './DrilldownRoleFilter'
 import { departmentSections } from '../departmentSections'
+import { useStaffingDrillLinks } from '../drillLinks'
 
 type Row = DrilldownRow<FacilityStaffing>
 // A row of the role table: a role over some facilities, or one breakdown item
@@ -149,10 +150,12 @@ export function PpdDrilldown() {
   // the facilities shown, each summed at this scope and divided once.
   const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
   const scoped = rows.flatMap(row => row.facilities)
+  // A role's or department's name opens its employees over the facilities shown.
+  const links = useStaffingDrillLinks({ path, grouping, scoped, roles, roleName: roleNames, startDate, endDate })
   const roleRows: RoleRow[] = STAFFING_ROLES
     .map(role => ({ key: role.value, name: role.label, path: [], facilities: scoped, codes: [role.value] }))
   const roleColumns: TableColumn<RoleRow>[] = [
-    { id: 'name', header: 'Role', value: row => row.name, isRowHeader: true },
+    { id: 'name', header: 'Role', value: row => row.name, isRowHeader: true, format: (_, row) => links.roleName(row) },
     ...ROLE_METRICS.map((id): TableColumn<RoleRow> => {
       const [, header, kind] = metrics.find(([metricId]) => metricId === id)!
       return {
@@ -185,6 +188,9 @@ export function PpdDrilldown() {
       csvFileName={`hppd-facilities-${file}.csv`} />
     <Table<RoleRow> stickyFirstColumn floatHeader title="HPPD by role" columns={roleColumns} rows={roleRows}
       sections={departmentSections(scoped)}
+      // Every role over the facilities shown, summed and divided once.
+      getFooterRow={visible => ({ key: 'total', name: 'All roles', path: [], isTotal: true, facilities: scoped,
+        codes: visible.flatMap(row => row.codes) })}
       // No initial sort: the roles come in report order within each department.
       getRowKey={row => row.key}
       loading={loading} error={error} onRetry={onRetry}
@@ -192,5 +198,6 @@ export function PpdDrilldown() {
         + 'census days. Each department is followed by its roles.'}
       emptyMessage="No roles match this view."
       csvFileName={`hppd-roles-${file}.csv`} />
+    {links.modal}
   </>
 }

@@ -15,6 +15,7 @@ import {
 import { getStaffingOverview, STAFFING_ROLES, type FacilityOverview, type StaffingOverview as Report } from '../api'
 import { useDrilldownRoles } from './DrilldownRoleFilter'
 import { departmentSections, type RoleRow as DepartmentRoleRow } from '../departmentSections'
+import { useStaffingDrillLinks } from '../drillLinks'
 import { formatMeasure as format, laborCost, type MeasureKind, type Premiums } from '../laborCost'
 
 type Row = DrilldownRow<FacilityOverview>
@@ -124,10 +125,12 @@ export function StaffingPpd() {
   // does: one row per role with its totals over the facilities shown.
   const scopeName = path.length ? path[path.length - 1] : grouping ? 'Custom grouping' : 'All locations'
   const scoped = rows.flatMap(row => row.facilities)
+  // A role's or department's name opens its employees over the facilities shown.
+  const links = useStaffingDrillLinks({ path, grouping, scoped, roles, roleName, startDate: shownStart, endDate: shownEnd })
   const roleRows: RoleRow[] = STAFFING_ROLES
     .map(role => ({ key: role.value, name: role.label, path: [], facilities: scoped, codes: [role.value] }))
   const roleColumns: TableColumn<RoleRow>[] = [
-    { id: 'name', header: 'Role', value: row => row.name, isRowHeader: true },
+    { id: 'name', header: 'Role', value: row => row.name, isRowHeader: true, format: (_, row) => links.roleName(row) },
     ...ROLE_METRICS.map(([id, header, kind]): TableColumn<RoleRow> => ({
       id, header, numeric: true, value: row => metric(row, id, days, premiums, row.codes) ?? '—',
       format: (value: number | string) => format(value, kind), ...neutral(id),
@@ -156,6 +159,9 @@ export function StaffingPpd() {
       csvFileName={`ppd-facilities-${file}.csv`} />
     <Table<RoleRow> stickyFirstColumn floatHeader title="PPD by role" columns={roleColumns} rows={roleRows}
       sections={departmentSections(scoped)}
+      // Every role over the facilities shown, summed and divided once.
+      getFooterRow={visible => ({ key: 'total', name: 'All roles', path: [], isTotal: true, facilities: scoped,
+        codes: visible.flatMap(row => row.codes) })}
       // No initial sort: the roles come in report order within each department.
       getRowKey={row => row.key}
       loading={loading} error={error} onRetry={onRetry}
@@ -163,5 +169,6 @@ export function StaffingPpd() {
         + 'census days, followed by its roles.'}
       emptyMessage="No roles match this view."
       csvFileName={`ppd-roles-${file}.csv`} />
+    {links.modal}
   </>
 }
