@@ -49,7 +49,7 @@ Inspect these owners before adding another implementation. Paths and component n
 | Show all facilities from a drilldown (every drilldown has one) | `src/shared/components/AllFacilitiesModal.tsx` with `OpenViewButton` |
 | Facility name with its region, portfolio and state on hover | `src/shared/components/LocationName.tsx` |
 | Header button that opens another view (outlined, never the solid Export style) | `src/shared/components/OpenViewButton.tsx` |
-| Report header Export, right of the date range: the report as shown, as one HTML file | `src/shared/components/ReportExportButton.tsx` |
+| Report header Export, right of the date range: asks HTML or Excel -- the report as shown as one HTML file, or its tables as an .xlsx workbook, one sheet each (`src/shared/reportExcel.ts`; mark a part of a cell that belongs in its own Excel column with `data-export-column`; a report adds sheets the page does not draw with `registerExcelSheets` and `tableToExcel`, as the Staffing reports add a role sheet per drilldown location, `features/staffing/roleSheets.ts`) | `src/shared/components/ReportExportButton.tsx` |
 | Something a report adds to its HTML export (data, a script), while it is on screen | `src/shared/exportExtensions.ts` (the Staffing Overview's employee windows: `features/staffing/employeesExport.ts`) |
 | Icon-only download for a card's own data (a blue arrow into a tray, in a quiet square frame) | `src/shared/components/DownloadButton.tsx` |
 | Isolated report state inside modals | `src/shared/components/ReportSearchContext.tsx` |

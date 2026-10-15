@@ -15,6 +15,7 @@ import {
 import { getPpd, STAFFING_ROLES, type FacilityStaffing, type PpdReport } from '../api'
 import { useDrilldownRoles } from './DrilldownRoleFilter'
 import { departmentSections } from '../departmentSections'
+import { useRoleSheets } from '../roleSheets'
 import { useStaffingDrillLinks } from '../drillLinks'
 
 type Row = DrilldownRow<FacilityStaffing>
@@ -165,6 +166,10 @@ export function PpdDrilldown() {
       }
     }),
   ]
+
+  // The Excel export: a Total sheet and one per location shown, each role opening to its employees.
+  useRoleSheets({ locations: rows, scopeName, title: 'HPPD by role', columns: roleColumns,
+    startDate, endDate })
 
   return <>
     <LocationNavigation path={path} setPath={setPath} />

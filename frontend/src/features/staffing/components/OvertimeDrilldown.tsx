@@ -15,6 +15,7 @@ import {
 import { getOvertime, STAFFING_ROLES, type FacilityOvertime, type OvertimeReport } from '../api'
 import { useDrilldownRoles } from './DrilldownRoleFilter'
 import { departmentSections } from '../departmentSections'
+import { useRoleSheets } from '../roleSheets'
 import { useStaffingDrillLinks } from '../drillLinks'
 
 type Row = DrilldownRow<FacilityOvertime>
@@ -144,6 +145,10 @@ export function OvertimeDrilldown() {
       format: (value: number | string) => format(value, kind),
     })),
   ]
+
+  // The Excel export: a Total sheet and one per location shown, each role opening to its employees.
+  useRoleSheets({ locations: rows, scopeName, title: 'Overtime by role', columns: roleColumns,
+    startDate: shownStart, endDate: shownEnd })
 
   return <>
     <LocationNavigation path={path} setPath={setPath} />

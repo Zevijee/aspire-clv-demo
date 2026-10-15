@@ -17,6 +17,7 @@ import { useDrilldownRoles } from './DrilldownRoleFilter'
 import { formatMetric, metric } from './StaffingOverview'
 import { useStaffingDrillLinks } from '../drillLinks'
 import { departmentSections, type RoleRow as DepartmentRoleRow } from '../departmentSections'
+import { useRoleSheets } from '../roleSheets'
 import { type MeasureKind } from '../laborCost'
 
 type Row = DrilldownRow<FacilityOverview>
@@ -123,6 +124,10 @@ export function StaffingSectionReport({ name, metrics, describe, roleNote, overt
       ...(change ? { change: { favorable: change } } : {}),
     })),
   ]
+
+  // The Excel export: a Total sheet and one per location shown, each role opening to its employees.
+  useRoleSheets({ locations: rows, scopeName, title: `${name} by role`, columns: roleColumns,
+    startDate: shownStart, endDate: shownEnd })
 
   return <>
     <LocationNavigation path={path} setPath={setPath} />

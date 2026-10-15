@@ -16,6 +16,7 @@ import { getStaffingOverview, STAFFING_ROLES, type FacilityOverview, type RoleOv
 import { useDrilldownRoles } from './DrilldownRoleFilter'
 import { useStaffingDrillLinks } from '../drillLinks'
 import { departmentSections, type RoleRow as DepartmentRoleRow } from '../departmentSections'
+import { useRoleSheets } from '../roleSheets'
 import { formatMeasure as format, laborCost, type MeasureKind, type Premiums } from '../laborCost'
 
 type Row = DrilldownRow<FacilityOverview>
@@ -92,6 +93,7 @@ const SAME_AS: Record<string, string> = {
   training_cost: 'training_pay',
   cost_bonuses: 'bonuses', rate_overtime: 'overtime_rate',
   rate_agency: 'agency_rate', premium_agency: 'agency_premium', premium_overtime: 'overtime_premium',
+  simple_overtime_hours: 'overtime_hours', simple_agency_hours: 'agency_hours',
 }
 
 // How each signed column is coloured: the gaps between actual and the lowest
@@ -110,7 +112,10 @@ export function overviewSection(group: string): [id: string, header: string, kin
 // The figures shown with their share of a total after them -- "1,431,267, 90.8%" --
 // and the total each is a share of: the kinds of hour of total hours, the kinds
 // of pay of total cost.
-const SHARE_OF: Record<string, 'totalHours' | 'totalCost'> = {
+// The Simple overview's hours are shares of the hours worked, its Total, so its
+// regular, overtime and agency add up to 100%.
+const SHARE_OF: Record<string, 'totalHours' | 'totalCost' | 'hoursWorked'> = {
+  simple_regular_hours: 'hoursWorked', simple_overtime_hours: 'hoursWorked', simple_agency_hours: 'hoursWorked',
   regular_hours: 'totalHours', hours_overtime: 'totalHours', holiday_hours: 'totalHours', hours_agency: 'totalHours',
   hours_training: 'totalHours', hours_classroom_orientation: 'totalHours', hours_floor_orientation: 'totalHours',
   regular_pay: 'totalCost', overtime_pay: 'totalCost', holiday_pay: 'totalCost', agency_pay: 'totalCost',
@@ -125,7 +130,9 @@ export function formatMetric(id: string, kind: Kind, value: number | string, row
   const text = format(value, kind)
   if (!SHARE_OF[id] || typeof value !== 'number') return text
   const share = metric(row, `share_of_${id}`, days, premiums, roles)
-  return share === null ? text : <>{text}, <span className="staffing-share">{format(share, 'share')}</span></>
+  // The share is its own column in an Excel export (reportExcel).
+  return share === null ? text
+    : <>{text}, <span className="staffing-share" data-export-column="share">{format(share, 'share')}</span></>
 }
 
 /** The hires who took orientation: those of the roles with any orientation
@@ -157,7 +164,8 @@ export function metric(row: Row, column: string, days: number, premiums: Premium
   if (column.startsWith('share_of_')) {
     const of = column.slice('share_of_'.length)
     const value = metric(row, of, days, premiums, roles)
-    const total = laborCost(row.facilities, roles, premiums)[SHARE_OF[of] ?? 'totalHours']
+    const cost = laborCost(row.facilities, roles, premiums)
+    const total = SHARE_OF[of] === 'hoursWorked' ? cost.sums.hours ?? 0 : cost[SHARE_OF[of] ?? 'totalHours']
     return value !== null && total > 0 ? value / total : null
   }
   const id = SAME_AS[column] ?? column
@@ -343,6 +351,10 @@ export function StaffingOverview() {
       ...(CHANGES[id] ? { change: { favorable: CHANGES[id] } } : {}),
     })),
   ]
+
+  // The Excel export: a Total sheet and one per location shown, each role opening to its employees.
+  useRoleSheets({ locations: rows, scopeName, title: 'Staffing by role', columns: roleColumns,
+    startDate: shownStart, endDate: shownEnd })
 
   return <>
     <LocationNavigation path={path} setPath={setPath} />

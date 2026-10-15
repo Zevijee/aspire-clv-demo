@@ -15,6 +15,7 @@ import {
 import { getStaffingOverview, STAFFING_ROLES, type FacilityOverview, type StaffingOverview as Report } from '../api'
 import { useDrilldownRoles } from './DrilldownRoleFilter'
 import { departmentSections, type RoleRow as DepartmentRoleRow } from '../departmentSections'
+import { useRoleSheets } from '../roleSheets'
 import { useStaffingDrillLinks } from '../drillLinks'
 import { formatMeasure as format, laborCost, type MeasureKind, type Premiums } from '../laborCost'
 
@@ -136,6 +137,10 @@ export function StaffingPpd() {
       format: (value: number | string) => format(value, kind), ...neutral(id),
     })),
   ]
+
+  // The Excel export: a Total sheet and one per location shown, each role opening to its employees.
+  useRoleSheets({ locations: rows, scopeName, title: 'PPD by role', columns: roleColumns,
+    startDate: shownStart, endDate: shownEnd })
 
   return <>
     <LocationNavigation path={path} setPath={setPath} />

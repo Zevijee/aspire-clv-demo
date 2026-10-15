@@ -5556,3 +5556,60 @@ button.bed-card:focus-visible {
   background: color-mix(in srgb, var(--color-accent) 85%, black);
   border-color: color-mix(in srgb, var(--color-accent) 85%, black);
 }
+
+/* The Export button's choice of format (ReportExportButton): two options side
+   by side, each a name and what the file holds. */
+.report-export-choice {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  padding-top: var(--space-2);
+}
+
+.report-export-choice__option {
+  align-items: flex-start;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font: inherit;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  text-align: left;
+}
+
+.report-export-choice__option:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-accent);
+}
+
+.report-export-choice__option:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.report-export-choice__label {
+  align-items: center;
+  color: var(--color-accent);
+  display: inline-flex;
+  font-weight: 600;
+  gap: var(--space-2);
+}
+
+.report-export-choice__label .report-table__export-icon {
+  height: 16px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 16px;
+}
+
+.report-export-choice__description {
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}

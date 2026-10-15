@@ -15,6 +15,7 @@ import {
 import { getAgency, STAFFING_ROLES, type AgencyReport, type FacilityAgency } from '../api'
 import { useDrilldownRoles } from './DrilldownRoleFilter'
 import { departmentSections } from '../departmentSections'
+import { useRoleSheets } from '../roleSheets'
 import { useStaffingDrillLinks } from '../drillLinks'
 
 type Row = DrilldownRow<FacilityAgency>
@@ -141,6 +142,10 @@ export function AgencyDrilldown() {
       format: (value: number | string) => format(value, kind),
     })),
   ]
+
+  // The Excel export: a Total sheet and one per location shown, each role opening to its employees.
+  useRoleSheets({ locations: rows, scopeName, title: 'Agency vs in-house by role', columns: roleColumns,
+    startDate: shownStart, endDate: shownEnd })
 
   return <>
     <LocationNavigation path={path} setPath={setPath} />

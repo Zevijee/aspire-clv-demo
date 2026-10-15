@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { DownloadIcon } from './Table'
-import { collectExportExtras } from '../exportExtensions'
+import { DetailModal } from './DetailModal'
+import { collectExcelSheets, collectExportExtras } from '../exportExtensions'
+import { reportWorkbook } from '../reportExcel'
 
 // Controls that only work in the app, left out of the file: exports, searches,
 // paging, the views a button opens, every filter and the sticky scrollbar. The
@@ -405,11 +407,10 @@ function pageStyles() {
   }).join('\n')
 }
 
-/** The report as it is on screen -- its title, its tab, every table and chart
- * with the rows, filters and drilldown shown -- as one HTML file to keep or send,
- * each table searchable and filterable by column in the file.
- * Paged tables carry the page shown; their CSV export has every row. */
-export async function exportReport(module?: string) {
+/** The report on screen and what an export calls it: its module, title and tab
+ * as the heading, the range line under the title, and a file name of those and
+ * the day, without its extension. */
+function reportOnScreen(module?: string) {
   const content = document.getElementById('main-content')
   if (!content) throw new Error('There is no report on the page to export.')
   const title = document.querySelector('.report-title-block h1')?.textContent?.trim() || 'Report'
@@ -417,7 +418,33 @@ export async function exportReport(module?: string) {
   const activeTab = document.querySelector('.report-tab--active')?.textContent?.trim() ?? ''
   // The tab only where it adds something: the Staffing Overview's Overview tab is just "Overview".
   const tab = activeTab === title ? '' : activeTab
+  const exported = new Date()
+  return {
+    content, detail,
+    stamp: exported.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }),
+    heading: [module, title, tab].filter(Boolean).join(' · '),
+    file: `${[module, title, tab].filter(Boolean).map(part => slug(part as string)).join('-')}-`
+      + exported.toISOString().slice(0, 10),
+  }
+}
 
+function download(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = name
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+/** The report as it is on screen -- its title, its tab, every table and chart
+ * with the rows, filters and drilldown shown -- as one HTML file to keep or send,
+ * each table searchable and filterable by column in the file.
+ * Paged tables carry the page shown; their CSV export has every row. */
+async function exportReport(module?: string) {
+  const { content, detail, stamp, heading, file } = reportOnScreen(module)
   const extras = await collectExportExtras()
   const copy = content.cloneNode(true) as HTMLElement
   copy.removeAttribute('id')
@@ -437,10 +464,7 @@ export async function exportReport(module?: string) {
     element.style.removeProperty('transform')
   })
 
-  const exported = new Date()
-  const stamp = exported.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
   const theme = document.documentElement.getAttribute('data-theme')
-  const heading = [module, title, tab].filter(Boolean).join(' · ')
   const html = `<!doctype html>
 <html lang="en"${theme ? ` data-theme="${escape(theme)}"` : ''}>
 <head>
@@ -467,40 +491,63 @@ ${extras.script}</script>
 </body>
 </html>
 `
-  const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }))
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = `${[module, title, tab].filter(Boolean).map(part => slug(part as string)).join('-')}-`
-    + `${exported.toISOString().slice(0, 10)}.html`
-  document.body.appendChild(anchor)
-  anchor.click()
-  anchor.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  download(new Blob([html], { type: 'text/html;charset=utf-8' }), `${file}.html`)
 }
 
+/** The report's tables as they are on screen, as an Excel workbook: one sheet
+ * per table, with the report's heading and range above it -- or the report's own
+ * sheets where it gives them (registerExcelSheets) (reportExcel). */
+async function exportReportExcel(module?: string) {
+  const { content, detail, stamp, heading, file } = reportOnScreen(module)
+  const details = [detail, `Exported ${stamp} from Clearview`].filter(Boolean)
+  download(await reportWorkbook(content, heading, details, await collectExcelSheets()), `${file}.xlsx`)
+}
+
+const FORMATS = [
+  { id: 'html', label: 'Export to HTML', run: exportReport,
+    description: 'The report as it looks, in one file for a browser: its tables searchable, sortable and '
+      + 'filterable, and its charts.' },
+  { id: 'excel', label: 'Export to Excel', run: exportReportExcel,
+    description: 'Every table on the page as a sheet of a workbook, figures as numbers Excel can add up and sort.' },
+] as const
+
 /** The report header's Export button, right of the date range, labelled as the
- * header's other controls are: the report as shown, as an HTML file named for
- * its module, report and tab. Orange, so it stands apart from the filters. */
+ * header's other controls are. It asks how: the report as shown as an HTML file,
+ * or its tables as an Excel workbook, each named for its module, report and tab.
+ * Orange, so it stands apart from the filters. */
 export function ReportExportButton({ module }: { module?: string }) {
   const [failed, setFailed] = useState(false)
   const [preparing, setPreparing] = useState(false)
+  const [choosing, setChoosing] = useState(false)
+  const run = async (format: typeof FORMATS[number]) => {
+    setChoosing(false)
+    setPreparing(true)
+    try {
+      await format.run(module)
+      setFailed(false)
+    } catch {
+      setFailed(true)
+    } finally {
+      setPreparing(false)
+    }
+  }
   return <div className="report-export-field">
     <span className="report-export-field__label">Export</span>
     <button type="button" className="report-table__export report-export-button" disabled={preparing}
-      title={failed ? 'The export failed. Try again.' : 'Export this report, as shown, to an HTML file'}
-      onClick={async () => {
-        setPreparing(true)
-        try {
-          await exportReport(module)
-          setFailed(false)
-        } catch {
-          setFailed(true)
-        } finally {
-          setPreparing(false)
-        }
-      }}>
+      title={failed ? 'The export failed. Try again.' : 'Export this report, as shown, to HTML or Excel'}
+      onClick={() => setChoosing(true)}>
       <DownloadIcon />
       {preparing ? 'Preparing…' : failed ? 'Export failed' : 'Export report'}
     </button>
+    <DetailModal open={choosing} onClose={() => setChoosing(false)} title="Export report"
+      subtitle="The report as it is on screen: the rows, filters and drilldown shown.">
+      <div className="report-export-choice">
+        {FORMATS.map(format => <button key={format.id} type="button" className="report-export-choice__option"
+          onClick={() => void run(format)}>
+          <span className="report-export-choice__label"><DownloadIcon />{format.label}</span>
+          <span className="report-export-choice__description">{format.description}</span>
+        </button>)}
+      </div>
+    </DetailModal>
   </div>
 }

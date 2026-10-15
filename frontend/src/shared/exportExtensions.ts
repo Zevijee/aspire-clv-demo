@@ -1,3 +1,5 @@
+import { type ExcelTable } from './reportExcel'
+
 /** What a report on screen adds to its HTML export, beyond the copy of the page:
  * styles, markup and a script, so the file can do some of what the page does --
  * the Staffing Overview's employee windows, for one. */
@@ -25,4 +27,23 @@ export async function collectExportExtras(): Promise<Required<ExportExtra>> {
     // run together without one, read as the first calling the second.
     script: extras.map(extra => `${extra.script ?? ''};`).join('\n'),
   }
+}
+
+/** A report's own sheets for its Excel export, in place of the tables drawn on
+ * the page, asked at export time: a Staffing report's role tables, a Total and
+ * one per location shown, each role opening to its employees (roleSheets). */
+export type ExcelContributor = () => ExcelTable[] | Promise<ExcelTable[]>
+
+const excelContributors = new Set<ExcelContributor>()
+
+/** Give the Excel export these sheets while the report is on screen; returns the
+ * removal, for a component's effect to undo when it leaves the page. */
+export function registerExcelSheets(contributor: ExcelContributor) {
+  excelContributors.add(contributor)
+  return () => { excelContributors.delete(contributor) }
+}
+
+/** Every sheet the reports on screen add, in the order they registered. */
+export async function collectExcelSheets() {
+  return (await Promise.all([...excelContributors].map(contributor => contributor()))).flat()
 }
