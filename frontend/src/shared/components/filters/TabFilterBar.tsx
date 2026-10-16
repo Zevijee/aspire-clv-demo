@@ -76,6 +76,7 @@ export function TabFilterBar({
   ]
   // Each applied category is a report filter, listed in the drilldown bar.
   useAnnounceFilters(filters.map(filter => ({ name: filter.label, active: filter.values.length > 0, kind: 'drawer' as const,
+    values: filter.values.map(value => filter.options.find(option => option.value === value)?.label ?? value),
     clear: () => filter.onChange ? filter.onChange([])
       : onApplyFilters?.({ ...Object.fromEntries(filters.map(item => [item.id, item.values])), [filter.id]: [] }) })))
   const activeFilter = filters.find((filter) => filter.id === activeFilterId) ?? filters[0]

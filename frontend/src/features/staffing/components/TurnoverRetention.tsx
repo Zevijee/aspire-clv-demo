@@ -7,6 +7,7 @@ import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { LocationNavigation, locationColumn } from '../../../shared/components/LocationNavigation'
 import { useCustomGrouping } from '../../../shared/customGrouping'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import {
@@ -83,13 +84,13 @@ function metricColumns<Item>(counts: (row: Item) => Counts, days: number): Table
  * Departures, opening the people behind it and why they left. Agency staff are not counted:
  * they are not the facility's employees. Everything is summed first and divided
  * once. */
-export function TurnoverRetention() {
+export function TurnoverRetention({ initialPath }: { initialPath?: string[] } = {}) {
   const [params, setParams] = useReportSearchParams()
   const defaults = getDefaultReportDateRange()
   const startDate = params.get('start_date') ?? defaults.startDate
   const endDate = params.get('end_date') ?? defaults.endDate
-  // One drill= per level, in order.
-  const path = params.getAll('drill')
+  // One drill= per level, in order; the Excel export's copy for a location starts there instead.
+  const path = initialPath ?? params.getAll('drill')
   const setPath = (next: string[]) => {
     const updated = new URLSearchParams(params)
     updated.delete('drill')
@@ -116,6 +117,9 @@ export function TurnoverRetention() {
 
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this tab drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <TurnoverRetention initialPath={row.path} /> })))
   // The drilldown's roles, from its own filter; the role table lists every role.
   const { roles, roleName, filter: roleFilter } = useDrilldownRoles()
   // Each row's counts once, however many columns and sorts ask.

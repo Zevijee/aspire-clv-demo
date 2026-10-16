@@ -11,6 +11,7 @@ import { Table, type TableColumn } from '../../../shared/components/Table'
 import { LineChart } from '../../../shared/components/charts/LineChart'
 import { FullScreenModal } from '../../../shared/components/FullScreenModal'
 import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { getReportMonthRange } from '../../../shared/components/filters/ReportMonthRangeFilter'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { getMonthlyCensus, type MonthlyCensusFacility, type MonthlyCensusReport } from '../api'
@@ -47,8 +48,9 @@ function extreme(row: Row, months: Month[], pick: 'highest' | 'lowest') {
 }
 
 /** Census by calendar month, drilled from state to facility. Census days sum;
- * everything else is divided once at the scope shown. */
-export function MonthlyCensusTrending() {
+ * everything else is divided once at the scope shown. `initialPath` starts the
+ * drilldown at a location, for the Excel export's sheet for it. */
+export function MonthlyCensusTrending({ initialPath }: { initialPath?: string[] } = {}) {
   const [params] = useReportSearchParams()
   const range = getReportMonthRange(params)
   const startMonth = range.start.format('YYYY-MM')
@@ -58,7 +60,7 @@ export function MonthlyCensusTrending() {
   const [retry, setRetry] = useState(0)
   const [response, setResponse] = useState<{ key: string; data: MonthlyCensusReport } | null>(null)
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null)
-  const [path, setPath] = useState<string[]>([])
+  const [path, setPath] = useState<string[]>(initialPath ?? [])
   const { grouping, locationView } = useLocationView(() => setPath([]))
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
   const [showTrendTable, setShowTrendTable] = useState(false)
@@ -80,6 +82,9 @@ export function MonthlyCensusTrending() {
   // month is per whole month.
   const monthEquivalents = months.reduce((total, month) => total + month.days / month.month_days, 0)
   const { depth, rows: groupRows } = groupLocations(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : groupRows.map(row => ({ name: row.name,
+    render: () => <MonthlyCensusTrending initialPath={row.path} /> })))
 
   const total = (row: Row) => months.reduce((sum, month) => sum + monthDays(row, month.month), 0)
   const extremeColumn = (pick: 'highest' | 'lowest'): TableColumn<Row> => ({

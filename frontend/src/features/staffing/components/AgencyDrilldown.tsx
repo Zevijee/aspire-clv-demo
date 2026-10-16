@@ -143,9 +143,8 @@ export function AgencyDrilldown() {
     })),
   ]
 
-  // The Excel export: a Total sheet and one per location shown, each role opening to its employees.
-  useRoleSheets({ locations: rows, scopeName, title: 'Agency vs in-house by role', columns: roleColumns,
-    startDate: shownStart, endDate: shownEnd })
+  // The Excel export: a Total sheet and one per location shown, each a role table.
+  useRoleSheets({ locations: rows, scopeName, title: 'Agency vs in-house by role', columns: roleColumns })
 
   return <>
     <LocationNavigation path={path} setPath={setPath} />

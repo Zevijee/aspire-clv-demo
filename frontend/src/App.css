@@ -5557,6 +5557,17 @@ button.bed-card:focus-visible {
   border-color: color-mix(in srgb, var(--color-accent) 85%, black);
 }
 
+/* The Excel export's copy of the report at one location (locationSheets.tsx),
+   laid out at the page's width far off the screen, read and removed. */
+.report-location-sheet.content-area {
+  height: auto;
+  left: -100000px;
+  overflow: visible;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+}
+
 /* The Export button's choice of format (ReportExportButton): two options side
    by side, each a name and what the file holds. */
 .report-export-choice {

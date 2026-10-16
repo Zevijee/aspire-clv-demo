@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { DownloadIcon } from './Table'
 import { DetailModal } from './DetailModal'
 import { collectExcelSheets, collectExportExtras } from '../exportExtensions'
-import { reportWorkbook } from '../reportExcel'
+import { capturePage, reportWorkbook, type ExcelDetail, type WorkbookPage } from '../reportExcel'
+import { locationPages } from '../locationSheets'
+import { activeReportFilters } from '../activeFilters'
 
 // Controls that only work in the app, left out of the file: exports, searches,
 // paging, the views a button opens, every filter and the sticky scrollbar. The
@@ -494,13 +496,46 @@ ${extras.script}</script>
   download(new Blob([html], { type: 'text/html;charset=utf-8' }), `${file}.html`)
 }
 
-/** The report's tables as they are on screen, as an Excel workbook: one sheet
- * per table, with the report's heading and range above it -- or the report's own
- * sheets where it gives them (registerExcelSheets) (reportExcel). */
+/** What the report is cut to, said even when nothing is: a file filtered to one
+ * payer reads like a whole one otherwise. "Payers: Medicare, Medicaid · Source
+ * type: Hospital". */
+function filtersValue() {
+  const filters = activeReportFilters()
+  return filters.length
+    ? filters.map(filter => `${filter.label}: ${filter.values.join(', ') || 'selected'}`).join(' · ') : 'None'
+}
+
+/** Where the drilldown stands, "All states › TX › …"; empty without one. */
+function locationValue(content: Element) {
+  return [...content.querySelectorAll('.drilldown-navigation__breadcrumbs > li')]
+    .map(crumb => crumb.textContent?.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' › ')
+}
+
+/** The report's tables and charts as they are on screen, as an Excel workbook:
+ * one sheet for the page, its tables one under another, with the report's heading, range, location and filters
+ * above it -- or the report's own sheets where it gives them
+ * (registerExcelSheets) -- then a sheet for each location of the drilldown,
+ * drawn there off the screen (locationSheets, reportExcel). */
 async function exportReportExcel(module?: string) {
   const { content, detail, stamp, heading, file } = reportOnScreen(module)
-  const details = [detail, `Exported ${stamp} from Clearview`].filter(Boolean)
-  download(await reportWorkbook(content, heading, details, await collectExcelSheets()), `${file}.xlsx`)
+  const location = locationValue(content)
+  const details = (place: string): ExcelDetail[] => [
+    { label: 'Period', value: detail },
+    { label: 'Location', value: place },
+    { label: 'Filters', value: filtersValue() },
+    { label: 'Exported', value: `${stamp} from Clearview` },
+  ]
+  const given = await collectExcelSheets()
+  const pages: WorkbookPage[] = [{ capture: capturePage(content), details: details(location) }]
+  // A sheet for each location below this one, as the report shows it drilled
+  // into, drawn off the screen -- except where the report gives its own
+  // sheets, as the Staffing reports give one per location already.
+  if (!given.length) {
+    for (const page of await locationPages(content)) {
+      pages.push({ ...page, details: details([location, page.name].filter(Boolean).join(' › ')) })
+    }
+  }
+  download(await reportWorkbook(heading, pages, given), `${file}.xlsx`)
 }
 
 const FORMATS = [
@@ -508,7 +543,8 @@ const FORMATS = [
     description: 'The report as it looks, in one file for a browser: its tables searchable, sortable and '
       + 'filterable, and its charts.' },
   { id: 'excel', label: 'Export to Excel', run: exportReportExcel,
-    description: 'Every table on the page as a sheet of a workbook, figures as numbers Excel can add up and sort.' },
+    description: 'The page on one sheet, its tables as figures Excel can add up and sort, '
+      + 'its charts as Excel charts, and a sheet for each location one level down.' },
 ] as const
 
 /** The report header's Export button, right of the date range, labelled as the

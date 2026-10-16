@@ -9,6 +9,7 @@ import { CustomGroupingButton } from '../../../shared/components/CustomGroupingB
 import { getReportMonthRange } from '../../../shared/components/filters/ReportMonthRangeFilter'
 import { useCustomGrouping } from '../../../shared/customGrouping'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { LineChart } from '../../../shared/components/charts/LineChart'
 import { getMonthlyMedicaid, type FacilityMonthlyMedicaid, type MonthlyMedicaidReport } from '../api'
 import { drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow } from '../../../shared/utils/locationDrilldown'
@@ -69,12 +70,12 @@ const metrics: [id: string, header: string, measure: Measure, kind: 'average' | 
 /** Monthly Medicaid Trending: Texas Medicaid census, rate and revenue over a
  * range of months, drilled from Texas to facility, each as its average over
  * the range and its highest and lowest month. */
-export function MonthlyMedicaid() {
+export function MonthlyMedicaid({ initialPath }: { initialPath?: string[] } = {}) {
   const [params] = useReportSearchParams()
   const { start, end } = getReportMonthRange(params)
   const startMonth = start.format('YYYY-MM')
   const endMonth = end.format('YYYY-MM')
-  const { path, setPath } = useDrillPath()
+  const { path, setPath } = useDrillPath(initialPath)
   const [data, setData] = useState<MonthlyMedicaidReport | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
@@ -92,6 +93,9 @@ export function MonthlyMedicaid() {
 
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <MonthlyMedicaid initialPath={row.path} /> })))
   const months = data?.months ?? []
   const columns: TableColumn<Row>[] = [
     nameColumn<FacilityMonthlyMedicaid>(depth, path, setPath),

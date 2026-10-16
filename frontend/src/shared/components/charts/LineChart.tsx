@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { DataState, type DataStateProps } from '../DataState'
+import { useExcelChart } from '../../excelCharts'
 import {
   CartesianGrid,
   Bar,
@@ -50,16 +51,30 @@ type LineChartProps = DataStateProps & {
   /** How a value reads on the axis alone, when formatValue is too wide for it,
    * such as $3.18M for a daily revenue the tooltip shows in full. */
   formatAxis?: (value: number) => string
-  /** Bars normally start at zero. `fit` starts them just below the lowest
-   * value, for a level such as census that moves a few points on a large
-   * base, where zero would flatten every bar to the same height. `close` fits
-   * a measure that moves by hundredths, such as HPPD around 6.2: `fit` starts
-   * at a whole number at least one below, which flattens those bars too, where
-   * `close` starts half the range below the lowest value. */
+  /** Where bars start. By default they fit the data, so peaks and drops
+   * show: started at zero, a count that moves between 270 and 360 a day drew
+   * every bar the same height. `fit`, the default for whole numbers, starts
+   * just below the lowest value, leaving the shortest bar about a third of the
+   * tallest, and at zero when the values reach down to it. `close`, the
+   * default for a measure with decimals, such as HPPD around 6.2, starts half
+   * the range below the lowest value: `fit` starts at a whole number at least
+   * one below, which flattens those bars too. `zero` starts at zero. */
   baseline?: 'zero' | 'fit' | 'close'
 }
 
-export function LineChart({ items, title, subtitle, loading, error, onRetry, signed = false, valueLabel = 'Admissions', variant = 'line', height, barColor = 'var(--color-table-change-favorable)', lineColor = 'var(--color-chart-series-primary)', interval = 'day', showDailyAverage = false, referenceLines = [], headerActions, onSelect, baseline = 'zero', formatValue, formatAxis = formatValue }: LineChartProps) {
+/** A point's day, period or month in words, as its tooltip names it, for the
+ * Excel export's label column. */
+function periodLabel(item: LineChartItem, interval: 'day' | 'month') {
+  const start = new Date(`${item.date}T00:00:00Z`)
+  if (interval === 'month') {
+    return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(start)
+  }
+  const dates = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+  return item.end_date && item.end_date !== item.date
+    ? dates.formatRange(start, new Date(`${item.end_date}T00:00:00Z`)) : dates.format(start)
+}
+
+export function LineChart({ items, title, subtitle, loading, error, onRetry, signed = false, valueLabel = 'Admissions', variant = 'line', height, barColor = 'var(--color-table-change-favorable)', lineColor = 'var(--color-chart-series-primary)', interval = 'day', showDailyAverage = false, referenceLines = [], headerActions, onSelect, baseline: chosenBaseline, formatValue, formatAxis = formatValue }: LineChartProps) {
   const Chart = variant === 'bar' ? BarChart : RechartsLineChart
   const values = [...items.map((item) => item.value), ...referenceLines.map((line) => line.value)]
   const minimumValue = Math.min(...(values.length ? values : [0]))
@@ -68,6 +83,7 @@ export function LineChart({ items, title, subtitle, loading, error, onRetry, sig
   // least one; a measure with decimals, such as a HPPD moving by tenths, pads
   // by its own range, or a whole unit would flatten every dip and peak.
   const whole = values.every((value) => Number.isInteger(value))
+  const baseline = chosenBaseline ?? (whole ? 'fit' : 'close')
   const axisPadding = whole ? Math.max(1, Math.ceil((maximumValue - minimumValue) * 0.1))
     : Math.max((maximumValue - minimumValue) * 0.1, Math.abs(maximumValue) * 0.01)
   // A close fit pads by the values' own range alone: the floor of 1% of the
@@ -89,9 +105,27 @@ export function LineChart({ items, title, subtitle, loading, error, onRetry, sig
       : variant === 'bar' && baseline === 'fit' && !whole ? maximumValue + closePadding * 0.1
       : maximumValue + axisPadding,
   ]
+  const periods = items.some(item => item.end_date !== undefined && item.end_date !== item.date)
+  const text = (value: number) => formatValue ? formatValue(value) : value.toLocaleString()
+  const excelChart = useExcelChart(loading || error || items.length === 0 ? null : {
+    kind: variant === 'bar' ? 'column' : 'line', title,
+    categoryLabel: interval === 'month' ? 'Month' : periods ? 'Period' : 'Date',
+    categories: items.map(item => periodLabel(item, interval)),
+    series: [
+      { name: valueLabel, values: items.map(item => item.value), texts: items.map(item => text(item.value)),
+        color: variant === 'bar' ? barColor : lineColor,
+        pointColors: variant === 'bar' ? items.map(item => item.color ?? (signed
+          ? item.value < 0 ? 'var(--color-table-change-adverse)' : 'var(--color-table-change-favorable)'
+          : undefined)) : undefined },
+      ...referenceLines.map(line => ({ name: line.label, values: items.map(() => line.value),
+        texts: items.map(() => text(line.value)), reference: true,
+        color: line.tone === 'adverse' ? 'var(--color-table-change-adverse)' : 'var(--color-text-muted)' })),
+    ],
+    axisMinimum: variant === 'bar' && yAxisDomain[0] > 0 ? yAxisDomain[0] : undefined,
+  })
 
   return (
-    <section aria-busy={loading} className="line-chart">
+    <section ref={excelChart} aria-busy={loading} className="line-chart">
       <header className="daily-change-chart__header">
         <div>
         <h2>{title}</h2>

@@ -10,6 +10,7 @@ import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModa
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { locationPlace } from '../utils/locationPlace'
 import { BarChartRanking } from '../../../shared/components/charts/BarChartRanking'
 import { DonutChart } from '../../../shared/components/charts/DonutChart'
@@ -94,11 +95,17 @@ export function DischargesOverview({ selection: given, onChange }: {
       onSelect: () => navigate({ state: scope.state, portfolio: scope.portfolio, region: scope.region }) })
     if (scope.facility !== undefined) breadcrumbs.push({ id: 'facility', label: scope.facility })
   }
-  function drillInto(row: Row) {
+  function scopeOf(row: Row): DrilldownScope {
     const path = Object.fromEntries(row.path.map(part => [part.level, part.name]))
-    navigate({ state: path.state, ...(path.portfolio ? { portfolio: path.portfolio } : {}),
-      ...(path.region ? { region: path.region } : {}), ...(path.facility ? { facility: path.facility } : {}) })
+    return { state: path.state, ...(path.portfolio ? { portfolio: path.portfolio } : {}),
+      ...(path.region ? { region: path.region } : {}), ...(path.facility ? { facility: path.facility } : {}) }
   }
+  function drillInto(row: Row) {
+    navigate(scopeOf(row))
+  }
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => detail ? [] : rows.map(row => ({ name: row.name,
+    render: () => <DischargesOverview selection={{ ...given, scope: scopeOf(row) }} onChange={() => {}} /> })))
   function openLogs(row: Row, count: DischargeCount) {
     setSearchParams(dischargeLogsParams(searchParams, row.facility_ids,
       { payers, destinations }, count, startDate, endDate))

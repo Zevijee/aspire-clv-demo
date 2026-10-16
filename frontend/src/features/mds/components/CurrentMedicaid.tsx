@@ -9,6 +9,7 @@ import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { useCustomGrouping } from '../../../shared/customGrouping'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import {
   downloadMedicaidResidents, getMedicaidLookback, getMedicaidOverview, getMedicaidResidents,
   medicaidResidentFilterOptions, type FacilityMedicaid, type FacilityMedicaidLookback, type MedicaidLookbackReport,
@@ -38,11 +39,11 @@ export const homePath = ['TX']
 
 /** The drilldown location in the URL (one drill= per level, in order), shared
  * by the Overview and Category breakdown tabs so switching keeps it. With none
- * in the URL it is Texas. */
-export function useDrillPath() {
+ * in the URL it is Texas. The export's copy at one location is given it instead. */
+export function useDrillPath(initialPath?: string[]) {
   const [params, setParams] = useReportSearchParams()
   const drilled = params.getAll('drill')
-  const path = drilled.length ? drilled : homePath
+  const path = initialPath ?? (drilled.length ? drilled : homePath)
   const setPath = (next: string[]) => {
     const updated = new URLSearchParams(params)
     updated.delete('drill')
@@ -99,8 +100,8 @@ function formatMetric(value: number | string, kind: 'count' | 'rate' | 'days') {
 
 /** The Overview tab: today's Texas Medicaid residents by location, and the same
  * scope's census and rate against earlier days and averages. */
-export function MedicaidOverview() {
-  const { path, setPath } = useDrillPath()
+export function MedicaidOverview({ initialPath }: { initialPath?: string[] } = {}) {
+  const { path, setPath } = useDrillPath(initialPath)
   const { data, error, loading, retry } = useMedicaidOverview()
   const [past, setPast] = useState<MedicaidLookbackReport | null>(null)
   const [pastError, setPastError] = useState<string | null>(null)
@@ -118,6 +119,9 @@ export function MedicaidOverview() {
 
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <MedicaidOverview initialPath={row.path} /> })))
   const columns: TableColumn<Row>[] = [
     nameColumn<FacilityMedicaid>(depth, path, setPath),
     ...metrics.map(([id, header, kind]): TableColumn<Row> => ({
@@ -187,14 +191,17 @@ export function MedicaidOverview() {
 
 /** The Category breakdown tab: the coded residents by nursing function score,
  * nursing category or NTA band. A chart segment opens its residents. */
-export function MedicaidCategoryBreakdown() {
+export function MedicaidCategoryBreakdown({ initialPath }: { initialPath?: string[] } = {}) {
   const [params, setParams] = useReportSearchParams()
-  const { path, setPath } = useDrillPath()
+  const { path, setPath } = useDrillPath(initialPath)
   const { data, error, loading, retry } = useMedicaidOverview()
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
   const { selected, breakdown, control } = useCategoryControl(medicaidCategories, 'Medicaid category')
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <MedicaidCategoryBreakdown initialPath={row.path} /> })))
   const columns: TableColumn<Row>[] = [
     nameColumn<FacilityMedicaid>(depth, path, setPath),
     ...categoryColumns<FacilityMedicaid>(breakdown),

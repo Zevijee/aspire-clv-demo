@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ActiveFiltersProvider } from '../../activeFilters'
+import { LocationSheetHost } from '../../locationSheets'
 
 import { ReportTabs, type ReportTabsProps } from './ReportTabs'
 
@@ -62,6 +63,8 @@ export function ReportLayout({
           {children}
         </div>
       </main>
+      {/* The Excel export's off-screen copies of this report, one per location. */}
+      <LocationSheetHost />
       {showSideFilters && tabFilters !== undefined && (
         <div className="content-area__overlay" key={tabs?.activeTabId}>{tabFilters}</div>
       )}

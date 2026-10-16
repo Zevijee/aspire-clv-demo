@@ -1,12 +1,20 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
-/** A report filter that has something selected, and how to clear it. */
-export type ActiveFilter = { name: string; clear: () => void }
+/** A report filter that has something selected, and how to clear it. `name`
+ * is the one key for it however it is labelled ("payer"); `label` is how its
+ * control names it ("Payers") and `values` what is selected, as shown. */
+export type ActiveFilter = { name: string; label: string; values: string[]; clear: () => void }
 
 // Where a filter is set: the report header, the side-filter drawer, or a chart.
 type FilterKind = 'header' | 'drawer' | 'chart'
-type Announcement = { name: string; active: boolean; clear: () => void; kind: FilterKind }
+type Announcement = { name: string; active: boolean; clear: () => void; kind: FilterKind; values?: string[] }
 type Registered = ActiveFilter & { active: boolean; kind: FilterKind }
+
+// The report page's active filters, for its export to state what it was cut to.
+let reportFilters: ActiveFilter[] = []
+
+/** The active filters of the report on screen, outside React: the export's. */
+export const activeReportFilters = () => reportFilters
 
 // Two contexts: registering is stable, so a filter that announces itself does
 // not re-run when the list changes; the list is what the drilldown bar reads.
@@ -42,13 +50,23 @@ export function ActiveFiltersProvider({ children, requireHeader = false }: {
   }), [])
   // Once each: the header dropdown and the chart showing the same selection
   // are one filter, and clearing either clears it.
+  // Named as the header or drawer names it, where a chart also shows it.
   const filters = useMemo(() => {
-    const byName = new Map<string, ActiveFilter>()
+    const byName = new Map<string, Registered>()
     for (const list of owners.values()) {
-      for (const filter of list) if (filter.active && !byName.has(filter.name)) byName.set(filter.name, filter)
+      for (const filter of list) {
+        if (!filter.active) continue
+        const seen = byName.get(filter.name)
+        if (!seen || (seen.kind === 'chart' && filter.kind !== 'chart')) byName.set(filter.name, filter)
+      }
     }
-    return [...byName.values()]
+    return [...byName.values()].map(({ name, label, values, clear }): ActiveFilter => ({ name, label, values, clear }))
   }, [owners])
+  useEffect(() => {
+    if (!requireHeader) return
+    reportFilters = filters
+    return () => { reportFilters = [] }
+  }, [filters, requireHeader])
   // The rule: a chart that filters the report has the same filter in the
   // header, beside the date range. A chart filter without one is reported as an
   // error, which the browser audit (tools/site_audit.py) fails on. Checked a
@@ -90,13 +108,15 @@ export function useAnnounceFilters(announcements: Announcement[]) {
   // The latest clear functions, so a new closure each render does not re-register.
   const clears = useRef(announcements.map(item => item.clear))
   clears.current = announcements.map(item => item.clear)
-  const key = JSON.stringify(announcements.map(item => [normalize(item.name), item.active, item.kind]))
+  const key = JSON.stringify(announcements.map(item =>
+    [normalize(item.name), item.name, item.active, item.kind, item.values ?? []]))
   useEffect(() => {
     if (!register) return
     // Every filter, set or not: the bar lists the active ones, and the header
     // rule needs to know a filter exists before anything is chosen in it.
-    register(owner, (JSON.parse(key) as [string, boolean, FilterKind][]).map(([name, active, kind], index) =>
-      ({ name, active, kind, clear: () => clears.current[index]?.() })))
+    register(owner, (JSON.parse(key) as [string, string, boolean, FilterKind, string[]][]).map(
+      ([name, label, active, kind, values], index) =>
+        ({ name, label, values, active, kind, clear: () => clears.current[index]?.() })))
   }, [register, owner, key])
   useEffect(() => () => register?.(owner, []), [register, owner])
 }

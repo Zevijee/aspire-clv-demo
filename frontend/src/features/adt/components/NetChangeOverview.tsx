@@ -8,6 +8,7 @@ import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModa
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { locationPlace } from '../utils/locationPlace'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import { useAdmissionsReferences } from '../hooks/useAdmissionsOverview'
@@ -19,7 +20,8 @@ import type { DrilldownScope } from '../utils/admissionsDrilldown'
 
 type Row = NetChangeLocation & { isTotal?: boolean }
 
-export function NetChangeOverview() {
+// at: a fixed drilldown position in place of the URL's, for the Excel export's copy at one location.
+export function NetChangeOverview({ at }: { at?: string[] } = {}) {
   const [params, setParams] = useSearchParams()
   const defaults = getDefaultReportDateRange()
   const startDate = params.get('start_date') ?? defaults.startDate
@@ -27,7 +29,7 @@ export function NetChangeOverview() {
 
   const payerKey = JSON.stringify([...new Set(params.getAll('net_payer'))].sort())
   const selectedPayers = useMemo(() => JSON.parse(payerKey) as string[], [payerKey])
-  const scopeKey = JSON.stringify(params.getAll('net_scope').slice(0, 4))
+  const scopeKey = JSON.stringify(at ?? params.getAll('net_scope').slice(0, 4))
   const path = useMemo(() => JSON.parse(scopeKey) as string[], [scopeKey])
   const locationKey = JSON.stringify(params.getAll('net_location'))
   // The app-wide custom grouping, when set, stands in for the URL's own locations.
@@ -73,6 +75,9 @@ export function NetChangeOverview() {
     params2.delete('all_facilities')
     setParams(params2)
   }
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => detail ? [] : rows.map(row => ({ name: row.name,
+    render: () => <NetChangeOverview at={row.path.map(part => part.name)} /> })))
   const breadcrumbs: DrilldownBreadcrumb[] = path.map((name, index) => ({
     id: JSON.stringify(path.slice(0, index + 1)), label: name,
     onSelect: () => setPath(path.slice(0, index + 1)),

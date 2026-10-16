@@ -9,6 +9,7 @@ import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModa
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { locationPlace } from '../utils/locationPlace'
 import { DonutChart } from '../../../shared/components/charts/DonutChart'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
@@ -24,7 +25,8 @@ import type { DrilldownScope } from '../utils/admissionsDrilldown'
 
 type Row = PayerChangeLocation & { prior: number | null; change: number | null; isTotal?: boolean }
 
-export function PayerChangesOverview() {
+// at: a fixed drilldown position in place of the URL's, for the Excel export's copy at one location.
+export function PayerChangesOverview({ at }: { at?: string[] } = {}) {
   const [params, setParams] = useSearchParams()
   const defaults = getDefaultReportDateRange()
   const startDate = params.get('start_date') ?? defaults.startDate
@@ -34,7 +36,7 @@ export function PayerChangesOverview() {
   const priorStart = dayjs(startDate).subtract(days, 'day').format('YYYY-MM-DD')
 
   // Scope lives in the URL so a drill-down survives a reload and can be linked.
-  const scopeKey = JSON.stringify(params.getAll('payer_scope').slice(0, 4))
+  const scopeKey = JSON.stringify(at ?? params.getAll('payer_scope').slice(0, 4))
   const path = useMemo(() => JSON.parse(scopeKey) as string[], [scopeKey])
   const scope: DrilldownScope = path.length
     ? { state: path[0], portfolio: path[1], region: path[2], facility: path[3] } : null
@@ -84,6 +86,9 @@ export function PayerChangesOverview() {
     params2.delete('all_facilities')
     setParams(params2)
   }
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => detail ? [] : rows.map(row => ({ name: row.name,
+    render: () => <PayerChangesOverview at={row.path.map(part => part.name)} /> })))
   function openLogs(selections: Record<string, string[]>) {
     setParams(payerChangeLogsParams(params, selections, startDate, endDate))
   }

@@ -28,7 +28,8 @@ export function FilterDropdown({ label, options, values, onChange,
   // In the report header it is a report filter, listed in the drilldown bar;
   // in a table's column header it is the table's own and is not.
   const inHeader = useInReportHeader()
-  useAnnounceFilters(inHeader ? [{ name: label, active: values.length > 0, clear: () => onChange([]), kind: 'header' }] : [])
+  useAnnounceFilters(inHeader ? [{ name: label, active: values.length > 0, clear: () => onChange([]), kind: 'header',
+    values: values.map(value => options.find(option => option.value === value)?.label ?? value) }] : [])
 
   return <div className="filter-dropdown">
     <label className="filter-dropdown__label" htmlFor={`${id}-trigger`}>{label}</label>

@@ -10,6 +10,7 @@ import { GainLossChart } from '../../../shared/components/charts/GainLossChart'
 import { LocationNavigation, locationColumn } from '../../../shared/components/LocationNavigation'
 import { getReportMonthRange } from '../../../shared/components/filters/ReportMonthRangeFilter'
 import { useCustomGrouping } from '../../../shared/customGrouping'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import {
   drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow,
@@ -63,13 +64,13 @@ function overall(figures: MonthTurnover[]) {
  * below it for the location shown, with its turnover, headcount and retention on
  * hover. From the
  * roster, as Turnover and Retention counts it; agency staff are not counted. */
-export function MonthlyStaffingTurnover() {
+export function MonthlyStaffingTurnover({ initialPath }: { initialPath?: string[] } = {}) {
   const [params, setParams] = useReportSearchParams()
   const range = getReportMonthRange(params)
   const startMonth = range.start.format('YYYY-MM')
   const endMonth = range.end.format('YYYY-MM')
-  // One drill= per level, in order.
-  const path = params.getAll('drill')
+  // One drill= per level, in order; the Excel export's copy for a location starts there instead.
+  const path = initialPath ?? params.getAll('drill')
   const setPath = (next: string[]) => {
     const updated = new URLSearchParams(params)
     updated.delete('drill')
@@ -103,6 +104,9 @@ export function MonthlyStaffingTurnover() {
   const months = data?.months ?? []
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this tab drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <MonthlyStaffingTurnover initialPath={row.path} /> })))
   // Each row's months and totals once, however many columns and sorts ask.
   const figures = perRow((row: Row) => byMonth(row.facilities, months))
   const totals = perRow((row: Row) => overall(figures(row)))

@@ -10,6 +10,7 @@ import { LineChart } from '../../../shared/components/charts/LineChart'
 import { LocationNavigation, locationColumn } from '../../../shared/components/LocationNavigation'
 import { getReportMonthRange } from '../../../shared/components/filters/ReportMonthRangeFilter'
 import { useCustomGrouping } from '../../../shared/customGrouping'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import {
   drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow,
@@ -74,14 +75,14 @@ function byMonth(kind: Kind, facilities: MonthlyStaffingFacility[], months: stri
  * overtime, over the months picked, those hours and all its hours, and the months
  * the share was highest and lowest; then the share month by month for the
  * location shown. Every share is the hours over the hours worked, each summed first. */
-export function MonthlyStaffingShare({ kind: kindId }: { kind: 'agency' | 'overtime' }) {
+export function MonthlyStaffingShare({ kind: kindId, initialPath }: { kind: 'agency' | 'overtime'; initialPath?: string[] }) {
   const kind = KINDS[kindId]
   const [params, setParams] = useReportSearchParams()
   const range = getReportMonthRange(params)
   const startMonth = range.start.format('YYYY-MM')
   const endMonth = range.end.format('YYYY-MM')
-  // One drill= per level, in order.
-  const path = params.getAll('drill')
+  // One drill= per level, in order; the Excel export's copy for a location starts there instead.
+  const path = initialPath ?? params.getAll('drill')
   const setPath = (next: string[]) => {
     const updated = new URLSearchParams(params)
     updated.delete('drill')
@@ -116,6 +117,9 @@ export function MonthlyStaffingShare({ kind: kindId }: { kind: 'agency' | 'overt
   const monthKeys = months.map(month => month.month)
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this tab drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <MonthlyStaffingShare kind={kindId} initialPath={row.path} /> })))
   // Each row's months and sums once, however many columns and sorts ask.
   const shares = perRow((row: Row) => byMonth(kind, row.facilities, monthKeys))
   const totals = perRow((row: Row) => sum(kind, row.facilities, monthKeys))

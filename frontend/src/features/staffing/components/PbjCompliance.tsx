@@ -8,6 +8,7 @@ import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { LocationNavigation, locationColumn } from '../../../shared/components/LocationNavigation'
 import { useCustomGrouping } from '../../../shared/customGrouping'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import {
   drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow,
@@ -76,11 +77,11 @@ const hppd = (value: number | string) => typeof value === 'number' ? value.toFix
  * hours, 12-month turnover and the agency share -- drilled from state to
  * facility, with the facilities at risk of a one-star staffing rating; and below,
  * the hours by PBJ job title code, employee and agency, over the facilities shown. */
-export function PbjCompliance() {
+export function PbjCompliance({ initialPath }: { initialPath?: string[] } = {}) {
   const [params, setParams] = useReportSearchParams()
   const quarter = selectedPbjQuarter(params)
-  // One drill= per level, in order.
-  const path = params.getAll('drill')
+  // One drill= per level, in order; the Excel export's copy for a location starts there instead.
+  const path = initialPath ?? params.getAll('drill')
   const setPath = (next: string[]) => {
     const updated = new URLSearchParams(params)
     updated.delete('drill')
@@ -108,6 +109,9 @@ export function PbjCompliance() {
 
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this tab drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <PbjCompliance initialPath={row.path} /> })))
   // Each row's sums once, however many columns and sorts ask.
   const sums = perRow((row: Row) => sum(row.facilities, codes))
   const columns: TableColumn<Row>[] = [

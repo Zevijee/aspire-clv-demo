@@ -10,6 +10,7 @@ import { SegmentedControl } from '../../../shared/components/SegmentedControl'
 import { getReportMonthRange } from '../../../shared/components/filters/ReportMonthRangeFilter'
 import { useCustomGrouping } from '../../../shared/customGrouping'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { LineChart } from '../../../shared/components/charts/LineChart'
 import { getMonthlyMedicare, type FacilityMonthly, type MonthlyMedicareReport } from '../api'
 import { drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow } from '../../../shared/utils/locationDrilldown'
@@ -66,14 +67,15 @@ const count = (amount: number) => amount.toLocaleString(undefined, { maximumFrac
  * time, chosen by its button: the residents coded in the range with it and
  * without it, drilled from state to facility, and the residents coded with it
  * each month. */
-export function MonthlyMedicareCategories() {
+export function MonthlyMedicareCategories({ initialPath }: { initialPath?: string[] } = {}) {
   const [params, setParams] = useReportSearchParams()
   const { start, end } = getReportMonthRange(params)
   const startMonth = start.format('YYYY-MM')
   const endMonth = end.format('YYYY-MM')
   const category = categories.find(entry => entry.id === params.get('category')) ?? categories[0]
-  // The drilldown location, kept in the URL (one drill= per level, in order).
-  const path = params.getAll('drill')
+  // The drilldown location, kept in the URL (one drill= per level, in order),
+  // or the location the export's copy is drawn at.
+  const path = initialPath ?? params.getAll('drill')
   const setPath = (next: string[]) => {
     const updated = new URLSearchParams(params)
     updated.delete('drill')
@@ -107,6 +109,9 @@ export function MonthlyMedicareCategories() {
 
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <MonthlyMedicareCategories initialPath={row.path} /> })))
   const months = data?.months ?? []
   const columns: TableColumn<Row>[] = [
     { id: 'name', header: levels[depth], isRowHeader: true, value: row => row.name,

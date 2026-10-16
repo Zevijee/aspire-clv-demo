@@ -7,6 +7,7 @@ import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { LocationNavigation, locationColumn } from '../../../shared/components/LocationNavigation'
 import { useCustomGrouping } from '../../../shared/customGrouping'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { DonutChart } from '../../../shared/components/charts/DonutChart'
 import { payerCode, payerLabels } from '../../adt/api/admissionsOverview'
@@ -66,14 +67,15 @@ function format(value: number | string, kind: Kind) {
 /** Hospital Transfers: residents sent to a hospital in the header's date range,
  * drilled from state to facility -- how many, how many soon after admission,
  * how long they had stayed, the rehospitalizations among them, and the rate per
- * 1,000 resident days. The drilldown is kept in the URL. */
-export function HospitalTransfers() {
+ * 1,000 resident days. The drilldown is kept in the URL; `drill` overrides it,
+ * for the Excel export's sheet for a location. */
+export function HospitalTransfers({ drill }: { drill?: string[] } = {}) {
   const [params, setParams] = useReportSearchParams()
   const defaults = getDefaultReportDateRange()
   const startDate = params.get('start_date') ?? defaults.startDate
   const endDate = params.get('end_date') ?? defaults.endDate
   // One drill= per level, in order.
-  const path = params.getAll('drill')
+  const path = drill ?? params.getAll('drill')
   const setPath = (next: string[]) => {
     const updated = new URLSearchParams(params)
     updated.delete('drill')
@@ -106,6 +108,9 @@ export function HospitalTransfers() {
 
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <HospitalTransfers drill={row.path} /> })))
   const columns: TableColumn<Row>[] = [
     locationColumn<FacilityTransfers>(depth, path, setPath),
     ...metrics.map(([id, header, kind]): TableColumn<Row> => ({

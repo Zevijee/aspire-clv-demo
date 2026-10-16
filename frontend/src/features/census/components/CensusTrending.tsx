@@ -8,6 +8,7 @@ import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import type { TableColumn } from '../../../shared/components/Table'
 import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import { LineChart } from '../../../shared/components/charts/LineChart'
 import { FullScreenModal } from '../../../shared/components/FullScreenModal'
@@ -27,8 +28,9 @@ const sum = (row: Row, field: Summed) => row.facilities.reduce((total, facility)
 
 /** Census over the selected range, drilled from state to facility. Every
  * measure is summed at the scope shown and divided once -- never an average of
- * facility averages. */
-export function CensusTrending() {
+ * facility averages. `initialPath` starts the drilldown at a location, for the
+ * Excel export's sheet for it. */
+export function CensusTrending({ initialPath }: { initialPath?: string[] } = {}) {
   const [params] = useReportSearchParams()
   const defaults = getDefaultReportDateRange()
   const startDate = params.get('start_date') ?? defaults.startDate
@@ -40,7 +42,7 @@ export function CensusTrending() {
   const [retry, setRetry] = useState(0)
   const [response, setResponse] = useState<{ key: string; data: CensusTrendingReport } | null>(null)
   const [failure, setFailure] = useState<{ key: string; message: string } | null>(null)
-  const [path, setPath] = useState<string[]>([])
+  const [path, setPath] = useState<string[]>(initialPath ?? [])
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
   const [showTrendTable, setShowTrendTable] = useState(false)
   const { grouping, locationView } = useLocationView(() => setPath([]))
@@ -59,6 +61,9 @@ export function CensusTrending() {
   const error = failure?.key === requestKey ? failure.message : null
   const days = data?.range.days ?? 1
   const { depth, rows: groupRows } = groupLocations(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : groupRows.map(row => ({ name: row.name,
+    render: () => <CensusTrending initialPath={row.path} /> })))
 
   const whole = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 0 })
   const tenths = (value: number) => value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })

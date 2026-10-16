@@ -7,6 +7,7 @@ import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { useCustomGrouping } from '../../../shared/customGrouping'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import { LineChart } from '../../../shared/components/charts/LineChart'
 import {
@@ -20,15 +21,16 @@ import { CategoryCharts, categoryColumns, useCategoryControl } from './CategoryB
 
 /** What both tabs share, all from the URL: the date range, which date it
  * applies to, and the drilldown location -- so switching tab, a refresh or a
- * shared link keeps every one. */
-function useHistoricalSelection() {
+ * shared link keeps every one. The export's copy at one location is given its
+ * path instead. */
+function useHistoricalSelection(initialPath?: string[]) {
   const [params, setParams] = useReportSearchParams()
   const defaults = getDefaultReportDateRange()
   const startDate = params.get('start_date') ?? defaults.startDate
   const endDate = params.get('end_date') ?? defaults.endDate
   const dateBasis = worksheetDateBasis(params)
   // One drill= per level, in order.
-  const path = params.getAll('drill')
+  const path = initialPath ?? params.getAll('drill')
   const setPath = (next: string[]) => {
     const updated = new URLSearchParams(params)
     updated.delete('drill')
@@ -104,13 +106,16 @@ function formatMetric(value: number | string, kind: Kind) {
 /** The Overview tab: the range's Medicare PDPM stays drilled from state to
  * facility -- how many, their length, the census over the range, and what
  * they were paid against the case-mix-neutral rate. */
-export function HistoricalOverview() {
-  const { startDate, endDate, dateBasis, path, setPath, basis, basisLabel, range, file } = useHistoricalSelection()
+export function HistoricalOverview({ initialPath }: { initialPath?: string[] } = {}) {
+  const { startDate, endDate, dateBasis, path, setPath, basis, basisLabel, range, file } = useHistoricalSelection(initialPath)
   const { data, error, loading, retry } = useReport<HistoricalMedicareReport>(
     signal => getHistoricalMedicare(startDate, endDate, dateBasis, signal), [startDate, endDate, dateBasis])
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <HistoricalOverview initialPath={row.path} /> })))
   const columns: TableColumn<OverviewRow>[] = [
     nameColumn<FacilityHistorical>(depth, path, setPath),
     ...metrics.map(([id, header, kind]): TableColumn<OverviewRow> => ({
@@ -196,14 +201,17 @@ type CategoryRow = DrilldownRow<FacilityCategories>
 
 /** The Category breakdown tab: the same stays counted by PDPM category, the
  * table's columns the chosen category's parts. */
-export function HistoricalCategoryBreakdown() {
-  const { startDate, endDate, dateBasis, path, setPath, basis, basisLabel, range, file } = useHistoricalSelection()
+export function HistoricalCategoryBreakdown({ initialPath }: { initialPath?: string[] } = {}) {
+  const { startDate, endDate, dateBasis, path, setPath, basis, basisLabel, range, file } = useHistoricalSelection(initialPath)
   const { data, error, loading, retry } = useReport<CategoriesReport>(
     signal => getHistoricalCategories(startDate, endDate, dateBasis, signal), [startDate, endDate, dateBasis])
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
   const { breakdown, control } = useCategoryControl()
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <HistoricalCategoryBreakdown initialPath={row.path} /> })))
   // The location, then how many stays in each part of the chosen category.
   const columns: TableColumn<CategoryRow>[] = [
     nameColumn<FacilityCategories>(depth, path, setPath),

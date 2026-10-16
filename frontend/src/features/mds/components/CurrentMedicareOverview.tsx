@@ -8,6 +8,7 @@ import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { useCustomGrouping } from '../../../shared/customGrouping'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import {
   getMedicareLookback, getMedicareOverview, type FacilityLookback, type FacilityOverview,
   type MedicareLookbackReport, type OverviewReport,
@@ -88,11 +89,12 @@ const shortDate = (value: string) => new Date(`${value}T00:00:00`)
 /** The Overview tab: today's PDPM residents and rates by location, and the
  * same scope looked back on -- yesterday to a year ago -- with how today
  * differs from each. */
-export function CurrentMedicareOverview() {
+export function CurrentMedicareOverview({ initialPath }: { initialPath?: string[] } = {}) {
   const [params, setParams] = useReportSearchParams()
   // The drilldown location, kept in the URL (one drill= per level, in order),
-  // shared with the Category breakdown tab so switching keeps it.
-  const path = params.getAll('drill')
+  // shared with the Category breakdown tab so switching keeps it; the export's
+  // copy at one location is given it instead.
+  const path = initialPath ?? params.getAll('drill')
   const setPath = (next: string[]) => {
     const updated = new URLSearchParams(params)
     updated.delete('drill')
@@ -124,6 +126,9 @@ export function CurrentMedicareOverview() {
 
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <CurrentMedicareOverview initialPath={row.path} /> })))
   const columns: TableColumn<Row>[] = [
     { id: 'name', header: levels[depth], isRowHeader: true, value: row => row.name,
       format: (_, row) => row.isTotal || path.length === 4 ? row.name :

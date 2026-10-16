@@ -10,6 +10,7 @@ import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModa
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { StackedRankingChart } from '../../../shared/components/charts/StackedRankingChart'
 import { getMedicareCategories, type CategoriesReport, type CategoryCounts, type FacilityCategories } from '../api'
 import { drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow, type Located } from '../../../shared/utils/locationDrilldown'
@@ -294,6 +295,9 @@ function CategoryDrilldown({ breakdown, categoryLabel, onOpenResidents, path, se
 
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <CategoryBreakdown initialPath={row.path} /> })))
   // The location, then how many residents in each part of the chosen category.
   const columns: TableColumn<Row>[] = [
     { id: 'name', header: levels[depth], isRowHeader: true, value: row => row.name,
@@ -345,14 +349,15 @@ function CategoryDrilldown({ breakdown, categoryLabel, onOpenResidents, path, se
 }
 
 /** The PDPM categories, one at a time. */
-export function CategoryBreakdown() {
+export function CategoryBreakdown({ initialPath }: { initialPath?: string[] } = {}) {
   const [params, setParams] = useReportSearchParams()
   const { selected, breakdown, control } = useCategoryControl()
   // The drilldown location, kept in the URL (one drill= per level, in order):
   // switching category keeps it -- drilled into Florida on Primary Diagnosis,
   // Nursing opens on Florida too -- and so does going to the Residents tab and
-  // back, a refresh, or a shared link.
-  const path = params.getAll('drill')
+  // back, a refresh, or a shared link. The export's copy at one location is
+  // given it instead.
+  const path = initialPath ?? params.getAll('drill')
   const setPath = (next: string[]) => {
     const updated = new URLSearchParams(params)
     updated.delete('drill')

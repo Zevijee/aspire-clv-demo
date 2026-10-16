@@ -1,6 +1,7 @@
 import { useId } from 'react'
 import { DataState, type DataStateProps } from '../DataState'
 import { useAnnounceFilters } from '../../activeFilters'
+import { useExcelChart } from '../../excelCharts'
 import {
   Bar,
   Cell,
@@ -98,7 +99,7 @@ export function BarChartRanking({
 }: BarChartRankingProps) {
   // A selection that filters the report is a report filter, listed in the drilldown bar.
   // A chart with a clear action is a filter whether or not anything is selected.
-  useAnnounceFilters(onClear ? [{ name: filterName.one, active: selectedLabels.length > 0,
+  useAnnounceFilters(onClear ? [{ name: filterName.one, active: selectedLabels.length > 0, values: selectedLabels,
     clear: () => onClear(), kind: 'chart' }] : [])
   // Unique per chart: several rankings on one page each label their own section.
   const titleId = useId()
@@ -110,9 +111,15 @@ export function BarChartRanking({
     ? Math.max(0, Math.floor(smallestValue - Math.max(1, (largestValue - smallestValue) / 2))) : 0
   const total = items.reduce((sum, item) => sum + item.value, 0)
   const labelWidth = labelColumnWidth(items.map(item => item.label))
+  const excelChart = useExcelChart(loading || error || items.length === 0 ? null : {
+    kind: 'bar', title, categoryLabel, categories: items.map(item => item.label),
+    series: [{ name: valueLabel, values: items.map(item => item.value), texts: items.map(item => formatValue(item.value)),
+      color: 'var(--color-chart-series-primary)' }],
+    axisMinimum: lowestValue > 0 ? lowestValue : undefined,
+  })
 
   return (
-    <section aria-busy={loading} className="bar-chart-ranking" aria-labelledby={titleId}>
+    <section ref={excelChart} aria-busy={loading} className="bar-chart-ranking" aria-labelledby={titleId}>
       <h2 id={titleId}>{title}</h2>
       <p className="bar-chart-ranking__subtitle">{subtitle}
         {selectedLabels.length > 0 && onClear && <> · <button className="donut-chart__legend-select donut-chart__clear-filter" type="button" onClick={onClear}>Clear {filterName.one} filter</button></>}

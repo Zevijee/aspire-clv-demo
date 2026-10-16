@@ -1,5 +1,6 @@
 import { DataState, type DataStateProps } from '../DataState'
 import { useAnnounceFilters } from '../../activeFilters'
+import { useExcelChart } from '../../excelCharts'
 import { useId, useState, type ReactNode } from 'react'
 import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts'
 
@@ -41,7 +42,7 @@ export function DonutChart({ items, subtitle, title, titleContent, loading, erro
   const titleId = useId()
   // A selection that filters the report is a report filter, listed in the drilldown bar.
   // A chart with a clear action is a filter whether or not anything is selected.
-  useAnnounceFilters(onClear ? [{ name: filterName.one, active: selectedLabels.length > 0,
+  useAnnounceFilters(onClear ? [{ name: filterName.one, active: selectedLabels.length > 0, values: selectedLabels,
     clear: () => onClear(), kind: 'chart' }] : [])
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
   const total = items.reduce((sum, item) => sum + item.value, 0)
@@ -51,8 +52,15 @@ export function DonutChart({ items, subtitle, title, titleContent, loading, erro
     ? { label: selectionLabel, value: items.filter((item) => selectedLabels.includes(item.label)).reduce((sum, item) => sum + item.value, 0) }
     : activeIndex === null ? null : (items[activeIndex] ?? null)
 
+  const excelChart = useExcelChart(loading || error || total === 0 ? null : {
+    kind: 'doughnut', title, categoryLabel: filterName.one[0].toUpperCase() + filterName.one.slice(1),
+    categories: items.map(item => item.label),
+    series: [{ name: valueLabel, values: items.map(item => item.value), texts: items.map(item => formatValue(item.value)),
+      pointColors: items.map((_, index) => chartColors[index % chartColors.length]) }],
+  })
+
   return (
-    <section aria-busy={loading} className="donut-chart" aria-labelledby={titleId}>
+    <section ref={excelChart} aria-busy={loading} className="donut-chart" aria-labelledby={titleId}>
       <h2 id={titleId} className={titleContent ? 'donut-chart__title--mixed' : undefined}>
         {titleContent ?? title}
       </h2>

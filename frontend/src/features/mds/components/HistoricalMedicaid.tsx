@@ -8,6 +8,7 @@ import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { useCustomGrouping } from '../../../shared/customGrouping'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import { LineChart } from '../../../shared/components/charts/LineChart'
 import {
@@ -28,14 +29,15 @@ const scopeNote = 'Texas Medicaid stays, whose Medicaid pays on the PDPM nursing
   + 'Pennsylvania use other systems and are not included.'
 
 /** What every tab shares, all from the URL: the date range, which date it
- * applies to, and the drilldown location -- Texas until another is chosen. */
-function useHistoricalMedicaidSelection() {
+ * applies to, and the drilldown location -- Texas until another is chosen, or
+ * the location the export's copy is drawn at. */
+function useHistoricalMedicaidSelection(initialPath?: string[]) {
   const [params] = useReportSearchParams()
   const defaults = getDefaultReportDateRange()
   const startDate = params.get('start_date') ?? defaults.startDate
   const endDate = params.get('end_date') ?? defaults.endDate
   const dateBasis = worksheetDateBasis(params)
-  return { startDate, endDate, dateBasis, ...useDrillPath(),
+  return { startDate, endDate, dateBasis, ...useDrillPath(initialPath),
     basis: dateBasis === 'ard' ? 'whose first assessment ARD falls' : 'that started',
     basisLabel: dateBasis === 'ard' ? 'ARD' : 'stay start',
     range: `${startDate} to ${endDate}`, file: `${startDate}-to-${endDate}-by-${dateBasis}` }
@@ -76,13 +78,16 @@ function formatMetric(value: number | string, kind: Kind) {
 /** The Overview tab: the range's Texas Medicaid stays drilled from Texas to
  * facility -- how many, their length, the census over the range and what
  * Medicaid paid -- and the census, rate and length of stay day by day. */
-export function HistoricalMedicaidOverview() {
-  const { startDate, endDate, dateBasis, path, setPath, basis, basisLabel, range, file } = useHistoricalMedicaidSelection()
+export function HistoricalMedicaidOverview({ initialPath }: { initialPath?: string[] } = {}) {
+  const { startDate, endDate, dateBasis, path, setPath, basis, basisLabel, range, file } = useHistoricalMedicaidSelection(initialPath)
   const { data, error, loading, retry } = useReport<HistoricalMedicaidReport>(
     signal => getHistoricalMedicaid(startDate, endDate, dateBasis, signal), [startDate, endDate, dateBasis])
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <HistoricalMedicaidOverview initialPath={row.path} /> })))
   const columns: TableColumn<OverviewRow>[] = [
     nameColumn<FacilityHistoricalMedicaid>(depth, path, setPath),
     ...metrics.map(([id, header, kind]): TableColumn<OverviewRow> => ({
@@ -154,15 +159,18 @@ type CategoryRow = DrilldownRow<FacilityMedicaidCategories>
 /** The Category breakdown tab: the same stays counted by their first code's
  * nursing function score, nursing category or NTA band. A chart segment opens
  * its stays on the Residents tab. */
-export function HistoricalMedicaidCategoryBreakdown() {
+export function HistoricalMedicaidCategoryBreakdown({ initialPath }: { initialPath?: string[] } = {}) {
   const [params, setParams] = useReportSearchParams()
-  const { startDate, endDate, dateBasis, path, setPath, basis, basisLabel, range, file } = useHistoricalMedicaidSelection()
+  const { startDate, endDate, dateBasis, path, setPath, basis, basisLabel, range, file } = useHistoricalMedicaidSelection(initialPath)
   const { data, error, loading, retry } = useReport<MedicaidCategoriesReport>(
     signal => getHistoricalMedicaidCategories(startDate, endDate, dateBasis, signal), [startDate, endDate, dateBasis])
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
   const { selected, breakdown, control } = useCategoryControl(medicaidCategories, 'Medicaid category')
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <HistoricalMedicaidCategoryBreakdown initialPath={row.path} /> })))
   const columns: TableColumn<CategoryRow>[] = [
     nameColumn<FacilityMedicaidCategories>(depth, path, setPath),
     ...categoryColumns<FacilityMedicaidCategories>(breakdown),

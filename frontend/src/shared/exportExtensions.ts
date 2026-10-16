@@ -31,7 +31,7 @@ export async function collectExportExtras(): Promise<Required<ExportExtra>> {
 
 /** A report's own sheets for its Excel export, in place of the tables drawn on
  * the page, asked at export time: a Staffing report's role tables, a Total and
- * one per location shown, each role opening to its employees (roleSheets). */
+ * one per location shown, each a role table (roleSheets). */
 export type ExcelContributor = () => ExcelTable[] | Promise<ExcelTable[]>
 
 const excelContributors = new Set<ExcelContributor>()

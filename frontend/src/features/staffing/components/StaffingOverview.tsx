@@ -352,9 +352,8 @@ export function StaffingOverview() {
     })),
   ]
 
-  // The Excel export: a Total sheet and one per location shown, each role opening to its employees.
-  useRoleSheets({ locations: rows, scopeName, title: 'Staffing by role', columns: roleColumns,
-    startDate: shownStart, endDate: shownEnd })
+  // The Excel export: a Total sheet and one per location shown, each a role table.
+  useRoleSheets({ locations: rows, scopeName, title: 'Staffing by role', columns: roleColumns })
 
   return <>
     <LocationNavigation path={path} setPath={setPath} />

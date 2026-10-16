@@ -8,6 +8,7 @@ import { CustomGroupingButton } from '../../../shared/components/CustomGroupingB
 import { LocationNavigation, locationColumn } from '../../../shared/components/LocationNavigation'
 import { LineChart } from '../../../shared/components/charts/LineChart'
 import { useCustomGrouping } from '../../../shared/customGrouping'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { getDefaultReportDateRange } from '../../../shared/utils/reportDateRange'
 import {
@@ -78,13 +79,13 @@ const metrics: [id: keyof Stats, header: string, kind: Kind][] = [
  * to facility, each scope's labour cost per patient day read day by day -- its
  * highest and lowest day, the days over and under budget -- and charted day
  * over day against the budget. The roles and the drilldown are kept in the URL. */
-export function PpdCostTrending() {
+export function PpdCostTrending({ initialPath }: { initialPath?: string[] } = {}) {
   const [params, setParams] = useReportSearchParams()
   const defaults = getDefaultReportDateRange()
   const startDate = params.get('start_date') ?? defaults.startDate
   const endDate = params.get('end_date') ?? defaults.endDate
-  // One drill= per level, in order.
-  const path = params.getAll('drill')
+  // One drill= per level, in order; the Excel export's copy for a location starts there instead.
+  const path = initialPath ?? params.getAll('drill')
   const setPath = (next: string[]) => {
     const updated = new URLSearchParams(params)
     updated.delete('drill')
@@ -114,6 +115,9 @@ export function PpdCostTrending() {
 
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this tab drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <PpdCostTrending initialPath={row.path} /> })))
   const columns: TableColumn<Row>[] = [
     locationColumn<FacilityCostTrend>(depth, path, setPath),
     ...metrics.map(([id, header, kind]): TableColumn<Row> => ({

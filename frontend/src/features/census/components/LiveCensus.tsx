@@ -12,6 +12,7 @@ import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
 import { payerCode, payerLabel } from '../../adt/api/admissionsOverview'
 import { useReportSearchParams } from '../../../shared/components/ReportSearchContext'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { LookbackCards, type LookbackMeasure, type LookbackPeriod } from '../../../shared/components/LookbackCards'
 import { getCensusTrendingDaily, getLiveCensus, type CensusDailyTrend, type FacilityCensus, type LiveCensusReport } from '../api'
 
@@ -58,11 +59,13 @@ const percent = (value: number) => `${value.toLocaleString(undefined,
 const shortDate = (value: string) => new Date(`${value}T00:00:00`)
   .toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 
-export function LiveCensus() {
+/** `initialPath` starts the drilldown at a location, for the Excel export's
+ * sheet for it. */
+export function LiveCensus({ initialPath }: { initialPath?: string[] } = {}) {
   const [response, setResponse] = useState<{ key: string; body: LiveCensusReport } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
-  const [path, setPath] = useState<string[]>([])
+  const [path, setPath] = useState<string[]>(initialPath ?? [])
   const { grouping, locationView } = useLocationView(() => setPath([]))
   const [showFacilities, setShowFacilities] = useSearchParamFlag('all_facilities')
   // The header's Payers filter, which the payer mix donut also sets.
@@ -94,6 +97,9 @@ export function LiveCensus() {
     return () => controller.abort()
   }, [retry, requestKey])
   const { depth, rows: groupRows } = groupLocations(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this report drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : groupRows.map(row => ({ name: row.name,
+    render: () => <LiveCensus initialPath={row.path} /> })))
 
   // Census over the 30 days to the census day, for the scope the drilldown
   // shows: each day's closing census, on the same payers -- the table's Census

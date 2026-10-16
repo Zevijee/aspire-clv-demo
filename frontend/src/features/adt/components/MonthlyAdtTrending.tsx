@@ -20,9 +20,9 @@ const titles: Record<MonthlyTab, string> = { admissions: 'Admissions', discharge
  * discharges side by side and net change beneath them. Each chart reads its own
  * monthly table and narrows by its own filter, as the three were when they were
  * separate tabs. */
-export function MonthlyAdtTrending() {
+export function MonthlyAdtTrending({ initialPath }: { initialPath?: string[] } = {}) {
   const [admissionsMonth, setAdmissionsMonth] = useState<AdmissionsMonthSelection | null>(null)
-  const [path, setPath] = useState<string[]>([])
+  const [path, setPath] = useState<string[]>(initialPath ?? [])
   const [params] = useSearchParams()
   const { start, end } = getReportMonthRange(params)
   const lastDay = end.isSame(dayjs(), 'month') ? dayjs() : end.endOf('month')
@@ -33,7 +33,8 @@ export function MonthlyAdtTrending() {
     destinations: params.getAll(monthlyFilter.discharges.search), report: tab })
   return <>
     <AdmissionsOverviewModal month={admissionsMonth} onClose={() => setAdmissionsMonth(null)} />
-    <MonthlyAdtLocations {...range} path={path} setPath={setPath} />
+    <MonthlyAdtLocations {...range} path={path} setPath={setPath}
+      sheetAt={next => <MonthlyAdtTrending initialPath={next} />} />
     <div className="report-chart-grid">
       <MonthlyTrend tab="admissions" path={path} range={range} onSelect={openMonth('admissions')} />
       <MonthlyTrend tab="discharges" path={path} range={range} onSelect={openMonth('discharges')} />

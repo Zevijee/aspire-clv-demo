@@ -10,6 +10,7 @@ import { LineChart } from '../../../shared/components/charts/LineChart'
 import { LocationNavigation, locationColumn } from '../../../shared/components/LocationNavigation'
 import { getReportMonthRange } from '../../../shared/components/filters/ReportMonthRangeFilter'
 import { useCustomGrouping } from '../../../shared/customGrouping'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import {
   drilldownLevels as levels, facilityRows, groupByLocation, type DrilldownRow,
@@ -65,13 +66,13 @@ function extreme(figures: MonthFigure[], pick: 'highest' | 'lowest') {
  * budget over all of them; then the HPPD of the location shown month by month,
  * with its PPD cost on hover. Every month is summed over its facilities and roles
  * first and divided once. */
-export function MonthlyStaffingHppd() {
+export function MonthlyStaffingHppd({ initialPath }: { initialPath?: string[] } = {}) {
   const [params, setParams] = useReportSearchParams()
   const range = getReportMonthRange(params)
   const startMonth = range.start.format('YYYY-MM')
   const endMonth = range.end.format('YYYY-MM')
-  // One drill= per level, in order.
-  const path = params.getAll('drill')
+  // One drill= per level, in order; the Excel export's copy for a location starts there instead.
+  const path = initialPath ?? params.getAll('drill')
   const setPath = (next: string[]) => {
     const updated = new URLSearchParams(params)
     updated.delete('drill')
@@ -106,6 +107,9 @@ export function MonthlyStaffingHppd() {
   const monthKeys = months.map(month => month.month)
   const { grouping } = useCustomGrouping()
   const { depth, rows } = groupByLocation(data?.items ?? [], path, grouping)
+  // The Excel export's sheet for each location in the table, this tab drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : rows.map(row => ({ name: row.name,
+    render: () => <MonthlyStaffingHppd initialPath={row.path} /> })))
   // Each row's months and sums once, however many columns and sorts ask.
   const figures = perRow((row: Row) => byMonth(row.facilities, monthKeys))
   const totals = perRow((row: Row) => sum(row.facilities, monthKeys))

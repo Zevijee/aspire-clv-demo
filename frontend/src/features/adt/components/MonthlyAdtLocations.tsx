@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { MonthlyAdtFilters } from './MonthlyAdtFilters'
 import dayjs from 'dayjs'
 import { useSearchParams } from 'react-router-dom'
@@ -9,6 +9,7 @@ import { AllFacilitiesModal } from '../../../shared/components/AllFacilitiesModa
 import { useSearchParamFlag } from '../../../shared/hooks/useSearchParamFlag'
 import { OpenViewButton } from '../../../shared/components/OpenViewButton'
 import { CustomGroupingButton } from '../../../shared/components/CustomGroupingButton'
+import { useLocationSheets } from '../../../shared/locationSheets'
 import { useAdmissionsReferences } from '../hooks/useAdmissionsOverview'
 import { groupingPaths, locationLevels, useLocationView } from '../../../shared/customGrouping'
 import {
@@ -37,10 +38,11 @@ const measures: { metric: Metric; tab: MonthlyTab; label: string }[] = [
  * location's average per month and its highest and lowest month, drilled from
  * state to facility. Admissions follow the Coming from filter and discharges
  * the Going to filter, as their charts do; net change reads census, which
- * neither divides. */
-export function MonthlyAdtLocations({ startDate, endDate, path, setPath }: {
+ * neither divides. sheetAt draws the whole report at a location, for the Excel
+ * export's sheet of each row. */
+export function MonthlyAdtLocations({ startDate, endDate, path, setPath, sheetAt }: {
   startDate: string; endDate: string
-  path: string[]; setPath: (path: string[]) => void
+  path: string[]; setPath: (path: string[]) => void; sheetAt: (path: string[]) => ReactNode
 }) {
   const [params] = useSearchParams()
   const [retry, setRetry] = useState(0)
@@ -103,6 +105,9 @@ export function MonthlyAdtLocations({ startDate, endDate, path, setPath }: {
       if (facility) facility.months[metric][index] += Number(item[metric])
     }
   }
+  // The Excel export's sheet for each location in the table, the report drilled into it.
+  useLocationSheets(() => path.length === 4 ? [] : [...groups.values()].map(row => ({ name: row.name,
+    render: () => sheetAt(row.path ?? [...path, row.name]) })))
   const extreme = (row: Row, metric: Metric, high: boolean) => (high ? Math.max : Math.min)(...row.months[metric])
   const formatValue = (metric: Metric, value: number) => value.toLocaleString(undefined, {
     maximumFractionDigits: 1, signDisplay: metric === 'net_change' ? 'exceptZero' : 'auto',
