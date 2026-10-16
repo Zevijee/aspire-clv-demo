@@ -133,7 +133,7 @@ list it in `SHARED_RULES` there, or a change to that file goes unnoticed.
 | Payer daily rates | `payer_rates --regenerate`, ~3 s, then `census_logs --regenerate` |
 | Care levels, PDPM steps and codes, who was in a bed when | `census_logs --regenerate`, ~1 min |
 | Per-resident totals for the Residents report | `resident_summaries --regenerate`, ~3 s |
-| Monthly PDPM resident-days and rates for Current Medicare PDPM's averages | `pdpm_census_summary --regenerate`, ~5 s |
+| Monthly PDPM resident-days and rates for Current Medicare PDPM's averages, and the category days for Monthly Medicare's Category breakdown | `pdpm_census_summary --regenerate`, ~6 s |
 | Monthly Texas Medicaid resident-days and rates for Monthly Medicaid Trending | `medicaid_census_summary --regenerate`, ~6 s |
 | Hospital transfers and their reasons, for the Clinical reports | `transfer_logs --regenerate`, ~2 s |
 | Resident incidents, for the Clinical reports | `incident_logs --regenerate`, ~20 s |
@@ -180,7 +180,7 @@ python manage.py referring_hospitals --regenerate     # the 384-hospital catalog
 python manage.py payer_rates --regenerate             # daily rate per facility and payer plan
 python manage.py census_logs --regenerate             # who was in a bed, care level, PDPM rates; ~1 min
 python manage.py resident_summaries --regenerate      # every resident's totals across stays; ~3 s
-python manage.py pdpm_census_summary --regenerate     # PDPM resident-days and rates by month; ~5 s
+python manage.py pdpm_census_summary --regenerate     # PDPM resident-days, rates and category days by month; ~6 s
 python manage.py medicaid_census_summary --regenerate # Texas Medicaid resident-days and rates by month; ~6 s
 python manage.py transfer_logs --regenerate           # hospital transfers with reasons; ~2 s
 python manage.py incident_logs --regenerate           # resident incidents; ~20 s

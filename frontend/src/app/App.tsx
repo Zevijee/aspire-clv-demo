@@ -13,6 +13,7 @@ import { MedicaidCategoryBreakdown, MedicaidOverview, MedicaidResidents } from '
 import { PdpmWorksheet, WorksheetDateBasisToggle } from '../features/mds/components/PdpmWorksheet'
 import { HistoricalCategoryBreakdown, HistoricalOverview } from '../features/mds/components/HistoricalMedicare'
 import { MonthlyMedicare } from '../features/mds/components/MonthlyMedicare'
+import { MonthlyMedicareCategories } from '../features/mds/components/MonthlyMedicareCategories'
 import {
   HistoricalMedicaidCategoryBreakdown, HistoricalMedicaidOverview, HistoricalMedicaidResidents,
 } from '../features/mds/components/HistoricalMedicaid'
@@ -688,10 +689,8 @@ function App() {
                   : activeMedicareTab === 'categories' ? <MedicaidCategoryBreakdown /> : <MedicaidOverview />) :
                 report.path === '/mds/current-medicare' ? (activeMedicareTab === 'residents' ? <MedicareResidents />
                   : activeMedicareTab === 'categories' ? <CategoryBreakdown /> : <CurrentMedicareOverview />) : report.path === '/mds/monthly-medicare' ? (activeMonthlyMedicareTab === 'categories'
+                    ? <MonthlyMedicareCategories /> : <MonthlyMedicare />) : report.path === '/mds/monthly-medicaid' ? (activeMonthlyMedicareTab === 'categories'
                     // Not built yet: an empty page, as the other unbuilt reports have.
-                    ? <section className="report-placeholder" aria-label="Category breakdown content" />
-                    : <MonthlyMedicare />) : report.path === '/mds/monthly-medicaid' ? (activeMonthlyMedicareTab === 'categories'
-                    // Empty, as Monthly Medicare PDPM Trending's is.
                     ? <section className="report-placeholder" aria-label="Category breakdown content" />
                     : <MonthlyMedicaid />)
                   : report.path === '/mds/historical-medicaid' ? (activeHistoricalMedicareTab === 'categories'

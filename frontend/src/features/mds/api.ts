@@ -236,7 +236,19 @@ export function getMedicareLookback(signal?: AbortSignal) {
   return readJson<MedicareLookbackReport>(`${medicareBase}/lookback`, signal)
 }
 
-export type MonthTotals = { resident_days: number; actual_rates: number; neutral_rates: number }
+export type MonthTotals = {
+  resident_days: number
+  actual_rates: number
+  neutral_rates: number
+  // Of the resident-days, those with the period's PDPM code available, and of
+  // those each Category breakdown category's, keyed by its id; they overlap.
+  coded_days: number
+  categories: Record<string, number>
+  // Residents coded in the month -- their code took effect then -- and of
+  // those each category's. Each counts in that month only.
+  coded_residents: number
+  category_residents: Record<string, number>
+}
 
 export type FacilityMonthly = {
   facility_id: string

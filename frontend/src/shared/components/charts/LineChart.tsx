@@ -83,6 +83,10 @@ export function LineChart({ items, title, subtitle, loading, error, onRetry, sig
       : variant === 'bar' ? 0 : Math.max(0, minimumValue - axisPadding),
     signed ? Math.max(0, maximumValue + axisPadding)
       : variant === 'bar' && baseline === 'close' ? maximumValue + closePadding * 0.1
+      // Fitted bars with decimals, such as a rate near $313 moving by $2: the
+      // 1% floor put $3 of empty axis over the tallest bar. A tenth of their
+      // own range, as close does; counts keep their whole-unit padding.
+      : variant === 'bar' && baseline === 'fit' && !whole ? maximumValue + closePadding * 0.1
       : maximumValue + axisPadding,
   ]
 

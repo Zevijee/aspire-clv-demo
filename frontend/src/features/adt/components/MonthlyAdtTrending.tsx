@@ -107,7 +107,9 @@ function MonthlyTrend({ tab, path, range, onSelect }: {
       : <LineChart title={`Monthly ${label.toLowerCase()}`} onSelect={onSelect} headerActions={tableButton}
           subtitle={`Total ${label.toLowerCase()} per calendar month.${filterNote}${monthToDate} Click a month to open its overview.`}
           items={rows.map(row => ({ date: row.date, end_date: row.end_date, value: row[tab] }))}
-          variant="bar" interval="month" height={360} showDailyAverage valueLabel={label}
+          // Fitted, not from zero: months move a few hundred on about 9,000,
+          // which a zero baseline flattened to bars of one height.
+          variant="bar" interval="month" height={360} showDailyAverage valueLabel={label} baseline="fit"
           barColor={tab === 'admissions' ? 'var(--color-table-change-favorable)' : 'var(--color-table-change-adverse)'}
           {...status} />}
     <FullScreenModal open={showTable} onClose={() => setShowTable(false)} destroyOnHidden

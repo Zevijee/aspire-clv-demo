@@ -9,6 +9,10 @@ resident-days over the month's days, rates are summed rates over resident-days.
 The neutral rate is the national per diem times the summed day factors, and a
 month's daily revenue its summed actual rates over its days.
 
+The Category breakdown tab reads six PDPM categories from the same rows: each
+one's resident-days, counted once the period's code is available, over
+coded_days, the days with a code. They overlap, so they are not summed.
+
 Months run through the census day: the month in progress counts only its days
 so far, and each month carries the days its average divides by. The rollup is
 rebuilt after census_logs on every update, so it must have reached the census
@@ -28,6 +32,17 @@ from .lookback import ROLLUP
 from .service import GENERATOR, NATIONAL_PER_DIEM, census_day
 
 MONTH = r'^\d{4}-(0[1-9]|1[0-2])$'
+# The Category breakdown's categories, in its button order: each one's
+# resident-days column in the rollup, and its residents column beside it.
+CATEGORIES = {
+    'depression': facts.c.depression_days,
+    'medical_management': facts.c.medical_management_days,
+    'slp_sa': facts.c.slp_sa_days,
+    'behavioral': facts.c.behavioral_days,
+    'reduced_physical_function': facts.c.reduced_physical_function_days,
+    'nursing_gg_15_16': facts.c.nursing_gg_15_16_days,
+}
+CATEGORY_RESIDENTS = {key: facts.c[column.name.replace('_days', '_residents')] for key, column in CATEGORIES.items()}
 
 
 class MonthlyQuery(BaseModel):
@@ -45,6 +60,13 @@ class MonthTotals(BaseModel):
     resident_days: int = Field(description='PDPM residents in a bed, summed over the month\'s days.')
     actual_rates: float = Field(description='Their daily rates, summed over the same days.')
     neutral_rates: float = Field(description='Their case-mix-neutral rates, summed over the same days.')
+    coded_days: int = Field(description="Of the resident-days, those with the period's PDPM code available.")
+    categories: dict[str, int] = Field(description="Of the coded days, each category's, keyed as CATEGORIES; "
+        'they overlap.')
+    coded_residents: int = Field(description='Residents coded in the month: their code took effect then, while '
+        'they were in a bed. Each counts in that month only.')
+    category_residents: dict[str, int] = Field(description="Of the coded residents, each category's, keyed as "
+        'CATEGORIES.')
 
 
 class Month(BaseModel):
@@ -98,13 +120,20 @@ def monthly(connection: Connection, query: MonthlyQuery, today: date):
         for row in connection.execute(select(facts.c.facility_id, facts.c.month_start,
                 func.sum(facts.c.resident_days).label('resident_days'),
                 func.sum(facts.c.actual_rates).label('actual_rates'),
-                func.sum(facts.c.factor_days).label('factor_days'))
+                func.sum(facts.c.factor_days).label('factor_days'),
+                func.sum(facts.c.coded_days).label('coded_days'),
+                *(func.sum(column).label(key) for key, column in CATEGORIES.items()),
+                func.sum(facts.c.coded_residents).label('coded_residents'),
+                *(func.sum(column).label(f'{key}_residents') for key, column in CATEGORY_RESIDENTS.items()))
                 .where(facts.c.month_start.between(date.fromisoformat(months[0]['month']),
                     date.fromisoformat(months[-1]['month'])))
                 .group_by(facts.c.facility_id, facts.c.month_start)).mappings():
             totals.setdefault(row['facility_id'], {})[row['month_start'].isoformat()] = dict(
                 resident_days=int(row['resident_days']), actual_rates=float(row['actual_rates']),
-                neutral_rates=float(NATIONAL_PER_DIEM) * float(row['factor_days']))
+                neutral_rates=float(NATIONAL_PER_DIEM) * float(row['factor_days']),
+                coded_days=int(row['coded_days']), categories={key: int(row[key]) for key in CATEGORIES},
+                coded_residents=int(row['coded_residents']),
+                category_residents={key: int(row[f'{key}_residents']) for key in CATEGORIES})
 
     items = [dict(facility_id=str(location['facility_id']), facility_name=location['facility_name'],
             state=location['state'], portfolio=location['portfolio_name'], region=location['region_name'],

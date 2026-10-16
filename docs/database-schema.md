@@ -931,9 +931,27 @@ Calendar-month rollup of daily_payer_census_facts for monthly trending. Flows ar
 | resident_days | INTEGER | no |  |  |  |
 | actual_rates | NUMERIC(14, 2) | no |  |  |  |
 | factor_days | NUMERIC(12, 4) | no |  |  |  |
+| coded_days | INTEGER | no |  |  |  |
+| depression_days | INTEGER | no |  |  |  |
+| medical_management_days | INTEGER | no |  |  |  |
+| slp_sa_days | INTEGER | no |  |  |  |
+| behavioral_days | INTEGER | no |  |  |  |
+| reduced_physical_function_days | INTEGER | no |  |  |  |
+| nursing_gg_15_16_days | INTEGER | no |  |  |  |
+| coded_residents | INTEGER | no |  |  |  |
+| depression_residents | INTEGER | no |  |  |  |
+| medical_management_residents | INTEGER | no |  |  |  |
+| slp_sa_residents | INTEGER | no |  |  |  |
+| behavioral_residents | INTEGER | no |  |  |  |
+| reduced_physical_function_residents | INTEGER | no |  |  |  |
+| nursing_gg_15_16_residents | INTEGER | no |  |  |  |
 
 - CHECK: `actual_rates > 0 AND factor_days > 0`
+- CHECK: `coded_days BETWEEN 0 AND resident_days`
+- CHECK: `coded_residents BETWEEN 0 AND coded_days`
 - CHECK: `date_trunc('month', month_start) = month_start`
+- CHECK: `depression_days BETWEEN 0 AND coded_days AND medical_management_days BETWEEN 0 AND coded_days AND slp_sa_days BETWEEN 0 AND coded_days AND behavioral_days BETWEEN 0 AND coded_days AND reduced_physical_function_days BETWEEN 0 AND coded_days AND nursing_gg_15_16_days BETWEEN 0 AND coded_days`
+- CHECK: `depression_residents BETWEEN 0 AND coded_residents AND medical_management_residents BETWEEN 0 AND coded_residents AND slp_sa_residents BETWEEN 0 AND coded_residents AND behavioral_residents BETWEEN 0 AND coded_residents AND reduced_physical_function_residents BETWEEN 0 AND coded_residents AND nursing_gg_15_16_residents BETWEEN 0 AND coded_residents`
 - CHECK: `payer_type IN ('medicare', 'managed_medicare_pdpm')`
 - CHECK: `resident_days > 0`
 

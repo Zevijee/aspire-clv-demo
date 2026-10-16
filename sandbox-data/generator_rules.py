@@ -41,6 +41,8 @@ SHARED_RULES = {
     'monthly_adt_summary': ('summary_generators/payer_movements.py',),
     # PDPM pricing: the per diem from each code, shared with the API.
     'census_logs': ('../shared/pdpm.py',),
+    # The nursing categories' letters, for the Category breakdown's days.
+    'pdpm_census_summary': ('../shared/pdpm.py',),
     # Stable SQL draws, shared by the clinical event generators.
     'incident_logs': ('source_data_generators/draws.py',),
     'infection_logs': ('source_data_generators/draws.py',),

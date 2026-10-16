@@ -1248,9 +1248,52 @@ monthly_pdpm_census_facts = Table('monthly_pdpm_census_facts', metadata,
     # diem times it, applied at read time, so a change of per diem rebuilds
     # nothing.
     Column('factor_days', Numeric(12, 4), nullable=False),
+    # Of resident_days, the days on or after the period's PDPM code was
+    # available: the first days of a stay are not yet assessed and coded. The
+    # category columns below are each a part of these, for Monthly Medicare PDPM
+    # Trending's Category breakdown, and overlap: one resident's day can count
+    # in several. A share is a category's days over coded_days.
+    Column('coded_days', Integer, nullable=False),
+    # The assessment's depression flag.
+    Column('depression_days', Integer, nullable=False),
+    # PT/OT clinical category Medical Management: the first letter I-L.
+    Column('medical_management_days', Integer, nullable=False),
+    # SLP group SA: no speech condition and no swallowing need, SLP letter A.
+    Column('slp_sa_days', Integer, nullable=False),
+    # Nursing clinical category Behavioral Symptoms and Cognitive Performance: R-S.
+    Column('behavioral_days', Integer, nullable=False),
+    # Nursing clinical category Reduced Physical Function: T-Y.
+    Column('reduced_physical_function_days', Integer, nullable=False),
+    # Nursing function score (GG) 15 or 16, the most independent band.
+    Column('nursing_gg_15_16_days', Integer, nullable=False),
+    # Residents coded in the month: their period's PDPM code took effect, on
+    # its coded_date, while they were in a bed. And of those each category's,
+    # for the Category breakdown's monthly trend. A resident counts in the month
+    # they were coded only, not the months they carry the code after; one coded
+    # after leaving never took effect and is not counted. Distinct within a
+    # facility, month and payer type, so they add across facilities and months.
+    Column('coded_residents', Integer, nullable=False),
+    Column('depression_residents', Integer, nullable=False),
+    Column('medical_management_residents', Integer, nullable=False),
+    Column('slp_sa_residents', Integer, nullable=False),
+    Column('behavioral_residents', Integer, nullable=False),
+    Column('reduced_physical_function_residents', Integer, nullable=False),
+    Column('nursing_gg_15_16_residents', Integer, nullable=False),
     PrimaryKeyConstraint('month_start', 'facility_id', 'payer_type'),
     CheckConstraint('resident_days > 0'),
     CheckConstraint('actual_rates > 0 AND factor_days > 0'),
+    CheckConstraint('coded_days BETWEEN 0 AND resident_days', name='ck_monthly_pdpm_census_facts_coded_days'),
+    CheckConstraint('depression_days BETWEEN 0 AND coded_days AND medical_management_days BETWEEN 0 AND coded_days '
+        'AND slp_sa_days BETWEEN 0 AND coded_days AND behavioral_days BETWEEN 0 AND coded_days '
+        'AND reduced_physical_function_days BETWEEN 0 AND coded_days AND nursing_gg_15_16_days BETWEEN 0 AND coded_days',
+        name='ck_monthly_pdpm_census_facts_category_days'),
+    CheckConstraint('coded_residents BETWEEN 0 AND coded_days', name='ck_monthly_pdpm_census_facts_coded_residents'),
+    CheckConstraint('depression_residents BETWEEN 0 AND coded_residents '
+        'AND medical_management_residents BETWEEN 0 AND coded_residents '
+        'AND slp_sa_residents BETWEEN 0 AND coded_residents AND behavioral_residents BETWEEN 0 AND coded_residents '
+        'AND reduced_physical_function_residents BETWEEN 0 AND coded_residents '
+        'AND nursing_gg_15_16_residents BETWEEN 0 AND coded_residents',
+        name='ck_monthly_pdpm_census_facts_category_residents'),
     CheckConstraint("payer_type IN ('medicare', 'managed_medicare_pdpm')"),
     CheckConstraint("date_trunc('month', month_start) = month_start"),
 )
